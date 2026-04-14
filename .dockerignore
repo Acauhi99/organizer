@@ -1,0 +1,9 @@
+.git
+.github
+_build
+deps
+node_modules
+assets/node_modules
+priv/static/assets
+docker-compose.yml
+fly.toml

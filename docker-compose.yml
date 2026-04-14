@@ -1,0 +1,22 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: organizer_app
+    environment:
+      MIX_ENV: dev
+      PHX_SERVER: "true"
+      PORT: "4000"
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./:/app
+      - organizer_deps:/app/deps
+      - organizer_build:/app/_build
+    command: >
+      sh -c "mix deps.get && mix ecto.create && mix ecto.migrate && mix phx.server"
+
+volumes:
+  organizer_deps:
+  organizer_build:
