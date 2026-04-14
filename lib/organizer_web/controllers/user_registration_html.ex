@@ -1,0 +1,5 @@
+defmodule OrganizerWeb.UserRegistrationHTML do
+  use OrganizerWeb, :html
+
+  embed_templates "user_registration_html/*"
+end
