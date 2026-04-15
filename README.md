@@ -1,29 +1,57 @@
 # Organizer
 
-Organizador financeiro e de tarefas com Phoenix LiveView, SQLite e autenticacao multiusuario.
+Aplicação de organização pessoal com Phoenix (LiveView + API), SQLite e autenticação multiusuário.
 
-## Funcionalidades iniciais
+## Estado atual da aplicação
 
-- Auth com `phx.gen.auth` (registro, login, sessao e configuracoes de usuario)
-- Dashboard LiveView em `/dashboard` com quick add para:
-	- tarefas
-	- lancamentos financeiros
-	- metas
-- API REST inicial em `/api/v1/tasks`
-- Isolamento por usuario em todas as consultas da camada de dominio (`Scope` + `user_id`)
-- Modelo de dominio inicial para:
+- Autenticação web completa com `phx.gen.auth` (registro, login, sessão, recuperação de senha e configurações de conta).
+- Dashboard LiveView em `/dashboard` com fluxo de operação diária e visão analítica.
+- Importação em lote por texto no dashboard com:
+	- templates rápidos (`mixed`, `tasks`, `finance`, `goals`)
+	- pré-visualização, correções guiadas e importação incremental por bloco
+	- histórico de payload, favoritos, modo estrito e desfazer última importação
+- Operações de tarefas, finanças e metas no mesmo painel com filtros e edição inline.
+- Visão analítica com comparativos por período, capacidade planejada e indicadores de risco de sobrecarga.
+- API REST em `/api/v1` para:
 	- `tasks`
-	- `finance_entries`
-	- `fixed_costs`
-	- `important_dates`
+	- `finance-entries`
 	- `goals`
+	- `fixed-costs`
+	- `important-dates`
+- Isolamento por usuário em todas as consultas de domínio via `Scope`.
+
+## Arquitetura
+
+```mermaid
+flowchart TD
+		Browser[Cliente Web] --> Router[Phoenix Router]
+		Router --> AuthPlugs[Auth plugs e current_scope]
+		AuthPlugs --> Live[Dashboard LiveView]
+		AuthPlugs --> Api[Controllers API v1]
+
+		Live --> Planning[Organizer.Planning]
+		Api --> Planning
+
+		Planning --> Validation[AttributeValidation]
+		Planning --> Analytics[Planning.Analytics]
+		Planning --> Repo[Ecto Repo]
+		Repo --> DB[(SQLite)]
+
+		Live --> Assets[assets/css + assets/js]
+```
+
+## Convenções de código e evolução
+
+- Guia de inserção de novo código: [CODEBASE_GUIDELINES.md](CODEBASE_GUIDELINES.md)
+- Diretrizes visuais e de componentes: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)
+- Planejamento de evolução do produto: [ROADMAP.md](ROADMAP.md)
 
 ## Rodando local (sem Docker)
 
-* Run `mix setup` to install and setup dependencies
-* Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
+- `mix setup`
+- `mix phx.server` ou `iex -S mix phx.server`
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+Aplicação disponível em `http://localhost:4000`.
 
 ## Rodando com Docker
 
@@ -31,7 +59,7 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 docker compose up --build
 ```
 
-Aplicacao em `http://localhost:4000`.
+Aplicação em `http://localhost:4000`.
 
 ### Executando testes com Make
 
@@ -49,7 +77,7 @@ make test-unit
 make test-stage2
 ```
 
-Versao sem Docker (usa Mix local):
+Versão sem Docker (Mix local):
 
 ```bash
 make test-domain-local
@@ -71,48 +99,32 @@ make db-reset
 sh scripts/tests/domain_suite.sh
 ```
 
-Foco em regras de dominio (sem testes de integracao web). O script imprime o tail e finaliza com `DOMAIN_EXIT:<code>`.
-Por padrao o script usa a imagem local `organizer-app:latest` (com Hex preinstalado) e faz fallback para `elixir:1.17` se ela nao existir.
+Foco em regras de domínio (sem testes de integração web). O script imprime o tail e finaliza com `DOMAIN_EXIT:<code>`.
 
 Atalho legado mantido: `sh scripts/test_unit.sh`.
 
-### Suite focada da Etapa 2 (Docker)
+### Suite focada da etapa web (Docker)
 
 ```bash
 sh scripts/tests/web_suite.sh
 ```
 
-O script imprime o tail dos testes e finaliza com `WEB_EXIT:<code>` para facilitar validacao rapida.
+O script imprime o tail dos testes e finaliza com `WEB_EXIT:<code>`.
 
 Atalho legado mantido: `sh scripts/test_stage2.sh`.
 
 ## Deploy Fly.io (base)
 
-1. Crie app e volume:
+Passo inicial de deploy manual:
 
-```bash
-fly launch --no-deploy
-fly volumes create organizer_data --region gru --size 3
-```
+1. Criar app e volume.
+2. Configurar `SECRET_KEY_BASE`.
+3. Executar `fly deploy`.
 
-2. Configure secrets:
+O runbook completo de operação e automação de pipeline ainda está em evolução (ver [ROADMAP.md](ROADMAP.md)).
 
-```bash
-fly secrets set SECRET_KEY_BASE="$(mix phx.gen.secret)"
-```
+## Referências Phoenix
 
-3. Deploy:
-
-```bash
-fly deploy
-```
-
-Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
-
-## Learn more
-
-* Official website: https://www.phoenixframework.org/
-* Guides: https://hexdocs.pm/phoenix/overview.html
-* Docs: https://hexdocs.pm/phoenix
-* Forum: https://elixirforum.com/c/phoenix-forum
-* Source: https://github.com/phoenixframework/phoenix
+- https://www.phoenixframework.org/
+- https://hexdocs.pm/phoenix/overview.html
+- https://hexdocs.pm/phoenix

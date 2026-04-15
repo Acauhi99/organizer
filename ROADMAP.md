@@ -3,7 +3,7 @@
 ## Etapa 1 - Estabilizacao tecnica
 
 1. [x] Ajustar e ampliar a suite de testes para DashboardLive, API de tarefas e isolamento multiusuario.
-2. [x] Validar fluxo completo de auth em LiveView (registro, login, confirmacao, recuperacao, logout).
+2. [x] Validar fluxo completo de auth web (registro, login, recuperacao de senha, logout e confirmacao de troca de e-mail).
 3. [x] Fortalecer seguranca operacional: limites de payload, hardening de headers e trilha de auditoria minima.
 
 ## Etapa 2 - Cobertura completa de dominio
@@ -22,9 +22,9 @@
 
 1. [x] Refinar mobile-first do dashboard com foco em captura rapida e leitura instantanea.
 2. [x] Melhorar acessibilidade (teclado, contraste, feedback de erros).
-3. [x] Incluir onboarding curto para primeira configuracao de metas e categorias financeiras.
+3. [ ] Definir e implementar onboarding opcional orientado por contexto (sem bloquear o fluxo principal).
 
 ## Etapa 5 - Operacao e deploy
 
 1. [x] Automatizar pipeline de CI para format, compile, testes e analise estatica.
-2. Publicar deploy inicial em Fly.io com volume persistente, backups periodicos e runbook.
+2. [ ] Publicar deploy inicial em Fly.io com volume persistente, backups periodicos e runbook.

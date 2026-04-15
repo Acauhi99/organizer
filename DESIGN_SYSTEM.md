@@ -38,6 +38,17 @@ Definidos em `assets/css/app.css`:
 - Inputs/select/textarea com foco padronizado e bordas consistentes
 - Labels em caixa alta, tracking leve e contraste adequado
 
+## Area publica (nao logada)
+Padrao aplicado em Home, Cadastro, Login e Recuperacao de senha:
+- Layout: `.public-auth-shell` com grid de dois cards e `wide={true}` no `<Layouts.app>`
+- Card de contexto/branding: `.brand-hero-card.public-auth-hero`
+- Card de formulario: `.surface-card.public-form-card`
+- Divisor visual: `.public-divider`
+- Pontos de apoio: `.micro-surface.public-point` + `.public-icon-wrap`
+
+Classes de home publica:
+- `.public-home`, `.public-home-hero`, `.public-home-aside`, `.public-feature-grid`, `.public-kpi`, `.public-step-chip`, `.public-pulse-dot`
+
 ## Dashboard (classes utilitárias)
 - `.dashboard-shell`: contexto de estilo do painel
 - `.ds-pill-btn`: botões de chip/preset
@@ -45,6 +56,24 @@ Definidos em `assets/css/app.css`:
 - `.ds-inline-btn-danger`: ação inline destrutiva
 - `.ds-edit-form`: contêiner de edição inline
 - `.ds-empty-state`: estado vazio padronizado
+
+## Bulk import (classes utilitárias)
+- `.bulk-studio-shell`: contêiner principal do fluxo de importação
+- `.bulk-flow-steps` + `.bulk-flow-chip`: trilha visual das etapas do fluxo
+- `.bulk-template-grid` + `.bulk-template-card`: grade e card de templates
+- `.bulk-control-strip`: faixa de controle do modo estrito
+- `.bulk-preview-shell`: área de pré-visualização e revisão
+- `.bulk-entry-card`: card de cada linha interpretada
+- `.bulk-kpi`: cartões de resumo (linhas, válidas, erro, ignoradas)
+
+## Analytics (classes utilitárias)
+- `.analytics-filter-groups`: layout responsivo dos filtros analíticos
+- `.analytics-chip-group`: agrupamento semântico por dimensão de filtro
+- `.analytics-chip-row`: linha de chips com wrap
+- `.analytics-filter-label`: rótulo técnico para cada grupo de filtro
+- `.analytics-chart-stack`: empilhamento vertical das áreas de gráfico
+- `.analytics-chart-grid`: grade dos painéis secundários
+- `.analytics-chart-card`: card base dos painéis analíticos
 
 ## Componentes Base Phoenix
 Refinados em `lib/organizer_web/components/core_components.ex`:
