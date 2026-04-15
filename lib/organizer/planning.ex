@@ -430,7 +430,8 @@ defmodule Organizer.Planning do
   defp parse_non_negative_integer_or_default("", default), do: default
 
   defp parse_non_negative_integer_or_default(value, _default)
-       when is_integer(value) and value >= 0, do: value
+       when is_integer(value) and value >= 0,
+       do: value
 
   defp parse_non_negative_integer_or_default(value, default) when is_binary(value) do
     case Integer.parse(value) do
