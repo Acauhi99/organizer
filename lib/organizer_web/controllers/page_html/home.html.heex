@@ -1,40 +1,53 @@
 <Layouts.flash_group flash={@flash} />
 
-<section class="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
-  <div class="rounded-3xl border border-base-300 bg-gradient-to-br from-emerald-50 via-cyan-50 to-sky-100 p-8 shadow-sm">
-    <p class="text-xs uppercase tracking-[0.2em] text-slate-600">Organizer</p>
-    <h1 class="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-      Controle suas tarefas e financas em um unico painel.
-    </h1>
-    <p class="mt-4 max-w-2xl text-sm leading-6 text-slate-700">
-      O foco aqui e capturar rapido, visualizar proximos dias, acompanhar metas e reduzir sobrecarga com
-      burndown de execucao.
-    </p>
+<section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
+  <div class="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+    <article class="brand-hero-card rounded-[2rem] p-8">
 
-    <div class="mt-8 flex flex-wrap gap-3">
-      <.link href={~p"/users/register"} class="btn btn-primary">Criar conta</.link>
-      <.link href={~p"/users/log-in"} class="btn btn-outline">Entrar</.link>
-    </div>
+      <p class="text-xs font-semibold uppercase tracking-[0.24em] text-base-content/70">Organizer</p>
+      <h1 class="mt-3 max-w-3xl text-4xl font-black leading-[1.05] text-base-content sm:text-5xl">
+        Controle tarefas, metas e financeiro em uma única superfície.
+      </h1>
+      <p class="mt-5 max-w-2xl text-sm leading-7 text-base-content/80 sm:text-base">
+        Capture rápido, revise o que vence nos próximos dias e acompanhe sobrecarga com sinais claros de ritmo.
+      </p>
+
+      <div class="mt-8 flex flex-wrap gap-3">
+        <.link href={~p"/users/register"} class="btn btn-primary">Criar conta</.link>
+        <.link href={~p"/users/log-in"} class="btn btn-outline">Entrar</.link>
+      </div>
+    </article>
+
+    <article class="surface-card rounded-[2rem] p-6 sm:p-8">
+      <h2 class="text-lg font-bold text-base-content">Em menos de 5 minutos</h2>
+      <ol class="mt-4 space-y-3 text-sm text-base-content/80">
+        <li class="micro-surface rounded-xl px-4 py-3">
+          1. Crie sua conta e acesse o painel principal.
+        </li>
+        <li class="micro-surface rounded-xl px-4 py-3">
+          2. Registre tarefas, lançamentos e metas.
+        </li>
+        <li class="micro-surface rounded-xl px-4 py-3">
+          3. Use os filtros e snapshots para ajustar a semana.
+        </li>
+      </ol>
+    </article>
   </div>
 
-  <div class="mt-8 grid gap-4 sm:grid-cols-3">
-    <article class="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-600">Dia a dia</h2>
-      <p class="mt-2 text-sm text-slate-700">
-        Tarefas, datas importantes e prioridades em minutos.
-      </p>
+  <div class="mt-8 grid gap-4 md:grid-cols-3">
+    <article class="surface-card rounded-2xl p-5">
+      <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/70">Dia a dia</h2>
+      <p class="mt-2 text-sm text-base-content/80">Tarefas, datas importantes e prioridades sem atrito.</p>
     </article>
 
-    <article class="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-600">Financeiro</h2>
-      <p class="mt-2 text-sm text-slate-700">
-        Receitas, despesas e custos fixos com visao de saldo.
-      </p>
+    <article class="surface-card rounded-2xl p-5">
+      <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/70">Financeiro</h2>
+      <p class="mt-2 text-sm text-base-content/80">Receitas, despesas e custos fixos com leitura imediata.</p>
     </article>
 
-    <article class="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-600">Evolucao</h2>
-      <p class="mt-2 text-sm text-slate-700">Metas por horizonte e burndown anti-burnout.</p>
+    <article class="surface-card rounded-2xl p-5">
+      <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/70">Evolução</h2>
+      <p class="mt-2 text-sm text-base-content/80">Comparativos de progresso com alerta de sobrecarga.</p>
     </article>
   </div>
 </section>

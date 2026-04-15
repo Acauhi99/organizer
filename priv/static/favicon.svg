@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Organizer favicon">
+  <defs>
+    <linearGradient id="fav-ring" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22d3ee" />
+      <stop offset="1" stop-color="#34d399" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="#0f172a" />
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="none" stroke="url(#fav-ring)" stroke-width="2.5" />
+  <path d="M32 14c9.94 0 18 8.06 18 18S41.94 50 32 50 14 41.94 14 32s8.06-18 18-18Z" fill="none" stroke="url(#fav-ring)" stroke-width="5" />
+  <path d="m24 33 6 6 11-11" fill="none" stroke="#e2f6ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

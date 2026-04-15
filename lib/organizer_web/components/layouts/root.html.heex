@@ -1,59 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="Organizer" suffix=" · Phoenix Framework">
+    <.live_title default="Organizer" suffix="">
       {assigns[:page_title]}
     </.live_title>
+    <link phx-track-static rel="icon" type="image/x-icon" href={~p"/favicon-v2.ico"} />
+    <link phx-track-static rel="shortcut icon" type="image/x-icon" href={~p"/favicon-v2.ico"} />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
-    <script>
-      (() => {
-        const setTheme = (theme) => {
-          if (theme === "system") {
-            localStorage.removeItem("phx:theme");
-            document.documentElement.removeAttribute("data-theme");
-          } else {
-            localStorage.setItem("phx:theme", theme);
-            document.documentElement.setAttribute("data-theme", theme);
-          }
-        };
-        if (!document.documentElement.hasAttribute("data-theme")) {
-          setTheme(localStorage.getItem("phx:theme") || "system");
-        }
-        window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "system"));
-        
-        window.addEventListener("phx:set-theme", (e) => setTheme(e.target.dataset.phxTheme));
-      })();
-    </script>
   </head>
-  <body>
-    <ul class="menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
-      <%= if @current_scope do %>
-        <li>
-          {@current_scope.user.email}
-        </li>
-        <li>
-          <.link href={~p"/dashboard"}>Dashboard</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/settings"}>Settings</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-out"} method="delete">Log out</.link>
-        </li>
-      <% else %>
-        <li>
-          <.link href={~p"/users/register"}>Register</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-in"}>Log in</.link>
-        </li>
-      <% end %>
-    </ul>
+  <body class="min-h-screen text-base-content">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-base-100 focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
+    >
+      Pular para o conteudo principal
+    </a>
+
+    <nav aria-label="Navegação da conta" class="site-nav relative z-20 border-b border-base-300/60 bg-base-100/70 backdrop-blur">
+      <div class="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+        <.link href={~p"/"} class="inline-flex items-center gap-2.5">
+          <img src={~p"/images/organizer-logo.svg"} alt="Organizer" class="brand-mark h-8 w-8" />
+          <span class="brand-wordmark text-xs font-semibold uppercase tracking-[0.2em]">Organizer</span>
+        </.link>
+
+        <ul class="menu nav-menu menu-horizontal gap-1 p-0">
+          <%= if @current_scope do %>
+            <li>
+              <span class="identity-pill inline-block max-w-44 truncate rounded-full px-3 py-1 text-xs sm:max-w-64">
+                {@current_scope.user.email}
+              </span>
+            </li>
+            <li>
+              <.link href={~p"/dashboard"} class="top-nav-link">Painel</.link>
+            </li>
+            <li>
+              <.link href={~p"/users/settings"} class="top-nav-link">Configurações</.link>
+            </li>
+            <li>
+              <.link href={~p"/users/log-out"} method="delete" class="top-nav-link">Sair</.link>
+            </li>
+          <% else %>
+            <li>
+              <.link href={~p"/users/register"} class="top-nav-link">Cadastrar</.link>
+            </li>
+            <li>
+              <.link href={~p"/users/log-in"} class="top-nav-link">Entrar</.link>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </nav>
     {@inner_content}
   </body>
 </html>

@@ -60,7 +60,7 @@ defmodule OrganizerWeb.CoreComponents do
       {@rest}
     >
       <div class={[
-        "alert w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
+        "alert w-80 sm:w-96 max-w-80 sm:max-w-96 rounded-2xl border border-base-content/15 text-wrap shadow-2xl backdrop-blur",
         @kind == :info && "alert-info",
         @kind == :error && "alert-error"
       ]}>
@@ -90,26 +90,30 @@ defmodule OrganizerWeb.CoreComponents do
   """
   attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
   attr :class, :string
-  attr :variant, :string, values: ~w(primary)
+  attr :variant, :string, values: ~w(primary soft outline)
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
-    variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
+    variants = %{
+      "primary" => "btn-primary",
+      "soft" => "btn-soft",
+      "outline" => "btn-outline",
+      nil => "btn-soft"
+    }
 
-    assigns =
-      assign_new(assigns, :class, fn ->
-        ["btn", Map.fetch!(variants, assigns[:variant])]
-      end)
+    base_class = ["btn", Map.fetch!(variants, assigns[:variant])]
+    merged_class = base_class ++ List.wrap(assigns[:class])
+    assigns = assign(assigns, :class, merged_class)
 
     if rest[:href] || rest[:navigate] || rest[:patch] do
       ~H"""
-      <.link class={@class} {@rest}>
+      <.link class={["ui-btn", @class]} {@rest}>
         {render_slot(@inner_block)}
       </.link>
       """
     else
       ~H"""
-      <button class={@class} {@rest}>
+      <button class={["ui-btn", @class]} {@rest}>
         {render_slot(@inner_block)}
       </button>
       """
@@ -185,10 +189,10 @@ defmodule OrganizerWeb.CoreComponents do
       end)
 
     ~H"""
-    <div class="fieldset mb-2">
+    <div class="fieldset mb-3">
       <label>
         <input type="hidden" name={@name} value="false" disabled={@rest[:disabled]} />
-        <span class="label">
+        <span class="label text-xs font-semibold uppercase tracking-[0.14em] text-base-content/70">
           <input
             type="checkbox"
             id={@id}
@@ -207,9 +211,9 @@ defmodule OrganizerWeb.CoreComponents do
 
   def input(%{type: "select"} = assigns) do
     ~H"""
-    <div class="fieldset mb-2">
+    <div class="fieldset mb-3">
       <label>
-        <span :if={@label} class="label mb-1">{@label}</span>
+        <span :if={@label} class="label mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">{@label}</span>
         <select
           id={@id}
           name={@name}
@@ -228,9 +232,9 @@ defmodule OrganizerWeb.CoreComponents do
 
   def input(%{type: "textarea"} = assigns) do
     ~H"""
-    <div class="fieldset mb-2">
+    <div class="fieldset mb-3">
       <label>
-        <span :if={@label} class="label mb-1">{@label}</span>
+        <span :if={@label} class="label mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">{@label}</span>
         <textarea
           id={@id}
           name={@name}
@@ -249,9 +253,9 @@ defmodule OrganizerWeb.CoreComponents do
   # All other inputs text, datetime-local, url, password, etc. are handled here...
   def input(assigns) do
     ~H"""
-    <div class="fieldset mb-2">
+    <div class="fieldset mb-3">
       <label>
-        <span :if={@label} class="label mb-1">{@label}</span>
+        <span :if={@label} class="label mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">{@label}</span>
         <input
           type={@type}
           name={@name}
@@ -269,7 +273,7 @@ defmodule OrganizerWeb.CoreComponents do
     """
   end
 
-  # Helper used by inputs to generate form errors
+  # Shared function used by inputs to generate form errors
   defp error(assigns) do
     ~H"""
     <p class="mt-1.5 flex gap-2 items-center text-sm text-error">
@@ -288,9 +292,9 @@ defmodule OrganizerWeb.CoreComponents do
 
   def header(assigns) do
     ~H"""
-    <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
+    <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4 border-b border-base-content/10"]}>
       <div>
-        <h1 class="text-lg font-semibold leading-8">
+        <h1 class="text-lg font-semibold leading-8 tracking-tight">
           {render_slot(@inner_block)}
         </h1>
         <p :if={@subtitle != []} class="text-sm text-base-content/70">
@@ -334,7 +338,7 @@ defmodule OrganizerWeb.CoreComponents do
       end
 
     ~H"""
-    <table class="table table-zebra">
+    <table class="table table-zebra overflow-hidden rounded-2xl border border-base-content/14 bg-base-100/75 shadow-lg">
       <thead>
         <tr>
           <th :for={col <- @col}>{col[:label]}</th>
@@ -381,8 +385,8 @@ defmodule OrganizerWeb.CoreComponents do
 
   def list(assigns) do
     ~H"""
-    <ul class="list">
-      <li :for={item <- @item} class="list-row">
+    <ul class="list rounded-2xl border border-base-content/14 bg-base-100/75 p-2 shadow-lg">
+      <li :for={item <- @item} class="list-row rounded-xl border border-base-content/10 bg-base-100/65">
         <div class="list-col-grow">
           <div class="font-bold">{item.title}</div>
           <div>{render_slot(item)}</div>

@@ -17,7 +17,7 @@ defmodule OrganizerWeb do
   those modules here.
   """
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
+  def static_paths, do: ~w(assets fonts images favicon.ico favicon-v2.ico favicon.svg robots.txt)
 
   def router do
     quote do
@@ -52,7 +52,7 @@ defmodule OrganizerWeb do
     quote do
       use Phoenix.LiveView
 
-      unquote(html_helpers())
+      unquote(html_component_imports())
     end
   end
 
@@ -60,7 +60,7 @@ defmodule OrganizerWeb do
     quote do
       use Phoenix.LiveComponent
 
-      unquote(html_helpers())
+      unquote(html_component_imports())
     end
   end
 
@@ -72,12 +72,12 @@ defmodule OrganizerWeb do
       import Phoenix.Controller,
         only: [get_csrf_token: 0, view_module: 1, view_template: 1]
 
-      # Include general helpers for rendering HTML
-      unquote(html_helpers())
+      # Include common component imports for rendering HTML
+      unquote(html_component_imports())
     end
   end
 
-  defp html_helpers do
+  defp html_component_imports do
     quote do
       # Translation
       use Gettext, backend: OrganizerWeb.Gettext
