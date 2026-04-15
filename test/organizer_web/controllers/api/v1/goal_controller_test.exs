@@ -36,6 +36,24 @@ defmodule OrganizerWeb.API.V1.GoalControllerTest do
       assert Enum.any?(goals, &(&1["id"] == id))
     end
 
+    test "returns validation error when payload is invalid", %{conn: conn} do
+      conn =
+        post(conn, ~p"/api/v1/goals", %{
+          "goal" => %{
+            "title" => "ab",
+            "horizon" => "immediate",
+            "target_value" => 0
+          }
+        })
+
+      assert %{"error" => %{"code" => "validation_error", "details" => details}} =
+               json_response(conn, 422)
+
+      assert Map.has_key?(details, "title")
+      assert Map.has_key?(details, "horizon")
+      assert Map.has_key?(details, "target_value")
+    end
+
     test "enforces user data isolation for show update and delete", %{conn: conn} do
       conn =
         post(conn, ~p"/api/v1/goals", %{

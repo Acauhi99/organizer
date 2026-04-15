@@ -36,6 +36,24 @@ defmodule OrganizerWeb.API.V1.FixedCostControllerTest do
       assert Enum.any?(costs, &(&1["id"] == id))
     end
 
+    test "returns validation error when payload is invalid", %{conn: conn} do
+      conn =
+        post(conn, ~p"/api/v1/fixed-costs", %{
+          "fixed_cost" => %{
+            "name" => "x",
+            "amount_cents" => 0,
+            "billing_day" => 45
+          }
+        })
+
+      assert %{"error" => %{"code" => "validation_error", "details" => details}} =
+               json_response(conn, 422)
+
+      assert Map.has_key?(details, "name")
+      assert Map.has_key?(details, "amount_cents")
+      assert Map.has_key?(details, "billing_day")
+    end
+
     test "enforces user data isolation for show update and delete", %{conn: conn} do
       conn =
         post(conn, ~p"/api/v1/fixed-costs", %{

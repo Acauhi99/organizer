@@ -36,6 +36,19 @@ defmodule OrganizerWeb.API.V1.TaskControllerTest do
       assert Enum.any?(tasks, &(&1["id"] == id))
     end
 
+    test "returns validation error when payload is invalid", %{conn: conn} do
+      conn =
+        post(conn, ~p"/api/v1/tasks", %{
+          "task" => %{"title" => "x", "priority" => "critical"}
+        })
+
+      assert %{"error" => %{"code" => "validation_error", "details" => details}} =
+               json_response(conn, 422)
+
+      assert Map.has_key?(details, "title")
+      assert Map.has_key?(details, "priority")
+    end
+
     test "enforces user data isolation for show update and delete", %{conn: conn} do
       conn =
         post(conn, ~p"/api/v1/tasks", %{

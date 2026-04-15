@@ -19,10 +19,14 @@ defmodule Organizer.Planning do
     with {:ok, user_id} <- scope_user_id(scope) do
       status_filter = Map.get(params, "status") || Map.get(params, :status)
       priority_filter = Map.get(params, "priority") || Map.get(params, :priority)
-      days = parse_positive_int(Map.get(params, "days") || Map.get(params, :days), 7)
 
-      with {:ok, status_filter} <- enum_filter(status_filter, Task.statuses(), :status),
-           {:ok, priority_filter} <- enum_filter(priority_filter, Task.priorities(), :priority) do
+      days =
+        parse_positive_integer_or_default(Map.get(params, "days") || Map.get(params, :days), 7)
+
+      with {:ok, status_filter} <-
+             parse_enum_filter_value(status_filter, Task.statuses(), :status),
+           {:ok, priority_filter} <-
+             parse_enum_filter_value(priority_filter, Task.priorities(), :priority) do
         query =
           from t in Task,
             where: t.user_id == ^user_id,
@@ -56,7 +60,7 @@ defmodule Organizer.Planning do
          {:ok, normalized} <- AttributeValidation.validate_task_attrs(attrs) do
       %Task{user_id: user_id}
       |> Task.changeset(normalized)
-      |> repo_write()
+      |> persist_changeset()
     end
   end
 
@@ -75,7 +79,7 @@ defmodule Organizer.Planning do
          %Task{} = task <- Repo.get_by(Task, id: id, user_id: user_id) do
       task
       |> Task.changeset(attrs)
-      |> repo_write()
+      |> persist_changeset()
     else
       nil -> {:error, :not_found}
       {:error, _reason} = error -> error
@@ -95,7 +99,9 @@ defmodule Organizer.Planning do
 
   def list_finance_entries(%Scope{} = scope, params \\ %{}) do
     with {:ok, user_id} <- scope_user_id(scope) do
-      days = parse_positive_int(Map.get(params, "days") || Map.get(params, :days), 30)
+      days =
+        parse_positive_integer_or_default(Map.get(params, "days") || Map.get(params, :days), 30)
+
       start_on = Date.add(Date.utc_today(), -days)
 
       query =
@@ -112,7 +118,7 @@ defmodule Organizer.Planning do
          {:ok, normalized} <- AttributeValidation.validate_finance_entry_attrs(attrs) do
       %FinanceEntry{user_id: user_id}
       |> FinanceEntry.changeset(normalized)
-      |> repo_write()
+      |> persist_changeset()
     end
   end
 
@@ -132,7 +138,7 @@ defmodule Organizer.Planning do
          {:ok, normalized} <- AttributeValidation.validate_finance_entry_attrs(attrs) do
       entry
       |> FinanceEntry.changeset(normalized)
-      |> repo_write()
+      |> persist_changeset()
     else
       nil -> {:error, :not_found}
       {:error, _reason} = error -> error
@@ -169,8 +175,10 @@ defmodule Organizer.Planning do
       status_filter = Map.get(params, "status") || Map.get(params, :status)
       horizon_filter = Map.get(params, "horizon") || Map.get(params, :horizon)
 
-      with {:ok, status_filter} <- enum_filter(status_filter, Goal.statuses(), :status),
-           {:ok, horizon_filter} <- enum_filter(horizon_filter, Goal.horizons(), :horizon) do
+      with {:ok, status_filter} <-
+             parse_enum_filter_value(status_filter, Goal.statuses(), :status),
+           {:ok, horizon_filter} <-
+             parse_enum_filter_value(horizon_filter, Goal.horizons(), :horizon) do
         query =
           from g in Goal,
             where: g.user_id == ^user_id,
@@ -200,7 +208,7 @@ defmodule Organizer.Planning do
          {:ok, normalized} <- AttributeValidation.validate_goal_attrs(attrs) do
       %Goal{user_id: user_id}
       |> Goal.changeset(normalized)
-      |> repo_write()
+      |> persist_changeset()
     end
   end
 
@@ -220,7 +228,7 @@ defmodule Organizer.Planning do
          {:ok, normalized} <- AttributeValidation.validate_goal_attrs(attrs) do
       goal
       |> Goal.changeset(normalized)
-      |> repo_write()
+      |> persist_changeset()
     else
       nil -> {:error, :not_found}
       {:error, _reason} = error -> error
@@ -255,7 +263,7 @@ defmodule Organizer.Planning do
     with {:ok, user_id} <- scope_user_id(scope) do
       %ImportantDate{user_id: user_id}
       |> ImportantDate.changeset(attrs)
-      |> repo_write()
+      |> persist_changeset()
     end
   end
 
@@ -274,7 +282,7 @@ defmodule Organizer.Planning do
          %ImportantDate{} = date <- Repo.get_by(ImportantDate, id: id, user_id: user_id) do
       date
       |> ImportantDate.changeset(attrs)
-      |> repo_write()
+      |> persist_changeset()
     else
       nil -> {:error, :not_found}
       {:error, _reason} = error -> error
@@ -303,7 +311,7 @@ defmodule Organizer.Planning do
     with {:ok, user_id} <- scope_user_id(scope) do
       %FixedCost{user_id: user_id}
       |> FixedCost.changeset(attrs)
-      |> repo_write()
+      |> persist_changeset()
     end
   end
 
@@ -322,7 +330,7 @@ defmodule Organizer.Planning do
          %FixedCost{} = cost <- Repo.get_by(FixedCost, id: id, user_id: user_id) do
       cost
       |> FixedCost.changeset(attrs)
-      |> repo_write()
+      |> persist_changeset()
     else
       nil -> {:error, :not_found}
       {:error, _reason} = error -> error
@@ -341,8 +349,10 @@ defmodule Organizer.Planning do
   end
 
   def burndown_snapshot(%Scope{} = scope, opts \\ %{}) do
-    days = parse_positive_int(get_opt(opts, :days), 14)
-    planned_capacity = parse_non_negative_int(get_opt(opts, :planned_capacity), 10)
+    days = parse_positive_integer_or_default(read_option_value(opts, :days), 14)
+
+    planned_capacity =
+      parse_non_negative_integer_or_default(read_option_value(opts, :planned_capacity), 10)
 
     with {:ok, tasks} <- list_tasks(scope, %{days: days}) do
       {done, open} = Enum.split_with(tasks, &(&1.status == :done))
@@ -362,8 +372,10 @@ defmodule Organizer.Planning do
   end
 
   def analytics_overview(%Scope{} = scope, opts \\ %{}) do
-    days = parse_positive_int(get_opt(opts, :days), 365)
-    planned_capacity = parse_non_negative_int(get_opt(opts, :planned_capacity), 10)
+    days = parse_positive_integer_or_default(read_option_value(opts, :days), 365)
+
+    planned_capacity =
+      parse_non_negative_integer_or_default(read_option_value(opts, :planned_capacity), 10)
 
     with {:ok, tasks} <- list_tasks(scope, %{days: days}) do
       {:ok,
@@ -375,63 +387,71 @@ defmodule Organizer.Planning do
     end
   end
 
-  defp repo_write(changeset) do
+  defp persist_changeset(changeset) do
     case Repo.insert_or_update(changeset) do
       {:ok, record} -> {:ok, record}
-      {:error, changeset} -> {:error, {:validation, changeset_errors(changeset)}}
+      {:error, changeset} -> {:error, {:validation, build_changeset_error_map(changeset)}}
     end
   end
 
-  defp changeset_errors(changeset) do
+  defp build_changeset_error_map(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
+        String.replace(acc, "%{#{key}}", error_option_value_to_string(value))
       end)
     end)
   end
 
+  defp error_option_value_to_string(value) when is_binary(value), do: value
+  defp error_option_value_to_string(value) when is_integer(value), do: Integer.to_string(value)
+  defp error_option_value_to_string(value) when is_float(value), do: Float.to_string(value)
+  defp error_option_value_to_string(value) when is_atom(value), do: Atom.to_string(value)
+  defp error_option_value_to_string(value), do: inspect(value)
+
   defp scope_user_id(%Scope{user: %{id: user_id}}), do: {:ok, user_id}
   defp scope_user_id(_), do: {:error, :unauthorized}
 
-  defp parse_positive_int(nil, default), do: default
-  defp parse_positive_int("", default), do: default
+  defp parse_positive_integer_or_default(nil, default), do: default
+  defp parse_positive_integer_or_default("", default), do: default
 
-  defp parse_positive_int(value, _default) when is_integer(value) and value > 0, do: value
+  defp parse_positive_integer_or_default(value, _default) when is_integer(value) and value > 0,
+    do: value
 
-  defp parse_positive_int(value, default) when is_binary(value) do
+  defp parse_positive_integer_or_default(value, default) when is_binary(value) do
     case Integer.parse(value) do
       {parsed, ""} when parsed > 0 -> parsed
       _ -> default
     end
   end
 
-  defp parse_positive_int(_, default), do: default
+  defp parse_positive_integer_or_default(_, default), do: default
 
-  defp parse_non_negative_int(nil, default), do: default
-  defp parse_non_negative_int("", default), do: default
+  defp parse_non_negative_integer_or_default(nil, default), do: default
+  defp parse_non_negative_integer_or_default("", default), do: default
 
-  defp parse_non_negative_int(value, _default) when is_integer(value) and value >= 0, do: value
+  defp parse_non_negative_integer_or_default(value, _default)
+       when is_integer(value) and value >= 0, do: value
 
-  defp parse_non_negative_int(value, default) when is_binary(value) do
+  defp parse_non_negative_integer_or_default(value, default) when is_binary(value) do
     case Integer.parse(value) do
       {parsed, ""} when parsed >= 0 -> parsed
       _ -> default
     end
   end
 
-  defp parse_non_negative_int(_, default), do: default
+  defp parse_non_negative_integer_or_default(_, default), do: default
 
-  defp get_opt(opts, key) when is_map(opts),
+  defp read_option_value(opts, key) when is_map(opts),
     do: Map.get(opts, key) || Map.get(opts, Atom.to_string(key))
 
-  defp get_opt(opts, key) when is_list(opts), do: Keyword.get(opts, key)
-  defp get_opt(_opts, _key), do: nil
+  defp read_option_value(opts, key) when is_list(opts), do: Keyword.get(opts, key)
+  defp read_option_value(_opts, _key), do: nil
 
-  defp enum_filter(nil, _allowed_atoms, _field), do: {:ok, nil}
-  defp enum_filter("", _allowed_atoms, _field), do: {:ok, nil}
-  defp enum_filter("all", _allowed_atoms, _field), do: {:ok, nil}
+  defp parse_enum_filter_value(nil, _allowed_atoms, _field), do: {:ok, nil}
+  defp parse_enum_filter_value("", _allowed_atoms, _field), do: {:ok, nil}
+  defp parse_enum_filter_value("all", _allowed_atoms, _field), do: {:ok, nil}
 
-  defp enum_filter(value, allowed_atoms, field) when is_atom(value) do
+  defp parse_enum_filter_value(value, allowed_atoms, field) when is_atom(value) do
     if value in allowed_atoms do
       {:ok, value}
     else
@@ -439,13 +459,13 @@ defmodule Organizer.Planning do
     end
   end
 
-  defp enum_filter(value, allowed_atoms, field) when is_binary(value) do
+  defp parse_enum_filter_value(value, allowed_atoms, field) when is_binary(value) do
     case Enum.find(allowed_atoms, &(Atom.to_string(&1) == value)) do
       nil -> {:error, {:validation, %{field => ["is invalid"]}}}
       atom -> {:ok, atom}
     end
   end
 
-  defp enum_filter(_value, _allowed_atoms, field),
+  defp parse_enum_filter_value(_value, _allowed_atoms, field),
     do: {:error, {:validation, %{field => ["is invalid"]}}}
 end

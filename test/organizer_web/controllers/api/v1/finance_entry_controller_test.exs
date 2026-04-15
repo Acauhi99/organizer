@@ -37,6 +37,24 @@ defmodule OrganizerWeb.API.V1.FinanceEntryControllerTest do
       assert Enum.any?(entries, &(&1["id"] == id))
     end
 
+    test "returns validation error when payload is invalid", %{conn: conn} do
+      conn =
+        post(conn, ~p"/api/v1/finance-entries", %{
+          "finance_entry" => %{
+            "kind" => "expense",
+            "amount_cents" => 0,
+            "category" => "x",
+            "occurred_on" => Date.to_iso8601(Date.utc_today())
+          }
+        })
+
+      assert %{"error" => %{"code" => "validation_error", "details" => details}} =
+               json_response(conn, 422)
+
+      assert Map.has_key?(details, "amount_cents")
+      assert Map.has_key?(details, "category")
+    end
+
     test "enforces user data isolation for show update and delete", %{conn: conn} do
       conn =
         post(conn, ~p"/api/v1/finance-entries", %{
