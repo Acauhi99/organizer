@@ -29,11 +29,18 @@ jobs:
       - name: Check Fly.io configuration
         id: fly_config
         run: |
-          if [[ -z "${{ secrets.FLY_API_TOKEN }}" || -z "${{ vars.FLY_APP_NAME }}" ]]; then
+          app_name="${{ vars.FLY_APP_NAME }}"
+
+          if [[ -z "$app_name" ]]; then
+            app_name="${{ secrets.FLY_APP_NAME }}"
+          fi
+
+          if [[ -z "${{ secrets.FLY_API_TOKEN }}" || -z "$app_name" ]]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Fly.io deploy skipped: configure secret FLY_API_TOKEN and variable FLY_APP_NAME."
+            echo "Fly.io deploy skipped: configure secret FLY_API_TOKEN and set FLY_APP_NAME (variable or secret)."
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "app_name=$app_name" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Flyctl
@@ -44,7 +51,7 @@ jobs:
         if: steps.fly_config.outputs.enabled == 'true'
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --remote-only --app "${{ vars.FLY_APP_NAME }}"
+        run: flyctl deploy --remote-only --app "${{ steps.fly_config.outputs.app_name }}"
 
       - name: Skip deploy (configuration pending)
         if: steps.fly_config.outputs.enabled != 'true'
