@@ -213,7 +213,12 @@ defmodule OrganizerWeb.CoreComponents do
     ~H"""
     <div class="fieldset mb-3">
       <label>
-        <span :if={@label} class="label mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">{@label}</span>
+        <span
+          :if={@label}
+          class="label mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65"
+        >
+          {@label}
+        </span>
         <select
           id={@id}
           name={@name}
@@ -234,7 +239,12 @@ defmodule OrganizerWeb.CoreComponents do
     ~H"""
     <div class="fieldset mb-3">
       <label>
-        <span :if={@label} class="label mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">{@label}</span>
+        <span
+          :if={@label}
+          class="label mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65"
+        >
+          {@label}
+        </span>
         <textarea
           id={@id}
           name={@name}
@@ -255,7 +265,12 @@ defmodule OrganizerWeb.CoreComponents do
     ~H"""
     <div class="fieldset mb-3">
       <label>
-        <span :if={@label} class="label mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">{@label}</span>
+        <span
+          :if={@label}
+          class="label mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65"
+        >
+          {@label}
+        </span>
         <input
           type={@type}
           name={@name}
@@ -292,7 +307,10 @@ defmodule OrganizerWeb.CoreComponents do
 
   def header(assigns) do
     ~H"""
-    <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4 border-b border-base-content/10"]}>
+    <header class={[
+      @actions != [] && "flex items-center justify-between gap-6",
+      "pb-4 border-b border-base-content/10"
+    ]}>
       <div>
         <h1 class="text-lg font-semibold leading-8 tracking-tight">
           {render_slot(@inner_block)}
@@ -386,7 +404,10 @@ defmodule OrganizerWeb.CoreComponents do
   def list(assigns) do
     ~H"""
     <ul class="list rounded-2xl border border-base-content/14 bg-base-100/75 p-2 shadow-lg">
-      <li :for={item <- @item} class="list-row rounded-xl border border-base-content/10 bg-base-100/65">
+      <li
+        :for={item <- @item}
+        class="list-row rounded-xl border border-base-content/10 bg-base-100/65"
+      >
         <div class="list-col-grow">
           <div class="font-bold">{item.title}</div>
           <div>{render_slot(item)}</div>

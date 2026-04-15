@@ -3,6 +3,8 @@ defmodule OrganizerWeb.PageControllerTest do
 
   test "GET /", %{conn: conn} do
     conn = get(conn, ~p"/")
-    assert html_response(conn, 200) =~ "Controle suas tarefas e financas em um unico painel"
+
+    assert html_response(conn, 200) =~
+             "Controle tarefas, metas e financeiro em uma única superfície"
   end
 end

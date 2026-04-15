@@ -22,7 +22,8 @@ defmodule Organizer.Planning.Analytics do
 
     open_14d =
       Enum.count(tasks, fn task ->
-        open_task?(task) and (is_nil(due_date(task)) or Date.compare(due_date(task), horizon_end) in [:lt, :eq])
+        open_task?(task) and
+          (is_nil(due_date(task)) or Date.compare(due_date(task), horizon_end) in [:lt, :eq])
       end)
 
     executed_last_7d =
@@ -36,7 +37,8 @@ defmodule Organizer.Planning.Analytics do
 
     overdue_open =
       Enum.count(tasks, fn task ->
-        open_task?(task) and not is_nil(due_date(task)) and Date.compare(due_date(task), today) == :lt
+        open_task?(task) and not is_nil(due_date(task)) and
+          Date.compare(due_date(task), today) == :lt
       end)
 
     %{
@@ -54,11 +56,14 @@ defmodule Organizer.Planning.Analytics do
 
     overdue_open =
       Enum.count(tasks, fn task ->
-        open_task?(task) and not is_nil(due_date(task)) and Date.compare(due_date(task), today) == :lt
+        open_task?(task) and not is_nil(due_date(task)) and
+          Date.compare(due_date(task), today) == :lt
       end)
 
     recent_completed = count_completed_between(tasks, Date.add(today, -13), today)
-    previous_completed = count_completed_between(tasks, Date.add(today, -27), Date.add(today, -14))
+
+    previous_completed =
+      count_completed_between(tasks, Date.add(today, -27), Date.add(today, -14))
 
     overdue_ratio = safe_ratio(overdue_open, max(open_tasks, 1))
     open_load_ratio = min(open_tasks / 20, 1.0)
@@ -111,7 +116,8 @@ defmodule Organizer.Planning.Analytics do
 
     overdue_open =
       Enum.count(tasks, fn task ->
-        open_task?(task) and not is_nil(due_date(task)) and Date.compare(due_date(task), today) == :lt
+        open_task?(task) and not is_nil(due_date(task)) and
+          Date.compare(due_date(task), today) == :lt
       end)
 
     %{

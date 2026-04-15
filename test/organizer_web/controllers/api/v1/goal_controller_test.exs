@@ -24,7 +24,7 @@ defmodule OrganizerWeb.API.V1.GoalControllerTest do
           "goal" => %{
             "title" => "Reserva de emergencia",
             "horizon" => "long",
-            "target_value" => 100000
+            "target_value" => 100_000
           }
         })
 

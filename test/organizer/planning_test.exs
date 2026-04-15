@@ -74,13 +74,25 @@ defmodule Organizer.PlanningTest do
       scope = user_scope_fixture()
 
       assert {:ok, _} =
-               Planning.create_task(scope, %{"title" => "Task feita", "status" => "done", "priority" => "high"})
+               Planning.create_task(scope, %{
+                 "title" => "Task feita",
+                 "status" => "done",
+                 "priority" => "high"
+               })
 
       assert {:ok, _} =
-               Planning.create_task(scope, %{"title" => "Task aberta", "status" => "todo", "priority" => "low"})
+               Planning.create_task(scope, %{
+                 "title" => "Task aberta",
+                 "status" => "todo",
+                 "priority" => "low"
+               })
 
       assert {:ok, filtered} =
-               Planning.list_tasks(scope, %{"status" => "done", "priority" => "high", "days" => "30"})
+               Planning.list_tasks(scope, %{
+                 "status" => "done",
+                 "priority" => "high",
+                 "days" => "30"
+               })
 
       assert length(filtered) == 1
       assert hd(filtered).title == "Task feita"
@@ -146,11 +158,15 @@ defmodule Organizer.PlanningTest do
                  "due_on" => Date.to_iso8601(Date.add(Date.utc_today(), 2))
                })
 
-      assert {:ok, low_capacity} = Planning.analytics_overview(scope, %{"planned_capacity" => "0", "days" => "30"})
+      assert {:ok, low_capacity} =
+               Planning.analytics_overview(scope, %{"planned_capacity" => "0", "days" => "30"})
+
       assert low_capacity.workload_capacity.planned_capacity_14d == 0
       assert low_capacity.workload_capacity.overload_alert
 
-      assert {:ok, high_capacity} = Planning.analytics_overview(scope, planned_capacity: 20, days: 30)
+      assert {:ok, high_capacity} =
+               Planning.analytics_overview(scope, planned_capacity: 20, days: 30)
+
       assert high_capacity.workload_capacity.planned_capacity_14d == 20
       refute high_capacity.workload_capacity.overload_alert
     end
@@ -167,7 +183,10 @@ defmodule Organizer.PlanningTest do
                })
 
       assert {:ok, snapshot} =
-               Planning.burndown_snapshot(scope, %{"planned_capacity" => "invalid", "days" => "nope"})
+               Planning.burndown_snapshot(scope, %{
+                 "planned_capacity" => "invalid",
+                 "days" => "nope"
+               })
 
       assert snapshot.planned_capacity_14d == 10
       assert snapshot.total >= 1

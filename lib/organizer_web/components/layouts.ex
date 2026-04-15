@@ -42,7 +42,9 @@ defmodule OrganizerWeb.Layouts do
     <header class="px-4 pb-2 pt-4 sm:px-6 lg:px-8">
       <div class="surface-card mx-auto flex max-w-7xl flex-col gap-4 rounded-3xl p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div class="space-y-1">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">Superfície de Comando Organizer</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">
+            Superfície de Comando Organizer
+          </p>
           <p class="text-sm text-base-content/80">
             Planejamento diário, metas e financeiro no mesmo fluxo.
           </p>
@@ -50,9 +52,13 @@ defmodule OrganizerWeb.Layouts do
 
         <div class="flex items-center gap-3">
           <%= if @current_scope do %>
-            <.link href={~p"/dashboard"} class="btn btn-outline btn-sm header-cta">Abrir painel</.link>
+            <.link href={~p"/dashboard"} class="btn btn-outline btn-sm header-cta">
+              Abrir painel
+            </.link>
           <% else %>
-            <.link href={~p"/users/register"} class="btn btn-outline btn-sm header-cta">Criar conta</.link>
+            <.link href={~p"/users/register"} class="btn btn-outline btn-sm header-cta">
+              Criar conta
+            </.link>
           <% end %>
         </div>
       </div>
@@ -110,5 +116,4 @@ defmodule OrganizerWeb.Layouts do
     </div>
     """
   end
-
 end

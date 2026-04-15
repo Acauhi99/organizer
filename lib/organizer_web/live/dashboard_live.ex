@@ -12,7 +12,14 @@ defmodule OrganizerWeb.DashboardLive do
   @goal_status_filters ["all", "active", "paused", "done"]
   @analytics_days_filters ["30", "90", "365"]
   @analytics_capacity_filters ["5", "10", "15", "20", "30"]
-  @finance_category_presets ["moradia", "alimentacao", "transporte", "saude", "lazer", "investimentos"]
+  @finance_category_presets [
+    "moradia",
+    "alimentacao",
+    "transporte",
+    "saude",
+    "lazer",
+    "investimentos"
+  ]
 
   @impl true
   def mount(_params, session, socket) do
@@ -505,7 +512,9 @@ defmodule OrganizerWeb.DashboardLive do
         >
           <div class="flex gap-2 overflow-x-auto pb-1">
             <a href="#quick-task" class="btn btn-sm btn-ghost whitespace-nowrap">Nova tarefa</a>
-            <a href="#quick-finance" class="btn btn-sm btn-ghost whitespace-nowrap">Novo lançamento</a>
+            <a href="#quick-finance" class="btn btn-sm btn-ghost whitespace-nowrap">
+              Novo lançamento
+            </a>
             <a href="#quick-goal" class="btn btn-sm btn-ghost whitespace-nowrap">Nova meta</a>
             <a href="#analytics-panel" class="btn btn-sm btn-ghost whitespace-nowrap">Analítico</a>
           </div>
@@ -517,8 +526,12 @@ defmodule OrganizerWeb.DashboardLive do
         >
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/70">Visão analítica</h2>
-              <p class="text-xs text-base-content/65">Comparativo de execução e risco de sobrecarga.</p>
+              <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/70">
+                Visão analítica
+              </h2>
+              <p class="text-xs text-base-content/65">
+                Comparativo de execução e risco de sobrecarga.
+              </p>
             </div>
             <form
               id="analytics-filters"
@@ -532,11 +545,21 @@ defmodule OrganizerWeb.DashboardLive do
                 <option value="365" selected={@analytics_filters.days == "365"}>365 dias</option>
               </select>
               <select name="filters[planned_capacity]" class="select select-bordered select-sm">
-                <option value="5" selected={@analytics_filters.planned_capacity == "5"}>Cap. 5</option>
-                <option value="10" selected={@analytics_filters.planned_capacity == "10"}>Cap. 10</option>
-                <option value="15" selected={@analytics_filters.planned_capacity == "15"}>Cap. 15</option>
-                <option value="20" selected={@analytics_filters.planned_capacity == "20"}>Cap. 20</option>
-                <option value="30" selected={@analytics_filters.planned_capacity == "30"}>Cap. 30</option>
+                <option value="5" selected={@analytics_filters.planned_capacity == "5"}>
+                  Cap. 5
+                </option>
+                <option value="10" selected={@analytics_filters.planned_capacity == "10"}>
+                  Cap. 10
+                </option>
+                <option value="15" selected={@analytics_filters.planned_capacity == "15"}>
+                  Cap. 15
+                </option>
+                <option value="20" selected={@analytics_filters.planned_capacity == "20"}>
+                  Cap. 20
+                </option>
+                <option value="30" selected={@analytics_filters.planned_capacity == "30"}>
+                  Cap. 30
+                </option>
               </select>
             </form>
           </div>
@@ -578,7 +601,9 @@ defmodule OrganizerWeb.DashboardLive do
                 {@workload_capacity_snapshot.open_14d}/{@workload_capacity_snapshot.planned_capacity_14d}
               </p>
               <p class="text-xs text-base-content/65">
-                Diferença: {@workload_capacity_snapshot.capacity_gap} • Alerta: {if @workload_capacity_snapshot.overload_alert, do: "ligado", else: "desligado"}
+                Diferença: {@workload_capacity_snapshot.capacity_gap} • Alerta: {if @workload_capacity_snapshot.overload_alert,
+                  do: "ligado",
+                  else: "desligado"}
               </p>
             </article>
 
@@ -743,7 +768,9 @@ defmodule OrganizerWeb.DashboardLive do
                 <option value="done" selected={@task_filters.status == "done"}>Concluída</option>
               </select>
               <select name="filters[priority]" class="select select-bordered select-sm">
-                <option value="all" selected={@task_filters.priority == "all"}>Todas prioridades</option>
+                <option value="all" selected={@task_filters.priority == "all"}>
+                  Todas prioridades
+                </option>
                 <option value="low" selected={@task_filters.priority == "low"}>Baixa</option>
                 <option value="medium" selected={@task_filters.priority == "medium"}>Média</option>
                 <option value="high" selected={@task_filters.priority == "high"}>Alta</option>
@@ -800,7 +827,10 @@ defmodule OrganizerWeb.DashboardLive do
                   class="ds-edit-form mt-3 space-y-2 rounded-md p-3"
                 >
                   <input type="hidden" name="_id" value={task.id} />
-                  <label class="text-xs font-medium text-base-content/70" for={"task-title-#{task.id}"}>
+                  <label
+                    class="text-xs font-medium text-base-content/70"
+                    for={"task-title-#{task.id}"}
+                  >
                     Título
                   </label>
                   <input
@@ -823,7 +853,10 @@ defmodule OrganizerWeb.DashboardLive do
                   />
                   <div class="grid gap-2 sm:grid-cols-2">
                     <div>
-                      <label class="text-xs font-medium text-base-content/70" for={"task-priority-#{task.id}"}>
+                      <label
+                        class="text-xs font-medium text-base-content/70"
+                        for={"task-priority-#{task.id}"}
+                      >
                         Prioridade
                       </label>
                       <select
@@ -837,7 +870,10 @@ defmodule OrganizerWeb.DashboardLive do
                       </select>
                     </div>
                     <div>
-                      <label class="text-xs font-medium text-base-content/70" for={"task-status-#{task.id}"}>
+                      <label
+                        class="text-xs font-medium text-base-content/70"
+                        for={"task-status-#{task.id}"}
+                      >
                         Status
                       </label>
                       <select
@@ -898,7 +934,9 @@ defmodule OrganizerWeb.DashboardLive do
               >
                 <p class="font-medium text-base-content">{entry.category}</p>
                 <p class="text-xs text-base-content/65">
-                  {to_string(entry.kind)} • {format_money(entry.amount_cents)} • {Date.to_iso8601(entry.occurred_on)}
+                  {to_string(entry.kind)} • {format_money(entry.amount_cents)} • {Date.to_iso8601(
+                    entry.occurred_on
+                  )}
                 </p>
                 <div class="mt-2 flex gap-2">
                   <button
@@ -930,7 +968,10 @@ defmodule OrganizerWeb.DashboardLive do
                   <input type="hidden" name="_id" value={entry.id} />
                   <div class="grid gap-2 sm:grid-cols-2">
                     <div>
-                      <label class="text-xs font-medium text-base-content/70" for={"finance-kind-#{entry.id}"}>
+                      <label
+                        class="text-xs font-medium text-base-content/70"
+                        for={"finance-kind-#{entry.id}"}
+                      >
                         Tipo
                       </label>
                       <select
@@ -943,7 +984,10 @@ defmodule OrganizerWeb.DashboardLive do
                       </select>
                     </div>
                     <div>
-                      <label class="text-xs font-medium text-base-content/70" for={"finance-amount-#{entry.id}"}>
+                      <label
+                        class="text-xs font-medium text-base-content/70"
+                        for={"finance-amount-#{entry.id}"}
+                      >
                         Valor
                       </label>
                       <input
@@ -956,7 +1000,10 @@ defmodule OrganizerWeb.DashboardLive do
                       />
                     </div>
                   </div>
-                  <label class="text-xs font-medium text-base-content/70" for={"finance-category-#{entry.id}"}>
+                  <label
+                    class="text-xs font-medium text-base-content/70"
+                    for={"finance-category-#{entry.id}"}
+                  >
                     Categoria
                   </label>
                   <input
@@ -967,7 +1014,10 @@ defmodule OrganizerWeb.DashboardLive do
                     value={entry.category}
                     class="input input-bordered w-full"
                   />
-                  <label class="text-xs font-medium text-base-content/70" for={"finance-date-#{entry.id}"}>
+                  <label
+                    class="text-xs font-medium text-base-content/70"
+                    for={"finance-date-#{entry.id}"}
+                  >
                     Data
                   </label>
                   <input
@@ -977,7 +1027,10 @@ defmodule OrganizerWeb.DashboardLive do
                     value={date_input_value(entry.occurred_on)}
                     class="input input-bordered w-full"
                   />
-                  <label class="text-xs font-medium text-base-content/70" for={"finance-description-#{entry.id}"}>
+                  <label
+                    class="text-xs font-medium text-base-content/70"
+                    for={"finance-description-#{entry.id}"}
+                  >
                     Descrição
                   </label>
                   <input
@@ -1063,7 +1116,10 @@ defmodule OrganizerWeb.DashboardLive do
                   class="ds-edit-form mt-3 space-y-2 rounded-md p-3"
                 >
                   <input type="hidden" name="_id" value={goal.id} />
-                  <label class="text-xs font-medium text-base-content/70" for={"goal-title-#{goal.id}"}>
+                  <label
+                    class="text-xs font-medium text-base-content/70"
+                    for={"goal-title-#{goal.id}"}
+                  >
                     Título
                   </label>
                   <input
@@ -1076,7 +1132,10 @@ defmodule OrganizerWeb.DashboardLive do
                   />
                   <div class="grid gap-2 sm:grid-cols-2">
                     <div>
-                      <label class="text-xs font-medium text-base-content/70" for={"goal-horizon-#{goal.id}"}>
+                      <label
+                        class="text-xs font-medium text-base-content/70"
+                        for={"goal-horizon-#{goal.id}"}
+                      >
                         Horizonte
                       </label>
                       <select
@@ -1090,7 +1149,10 @@ defmodule OrganizerWeb.DashboardLive do
                       </select>
                     </div>
                     <div>
-                      <label class="text-xs font-medium text-base-content/70" for={"goal-status-#{goal.id}"}>
+                      <label
+                        class="text-xs font-medium text-base-content/70"
+                        for={"goal-status-#{goal.id}"}
+                      >
                         Status
                       </label>
                       <select
@@ -1106,7 +1168,10 @@ defmodule OrganizerWeb.DashboardLive do
                   </div>
                   <div class="grid gap-2 sm:grid-cols-2">
                     <div>
-                      <label class="text-xs font-medium text-base-content/70" for={"goal-target-#{goal.id}"}>
+                      <label
+                        class="text-xs font-medium text-base-content/70"
+                        for={"goal-target-#{goal.id}"}
+                      >
                         Alvo
                       </label>
                       <input
@@ -1118,7 +1183,10 @@ defmodule OrganizerWeb.DashboardLive do
                       />
                     </div>
                     <div>
-                      <label class="text-xs font-medium text-base-content/70" for={"goal-current-#{goal.id}"}>
+                      <label
+                        class="text-xs font-medium text-base-content/70"
+                        for={"goal-current-#{goal.id}"}
+                      >
                         Atual
                       </label>
                       <input
@@ -1140,7 +1208,10 @@ defmodule OrganizerWeb.DashboardLive do
                     value={date_input_value(goal.due_on)}
                     class="input input-bordered w-full"
                   />
-                  <label class="text-xs font-medium text-base-content/70" for={"goal-notes-#{goal.id}"}>
+                  <label
+                    class="text-xs font-medium text-base-content/70"
+                    for={"goal-notes-#{goal.id}"}
+                  >
                     Notas
                   </label>
                   <input

@@ -43,7 +43,9 @@ defmodule OrganizerWeb.AuthFlowLiveTest do
       user = user_fixture() |> set_password()
 
       stale_conn =
-        log_in_user(conn, user, token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute))
+        log_in_user(conn, user,
+          token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute)
+        )
 
       redirected_conn = get(stale_conn, ~p"/users/settings")
       assert redirected_to(redirected_conn) == ~p"/users/log-in"

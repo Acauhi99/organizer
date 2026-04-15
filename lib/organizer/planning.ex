@@ -53,7 +53,7 @@ defmodule Organizer.Planning do
 
   def create_task(%Scope{} = scope, attrs) when is_map(attrs) do
     with {:ok, user_id} <- scope_user_id(scope),
-          {:ok, normalized} <- AttributeValidation.validate_task_attrs(attrs) do
+         {:ok, normalized} <- AttributeValidation.validate_task_attrs(attrs) do
       %Task{user_id: user_id}
       |> Task.changeset(normalized)
       |> repo_write()
@@ -109,7 +109,7 @@ defmodule Organizer.Planning do
 
   def create_finance_entry(%Scope{} = scope, attrs) when is_map(attrs) do
     with {:ok, user_id} <- scope_user_id(scope),
-          {:ok, normalized} <- AttributeValidation.validate_finance_entry_attrs(attrs) do
+         {:ok, normalized} <- AttributeValidation.validate_finance_entry_attrs(attrs) do
       %FinanceEntry{user_id: user_id}
       |> FinanceEntry.changeset(normalized)
       |> repo_write()
@@ -129,7 +129,7 @@ defmodule Organizer.Planning do
   def update_finance_entry(%Scope{} = scope, id, attrs) when is_map(attrs) do
     with {:ok, user_id} <- scope_user_id(scope),
          %FinanceEntry{} = entry <- Repo.get_by(FinanceEntry, id: id, user_id: user_id),
-          {:ok, normalized} <- AttributeValidation.validate_finance_entry_attrs(attrs) do
+         {:ok, normalized} <- AttributeValidation.validate_finance_entry_attrs(attrs) do
       entry
       |> FinanceEntry.changeset(normalized)
       |> repo_write()
@@ -197,7 +197,7 @@ defmodule Organizer.Planning do
 
   def create_goal(%Scope{} = scope, attrs) when is_map(attrs) do
     with {:ok, user_id} <- scope_user_id(scope),
-          {:ok, normalized} <- AttributeValidation.validate_goal_attrs(attrs) do
+         {:ok, normalized} <- AttributeValidation.validate_goal_attrs(attrs) do
       %Goal{user_id: user_id}
       |> Goal.changeset(normalized)
       |> repo_write()
@@ -217,7 +217,7 @@ defmodule Organizer.Planning do
   def update_goal(%Scope{} = scope, id, attrs) when is_map(attrs) do
     with {:ok, user_id} <- scope_user_id(scope),
          %Goal{} = goal <- Repo.get_by(Goal, id: id, user_id: user_id),
-          {:ok, normalized} <- AttributeValidation.validate_goal_attrs(attrs) do
+         {:ok, normalized} <- AttributeValidation.validate_goal_attrs(attrs) do
       goal
       |> Goal.changeset(normalized)
       |> repo_write()
@@ -421,7 +421,9 @@ defmodule Organizer.Planning do
 
   defp parse_non_negative_int(_, default), do: default
 
-  defp get_opt(opts, key) when is_map(opts), do: Map.get(opts, key) || Map.get(opts, Atom.to_string(key))
+  defp get_opt(opts, key) when is_map(opts),
+    do: Map.get(opts, key) || Map.get(opts, Atom.to_string(key))
+
   defp get_opt(opts, key) when is_list(opts), do: Keyword.get(opts, key)
   defp get_opt(_opts, _key), do: nil
 
@@ -444,5 +446,6 @@ defmodule Organizer.Planning do
     end
   end
 
-  defp enum_filter(_value, _allowed_atoms, field), do: {:error, {:validation, %{field => ["is invalid"]}}}
+  defp enum_filter(_value, _allowed_atoms, field),
+    do: {:error, {:validation, %{field => ["is invalid"]}}}
 end

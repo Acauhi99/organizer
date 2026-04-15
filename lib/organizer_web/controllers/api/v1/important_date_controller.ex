@@ -6,7 +6,8 @@ defmodule OrganizerWeb.API.V1.ImportantDateController do
   action_fallback OrganizerWeb.ApiFallbackController
 
   def index(conn, params) do
-    with {:ok, dates} <- Planning.list_important_dates(conn.assigns.current_scope, parse_days(params)) do
+    with {:ok, dates} <-
+           Planning.list_important_dates(conn.assigns.current_scope, parse_days(params)) do
       json(conn, %{data: Enum.map(dates, &important_date_json/1)})
     end
   end

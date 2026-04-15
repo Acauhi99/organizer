@@ -71,12 +71,19 @@ defmodule Organizer.Planning.AnalyticsTest do
 
       previous_done =
         Enum.map(1..6, fn idx ->
-          task(%{status: :done, due_on: Date.add(today, -idx - 20), completed_on: Date.add(today, -idx - 15)})
+          task(%{
+            status: :done,
+            due_on: Date.add(today, -idx - 20),
+            completed_on: Date.add(today, -idx - 15)
+          })
         end)
 
-      recent_done = [task(%{status: :done, due_on: Date.add(today, -2), completed_on: Date.add(today, -1)})]
+      recent_done = [
+        task(%{status: :done, due_on: Date.add(today, -2), completed_on: Date.add(today, -1)})
+      ]
 
-      risk = Analytics.burnout_risk_assessment(overdue_open ++ previous_done ++ recent_done, today)
+      risk =
+        Analytics.burnout_risk_assessment(overdue_open ++ previous_done ++ recent_done, today)
 
       assert risk.level == :high
       assert risk.score >= 70

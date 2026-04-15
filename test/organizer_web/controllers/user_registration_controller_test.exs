@@ -21,19 +21,24 @@ defmodule OrganizerWeb.UserRegistrationControllerTest do
 
   describe "POST /users/register" do
     @tag :capture_log
-    test "creates account but does not log in", %{conn: conn} do
+    test "creates account and logs in immediately", %{conn: conn} do
       email = unique_user_email()
+      password = valid_user_password()
 
       conn =
         post(conn, ~p"/users/register", %{
-          "user" => valid_user_attributes(email: email)
+          "user" => %{
+            "email" => email,
+            "password" => password,
+            "password_confirmation" => password
+          }
         })
 
-      refute get_session(conn, :user_token)
-      assert redirected_to(conn) == ~p"/users/log-in"
+      assert get_session(conn, :user_token)
+      assert redirected_to(conn) == ~p"/dashboard"
 
       assert conn.assigns.flash["info"] =~
-               ~r/Enviamos um e-mail para .*\. Acesse o link para confirmar sua conta\./
+               "Conta criada com sucesso"
     end
 
     test "render errors for invalid data", %{conn: conn} do

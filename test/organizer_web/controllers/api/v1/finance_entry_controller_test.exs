@@ -59,7 +59,11 @@ defmodule OrganizerWeb.API.V1.FinanceEntryControllerTest do
 
       update_conn =
         put(other_user_conn, ~p"/api/v1/finance-entries/#{id}", %{
-          "finance_entry" => %{"category" => "invadir", "kind" => "income", "amount_cents" => 1000}
+          "finance_entry" => %{
+            "category" => "invadir",
+            "kind" => "income",
+            "amount_cents" => 1000
+          }
         })
 
       assert json_response(update_conn, 404)["error"]["code"] == "not_found"

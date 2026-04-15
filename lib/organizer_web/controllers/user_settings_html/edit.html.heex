@@ -2,7 +2,9 @@
   <section class="mx-auto max-w-6xl py-4 sm:py-8">
     <div class="grid gap-6 lg:grid-cols-[1fr_1fr]">
       <article class="brand-hero-card rounded-[2rem] p-6 sm:p-8">
-        <p class="hero-eyebrow text-xs font-semibold uppercase tracking-[0.2em]">Conta Organizer</p>
+        <p class="hero-eyebrow text-xs font-semibold uppercase tracking-[0.2em]">
+          Conta Organizer
+        </p>
         <h1 class="mt-3 text-3xl font-black leading-tight sm:text-4xl">Configurações da conta</h1>
         <p class="hero-copy mt-4 max-w-xl text-sm leading-relaxed sm:text-base">
           Gerencie e-mail e senha com o mesmo padrão visual da plataforma: claro, direto e seguro.
@@ -22,13 +24,23 @@
 
       <article class="surface-card rounded-[2rem] p-6 sm:p-8">
         <div class="space-y-2">
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">Preferências de acesso</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">
+            Preferências de acesso
+          </p>
           <h2 class="text-2xl font-black text-base-content">Atualizar dados</h2>
         </div>
 
         <section class="mt-6 rounded-2xl border border-base-content/12 bg-base-100/55 p-4 sm:p-5">
-          <h3 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">E-mail</h3>
-          <.form :let={f} for={@email_changeset} action={~p"/users/settings"} id="update_email" class="mt-3">
+          <h3 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+            E-mail
+          </h3>
+          <.form
+            :let={f}
+            for={@email_changeset}
+            action={~p"/users/settings"}
+            id="update_email"
+            class="mt-3"
+          >
             <input type="hidden" name="action" value="update_email" />
 
             <.input
@@ -45,8 +57,16 @@
         </section>
 
         <section class="mt-4 rounded-2xl border border-base-content/12 bg-base-100/55 p-4 sm:p-5">
-          <h3 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">Senha</h3>
-          <.form :let={f} for={@password_changeset} action={~p"/users/settings"} id="update_password" class="mt-3">
+          <h3 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+            Senha
+          </h3>
+          <.form
+            :let={f}
+            for={@password_changeset}
+            action={~p"/users/settings"}
+            id="update_password"
+            class="mt-3"
+          >
             <input type="hidden" name="action" value="update_password" />
 
             <.input
