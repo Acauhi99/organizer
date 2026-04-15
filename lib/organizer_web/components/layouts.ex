@@ -39,15 +39,27 @@ defmodule OrganizerWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="px-4 pb-2 pt-4 sm:px-6 lg:px-8">
-      <div class="surface-card mx-auto flex max-w-7xl flex-col gap-4 rounded-3xl p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+    <header class={["px-4 pb-2 pt-4 sm:px-6 lg:px-8", !@current_scope && "public-shell-header"]}>
+      <div class={[
+        "surface-card mx-auto flex max-w-7xl flex-col gap-4 rounded-3xl p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6",
+        !@current_scope && "public-shell-header-card"
+      ]}>
         <div class="space-y-1">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">
-            Superfície de Comando Organizer
-          </p>
-          <p class="text-sm text-base-content/80">
-            Planejamento diário, metas e financeiro no mesmo fluxo.
-          </p>
+          <%= if @current_scope do %>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">
+              Painel Organizer
+            </p>
+            <p class="text-sm text-base-content/80">
+              Priorize a semana, acompanhe metas e ajuste seu financeiro.
+            </p>
+          <% else %>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">
+              Organizer
+            </p>
+            <p class="text-sm text-base-content/80">
+              Tarefas, metas e financeiro em um painel claro e sem fricção.
+            </p>
+          <% end %>
         </div>
 
         <div class="flex items-center gap-3">
@@ -94,6 +106,7 @@ defmodule OrganizerWeb.Layouts do
         id="client-error"
         kind={:error}
         title={gettext("Não conseguimos acessar a internet")}
+        autohide={false}
         phx-disconnected={show(".phx-client-error #client-error") |> JS.remove_attribute("hidden")}
         phx-connected={hide("#client-error") |> JS.set_attribute({"hidden", ""})}
         hidden
@@ -106,6 +119,7 @@ defmodule OrganizerWeb.Layouts do
         id="server-error"
         kind={:error}
         title={gettext("Algo deu errado!")}
+        autohide={false}
         phx-disconnected={show(".phx-server-error #server-error") |> JS.remove_attribute("hidden")}
         phx-connected={hide("#server-error") |> JS.set_attribute({"hidden", ""})}
         hidden

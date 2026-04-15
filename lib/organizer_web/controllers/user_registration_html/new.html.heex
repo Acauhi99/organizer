@@ -1,43 +1,80 @@
 <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
-  <section class="mx-auto max-w-6xl py-4 sm:py-8">
+  <section class="public-auth-shell mx-auto max-w-6xl py-4 sm:py-8">
     <div class="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-      <article class="brand-hero-card rounded-[2rem] p-6 sm:p-8">
+      <article class="brand-hero-card public-auth-hero rounded-[2rem] p-6 sm:p-8">
         <p class="hero-eyebrow text-xs font-semibold uppercase tracking-[0.2em]">
-          Comece seu espaço
+          Comece em minutos
         </p>
-        <h2 class="mt-3 text-3xl font-black leading-tight sm:text-4xl">Cadastre sua conta</h2>
+        <h2 class="mt-3 text-3xl font-black leading-tight sm:text-4xl">
+          Crie sua conta e comece agora
+        </h2>
+
         <p class="hero-copy mt-4 max-w-xl text-sm leading-relaxed sm:text-base">
-          Crie seu espaço pessoal para capturar tarefas, acompanhar metas e manter o financeiro no mesmo ritmo.
+          Configure seu acesso uma vez e use o mesmo painel para executar tarefas, medir metas e acompanhar seu financeiro.
         </p>
 
+        <div class="mt-6 flex flex-wrap gap-2">
+          <span class="micro-surface rounded-full px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-base-content/78">
+            Sem setup complexo
+          </span>
+          <span class="micro-surface rounded-full px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-base-content/78">
+            Acesso imediato
+          </span>
+        </div>
+
         <div class="mt-8 grid gap-3 sm:grid-cols-3">
-          <div class="micro-surface rounded-2xl p-3">
-            <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-              Cadastro direto
-            </p>
-            <p class="hero-meta-copy mt-1 text-xs">Crie a conta e entre na hora.</p>
+          <div class="micro-surface public-point rounded-2xl p-3">
+            <div class="flex items-start gap-2">
+              <span class="public-icon-wrap mt-0.5">
+                <.icon name="hero-check-circle" class="size-4" />
+              </span>
+              <div>
+                <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
+                  Tarefas e prazos
+                </p>
+                <p class="hero-meta-copy mt-1 text-xs">
+                  Organize trabalho e vida no mesmo fluxo.
+                </p>
+              </div>
+            </div>
           </div>
-          <div class="micro-surface rounded-2xl p-3">
-            <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-              Escopo privado
-            </p>
-            <p class="hero-meta-copy mt-1 text-xs">Dados isolados por conta.</p>
+
+          <div class="micro-surface public-point rounded-2xl p-3">
+            <div class="flex items-start gap-2">
+              <span class="public-icon-wrap mt-0.5">
+                <.icon name="hero-chart-bar-square" class="size-4" />
+              </span>
+              <div>
+                <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
+                  Metas com medição
+                </p>
+                <p class="hero-meta-copy mt-1 text-xs">Veja progresso semanal sem planilhas.</p>
+              </div>
+            </div>
           </div>
-          <div class="micro-surface rounded-2xl p-3">
-            <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-              Visão diária
-            </p>
-            <p class="hero-meta-copy mt-1 text-xs">Da captura ao ajuste semanal.</p>
+
+          <div class="micro-surface public-point rounded-2xl p-3">
+            <div class="flex items-start gap-2">
+              <span class="public-icon-wrap mt-0.5">
+                <.icon name="hero-banknotes" class="size-4" />
+              </span>
+              <div>
+                <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
+                  Financeiro no contexto
+                </p>
+                <p class="hero-meta-copy mt-1 text-xs">Entenda impacto de gastos no seu plano.</p>
+              </div>
+            </div>
           </div>
         </div>
       </article>
 
-      <article class="surface-card rounded-[2rem] p-6 sm:p-8">
+      <article class="surface-card public-form-card rounded-[2rem] p-6 sm:p-8">
         <div class="space-y-2 text-center">
           <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">
-            Acesso inicial
+            Novo acesso
           </p>
-          <h1 class="text-2xl font-black text-base-content">Cadastrar</h1>
+          <h1 class="text-2xl font-black text-base-content">Criar conta</h1>
           <p class="text-sm text-base-content/75">
             Já possui conta?
             <.link
@@ -46,11 +83,19 @@
             >
               Entrar
             </.link>
-            na sua conta agora.
+            agora.
           </p>
         </div>
 
-        <.form :let={f} for={@changeset} action={~p"/users/register"} class="mt-6 space-y-4">
+        <div class="public-divider mt-5"></div>
+
+        <.form
+          :let={f}
+          for={@changeset}
+          id="registration_form_password"
+          action={~p"/users/register"}
+          class="mt-6 space-y-4"
+        >
           <.input
             field={f[:email]}
             type="email"

@@ -5,6 +5,6 @@ defmodule OrganizerWeb.PageControllerTest do
     conn = get(conn, ~p"/")
 
     assert html_response(conn, 200) =~
-             "Controle tarefas, metas e financeiro em uma única superfície"
+             "Organize tarefas, metas e dinheiro sem trocar de app"
   end
 end

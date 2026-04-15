@@ -1,45 +1,66 @@
 <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
-  <section class="mx-auto max-w-6xl py-4 sm:py-8">
+  <section class="public-auth-shell mx-auto max-w-6xl py-4 sm:py-8">
     <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-      <article class="brand-hero-card rounded-[2rem] p-6 sm:p-8">
+      <article class="brand-hero-card public-auth-hero rounded-[2rem] p-6 sm:p-8">
         <p class="hero-eyebrow text-xs font-semibold uppercase tracking-[0.18em]">
-          Acesso seguro
+          Acesso direto
         </p>
-        <h2 class="mt-3 text-3xl font-black leading-tight sm:text-4xl">Entrar</h2>
+        <h2 class="mt-3 text-3xl font-black leading-tight sm:text-4xl">
+          Entre e continue de onde parou
+        </h2>
 
         <p class="hero-copy mt-4 max-w-xl text-sm leading-relaxed sm:text-base">
           <%= if @current_scope do %>
-            Você precisa se reautenticar para executar ações sensíveis na sua conta.
+            Reautentique para continuar com segurança em ações sensíveis da sua conta.
           <% else %>
-            Entre com e-mail e senha para acessar seu ambiente com segurança.
+            Acesse seu painel para revisar tarefas da semana, metas em aberto e posição financeira.
           <% end %>
         </p>
 
         <div :if={!@current_scope} class="micro-surface hero-copy mt-6 rounded-2xl p-4 text-sm">
-          Ainda não tem conta? <.link
+          Novo por aqui? <.link
             navigate={~p"/users/register"}
             class="font-semibold text-info underline-offset-2 hover:underline"
             phx-no-format
-          >Cadastre-se</.link> agora.
+          >Crie sua conta</.link>.
         </div>
 
-        <div class="mt-8 grid gap-3 sm:grid-cols-2">
-          <div class="micro-surface rounded-2xl p-3">
-            <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-              Acesso protegido
-            </p>
-            <p class="hero-meta-copy mt-1 text-xs">Sessão vinculada ao seu e-mail e senha.</p>
+        <div class="mt-6 grid gap-3 sm:grid-cols-2">
+          <div class="micro-surface public-point rounded-2xl p-3">
+            <div class="flex items-start gap-2">
+              <span class="public-icon-wrap mt-0.5">
+                <.icon name="hero-chart-bar" class="size-4" />
+              </span>
+              <div>
+                <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
+                  Resumo imediato
+                </p>
+                <p class="hero-meta-copy mt-1 text-xs">
+                  Pendências, metas e saldo no mesmo painel.
+                </p>
+              </div>
+            </div>
           </div>
-          <div class="micro-surface rounded-2xl p-3">
-            <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-              Modo seguro
-            </p>
-            <p class="hero-meta-copy mt-1 text-xs">Opção de manter sessão no dispositivo.</p>
+
+          <div class="micro-surface public-point rounded-2xl p-3">
+            <div class="flex items-start gap-2">
+              <span class="public-icon-wrap mt-0.5">
+                <.icon name="hero-shield-check" class="size-4" />
+              </span>
+              <div>
+                <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
+                  Sessão confiável
+                </p>
+                <p class="hero-meta-copy mt-1 text-xs">
+                  Você escolhe manter sessão ou entrar só desta vez.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </article>
 
-      <article class="surface-card rounded-[2rem] p-6 sm:p-8">
+      <article class="surface-card public-form-card rounded-[2rem] p-6 sm:p-8">
         <div class="space-y-1 text-center">
           <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">
             Acesso da conta
@@ -47,15 +68,7 @@
           <h1 class="text-2xl font-black text-base-content">Entrar</h1>
         </div>
 
-        <div :if={local_mail_adapter?()} class="alert alert-info mt-4 shadow-sm">
-          <.icon name="hero-information-circle" class="size-6 shrink-0" />
-          <div>
-            <p>Você está usando o adaptador local de e-mail.</p>
-            <p>
-              Para ver os e-mails enviados, acesse <.link href="/dev/mailbox" class="underline">a página da caixa de saída</.link>.
-            </p>
-          </div>
-        </div>
+        <div class="public-divider mt-5"></div>
 
         <.form
           :let={f}
@@ -83,6 +96,14 @@
             spellcheck="false"
             required
           />
+          <div class="text-right text-xs">
+            <.link
+              navigate={~p"/users/reset-password"}
+              class="font-semibold text-info hover:underline"
+            >
+              Esqueci minha senha
+            </.link>
+          </div>
           <.button variant="primary" class="w-full" name={@form[:remember_me].name} value="true">
             Entrar e manter sessão <span aria-hidden="true">→</span>
           </.button>

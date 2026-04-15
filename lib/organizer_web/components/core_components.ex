@@ -43,6 +43,8 @@ defmodule OrganizerWeb.CoreComponents do
   attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
   attr :title, :string, default: nil
   attr :kind, :atom, values: [:info, :error], doc: "used for styling and flash lookup"
+  attr :auto_dismiss_ms, :integer, default: 3000, doc: "auto dismiss delay in milliseconds"
+  attr :autohide, :boolean, default: true, doc: "whether flash auto-dismisses"
   attr :rest, :global, doc: "the arbitrary HTML attributes to add to the flash container"
 
   slot :inner_block, doc: "the optional inner block that renders the flash message"
@@ -56,6 +58,7 @@ defmodule OrganizerWeb.CoreComponents do
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
+      data-auto-dismiss-ms={if @autohide, do: @auto_dismiss_ms, else: nil}
       class="toast toast-top toast-end z-50"
       {@rest}
     >

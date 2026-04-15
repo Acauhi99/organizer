@@ -291,6 +291,12 @@ a:focus-visible {
   border-radius: 0.72rem;
 }
 
+.dashboard-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
 .dashboard-shell .btn-ghost {
   border: 1px solid color-mix(in oklab, var(--color-base-content) 14%, transparent);
   border-radius: 999px;
@@ -300,6 +306,112 @@ a:focus-visible {
 .dashboard-shell .btn-ghost:hover {
   border-color: color-mix(in oklab, var(--color-info) 40%, transparent);
   background: color-mix(in oklab, var(--color-info) 16%, var(--color-base-100));
+}
+
+.analytics-filters-grid {
+  display: grid;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.analytics-filter-groups {
+  display: grid;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .analytics-filter-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.analytics-chip-group {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.analytics-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+@media (min-width: 640px) {
+  .analytics-filters-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 34rem;
+  }
+}
+
+.analytics-filter-field {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.analytics-filter-label {
+  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+}
+
+.analytics-chart-stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.analytics-chart-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 1280px) {
+  .analytics-chart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.analytics-chart-card {
+  min-height: 15.5rem;
+}
+
+.contex-plot svg {
+  width: 100%;
+  min-width: 340px;
+  height: auto;
+}
+
+.contex-plot text {
+  fill: color-mix(in oklab, var(--color-base-content) 78%, transparent) !important;
+}
+
+.contex-plot line,
+.contex-plot path {
+  stroke: color-mix(in oklab, var(--color-base-content) 32%, transparent) !important;
+}
+
+.contex-plot .exc-title {
+  fill: color-mix(in oklab, var(--color-base-content) 92%, transparent) !important;
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+}
+
+.contex-plot .exc-subtitle {
+  fill: color-mix(in oklab, var(--color-base-content) 70%, transparent) !important;
+}
+
+#analytics-panel .contex-plot svg {
+  min-width: 280px;
+}
+
+#analytics-panel .contex-plot text {
+  font-size: 0.72rem;
+}
+
+#analytics-panel .contex-plot .exc-title {
+  font-size: 0.84rem;
 }
 
 .ds-pill-btn {
@@ -412,4 +524,429 @@ a:focus-visible {
   border-color: color-mix(in oklab, var(--color-info) 62%, transparent);
   outline: 2px solid color-mix(in oklab, var(--color-info) 28%, transparent);
   outline-offset: 1px;
+}
+
+.bulk-studio-shell {
+  border-color: color-mix(in oklab, var(--color-info) 34%, var(--color-base-content));
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(34, 211, 238, 0.08), transparent 52%),
+    radial-gradient(120% 80% at 100% 100%, rgba(52, 211, 153, 0.08), transparent 52%),
+    color-mix(in oklab, var(--color-base-100) 90%, transparent);
+}
+
+.bulk-flow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.bulk-flow-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 22%, transparent);
+  border-radius: 999px;
+  padding: 0.24rem 0.62rem;
+  font-size: 0.72rem;
+  color: color-mix(in oklab, var(--color-base-content) 96%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 72%, transparent);
+}
+
+.bulk-flow-chip strong {
+  color: color-mix(in oklab, var(--color-base-content) 96%, var(--color-info));
+}
+
+.bulk-section-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: color-mix(in oklab, var(--color-base-content) 86%, transparent);
+}
+
+.bulk-history-entry,
+.bulk-control-strip,
+#bulk-block-controls {
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 20%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 74%, transparent);
+}
+
+.bulk-template-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .bulk-template-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.bulk-template-card {
+  justify-self: start;
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 22%, transparent);
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--color-base-100) 76%, transparent);
+}
+
+.bulk-template-type-btn,
+.bulk-template-fav-btn {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: color-mix(in oklab, var(--color-base-content) 92%, transparent);
+}
+
+.bulk-template-type-btn {
+  border-radius: 0;
+  padding-inline: 0.75rem;
+}
+
+.bulk-template-fav-btn {
+  border-radius: 0;
+  border-left: 1px solid color-mix(in oklab, var(--color-base-content) 20%, transparent);
+  min-width: 2.1rem;
+  justify-content: center;
+  padding-inline: 0.48rem;
+}
+
+.bulk-template-fav-btn-active {
+  background: color-mix(in oklab, var(--color-info) 14%, var(--color-base-100));
+  color: color-mix(in oklab, var(--color-base-content) 98%, var(--color-info));
+}
+
+.bulk-history-preview {
+  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.73rem;
+  line-height: 1.45;
+  color: color-mix(in oklab, var(--color-base-content) 88%, transparent);
+}
+
+.bulk-examples {
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 20%, transparent);
+  border-radius: 0.8rem;
+  background: color-mix(in oklab, var(--color-base-100) 76%, transparent);
+  padding: 0.55rem 0.72rem;
+}
+
+.bulk-examples summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: color-mix(in oklab, var(--color-base-content) 92%, transparent);
+}
+
+.bulk-code-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.bulk-code-line {
+  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: color-mix(in oklab, var(--color-base-content) 93%, transparent);
+}
+
+.bulk-shortcuts-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 22%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 75%, transparent);
+}
+
+.bulk-shortcut-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 18%, transparent);
+  border-radius: 999px;
+  padding: 0.18rem 0.52rem;
+  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.68rem;
+  color: color-mix(in oklab, var(--color-base-content) 92%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 72%, transparent);
+}
+
+.bulk-preview-shell {
+  border-top: 1px solid color-mix(in oklab, var(--color-base-content) 16%, transparent);
+  padding-top: 0.45rem;
+}
+
+.bulk-kpi {
+  border-color: color-mix(in oklab, var(--color-base-content) 24%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 80%, transparent);
+}
+
+.bulk-entry-card {
+  border-color: color-mix(in oklab, var(--color-base-content) 24%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 82%, transparent);
+}
+
+.bulk-entry-card:hover {
+  border-color: color-mix(in oklab, var(--color-info) 42%, transparent);
+  background: color-mix(in oklab, var(--color-info) 11%, var(--color-base-100));
+}
+
+.bulk-studio-shell .textarea {
+  min-height: 11rem;
+  border-color: color-mix(in oklab, var(--color-base-content) 26%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 86%, transparent);
+  color: color-mix(in oklab, var(--color-base-content) 98%, transparent);
+  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  line-height: 1.45;
+}
+
+.bulk-studio-shell .textarea::placeholder {
+  color: color-mix(in oklab, var(--color-base-content) 58%, transparent);
+}
+
+.public-home,
+.public-auth-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.public-home::before,
+.public-auth-shell::before {
+  content: "";
+  position: absolute;
+  inset: -14% -8% auto;
+  z-index: -1;
+  height: 55%;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 25% 50%, rgba(34, 211, 238, 0.16), transparent 52%),
+    radial-gradient(circle at 70% 40%, rgba(52, 211, 153, 0.14), transparent 55%);
+  filter: blur(28px);
+  opacity: 0.8;
+}
+
+.public-home-hero,
+.public-home-aside,
+.public-auth-hero,
+.public-form-card,
+.public-feature-grid > article {
+  position: relative;
+  overflow: hidden;
+}
+
+.public-home-hero::before,
+.public-auth-hero::before,
+.public-form-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), transparent 32%, rgba(255, 255, 255, 0.02));
+}
+
+.public-kpi {
+  transition: transform 200ms ease, border-color 220ms ease, background-color 220ms ease;
+}
+
+.public-kpi:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--color-info) 40%, transparent);
+  background: color-mix(in oklab, var(--color-info) 12%, var(--color-base-100));
+}
+
+.public-step-chip {
+  display: inline-flex;
+  min-width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in oklab, var(--color-info) 40%, transparent);
+  border-radius: 999px;
+  padding: 0.18rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: color-mix(in oklab, var(--color-base-content) 92%, var(--color-info));
+  background: color-mix(in oklab, var(--color-info) 12%, transparent);
+}
+
+.public-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 22%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 72%, transparent);
+  color: color-mix(in oklab, var(--color-base-content) 90%, var(--color-info));
+}
+
+.public-pulse-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: linear-gradient(160deg, #22d3ee, #34d399);
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5);
+}
+
+.public-point {
+  transition: transform 180ms ease, border-color 220ms ease, background-color 220ms ease;
+}
+
+.public-point:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--color-info) 36%, transparent);
+  background: color-mix(in oklab, var(--color-info) 11%, var(--color-base-100));
+}
+
+.public-divider {
+  height: 1px;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--color-info) 35%, transparent),
+      transparent
+    );
+}
+
+.public-form-card {
+  border-color: color-mix(in oklab, var(--color-info) 24%, var(--color-base-content));
+}
+
+.public-shell-header-card {
+  border-color: color-mix(in oklab, var(--color-info) 24%, var(--color-base-content));
+  background:
+    radial-gradient(130% 100% at 5% 0%, rgba(34, 211, 238, 0.08), transparent 45%),
+    color-mix(in oklab, var(--color-base-100) 88%, transparent);
+}
+
+.public-guest-nav::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.4), transparent);
+  opacity: 0.4;
+}
+
+.public-guest-menu {
+  gap: 0.35rem;
+}
+
+.public-guest-link {
+  border-color: color-mix(in oklab, var(--color-base-content) 16%, transparent);
+}
+
+@keyframes public-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes public-stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes public-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4);
+  }
+
+  100% {
+    box-shadow: 0 0 0 8px rgba(52, 211, 153, 0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .public-home-hero {
+    animation: public-float 8s ease-in-out infinite;
+  }
+
+  .public-pulse-dot {
+    animation: public-pulse 1.8s ease-out infinite;
+  }
+
+  .public-feature-grid > article,
+  .public-home-aside > *,
+  .public-auth-hero > *,
+  .public-form-card > * {
+    opacity: 0;
+    animation: public-stagger-in 420ms ease-out forwards;
+  }
+
+  .public-home-aside > *:nth-child(1),
+  .public-auth-hero > *:nth-child(1),
+  .public-form-card > *:nth-child(1) {
+    animation-delay: 60ms;
+  }
+
+  .public-home-aside > *:nth-child(2),
+  .public-auth-hero > *:nth-child(2),
+  .public-form-card > *:nth-child(2) {
+    animation-delay: 110ms;
+  }
+
+  .public-home-aside > *:nth-child(3),
+  .public-auth-hero > *:nth-child(3),
+  .public-form-card > *:nth-child(3) {
+    animation-delay: 160ms;
+  }
+
+  .public-home-aside > *:nth-child(4),
+  .public-auth-hero > *:nth-child(4),
+  .public-form-card > *:nth-child(4) {
+    animation-delay: 210ms;
+  }
+
+  .public-feature-grid > article:nth-child(1) {
+    animation-delay: 120ms;
+  }
+
+  .public-feature-grid > article:nth-child(2) {
+    animation-delay: 180ms;
+  }
+
+  .public-feature-grid > article:nth-child(3) {
+    animation-delay: 240ms;
+  }
+}
+
+@media (max-width: 640px) {
+  .public-home::before,
+  .public-auth-shell::before {
+    inset: -10% -16% auto;
+    height: 46%;
+  }
+
+  .public-home-hero,
+  .public-auth-hero,
+  .public-form-card,
+  .public-home-aside {
+    border-radius: 1.4rem;
+  }
+
+  .public-icon-wrap {
+    width: 1.45rem;
+    height: 1.45rem;
+  }
 }

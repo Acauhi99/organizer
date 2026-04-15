@@ -23,7 +23,10 @@
 
     <nav
       aria-label="Navegação da conta"
-      class="site-nav relative z-20 border-b border-base-300/60 bg-base-100/70 backdrop-blur"
+      class={[
+        "site-nav relative z-20 border-b border-base-300/60 bg-base-100/70 backdrop-blur",
+        !@current_scope && "public-guest-nav"
+      ]}
     >
       <div class="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <.link href={~p"/"} class="inline-flex items-center gap-2.5">
@@ -33,7 +36,10 @@
           </span>
         </.link>
 
-        <ul class="menu nav-menu menu-horizontal gap-1 p-0">
+        <ul class={[
+          "menu nav-menu menu-horizontal gap-1 p-0",
+          !@current_scope && "public-guest-menu"
+        ]}>
           <%= if @current_scope do %>
             <li>
               <span class="identity-pill inline-block max-w-44 truncate rounded-full px-3 py-1 text-xs sm:max-w-64">
@@ -51,10 +57,14 @@
             </li>
           <% else %>
             <li>
-              <.link href={~p"/users/register"} class="top-nav-link">Cadastrar</.link>
+              <.link href={~p"/users/register"} class="top-nav-link public-guest-link">
+                Cadastrar
+              </.link>
             </li>
             <li>
-              <.link href={~p"/users/log-in"} class="top-nav-link">Entrar</.link>
+              <.link href={~p"/users/log-in"} class="top-nav-link public-guest-link">
+                Entrar
+              </.link>
             </li>
           <% end %>
         </ul>

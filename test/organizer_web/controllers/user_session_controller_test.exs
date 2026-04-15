@@ -13,7 +13,7 @@ defmodule OrganizerWeb.UserSessionControllerTest do
       response = html_response(conn, 200)
       assert response =~ "Entrar"
       assert response =~ ~p"/users/register"
-      assert response =~ "Entre com e-mail e senha"
+      assert response =~ "Acesse seu painel para revisar tarefas da semana"
     end
 
     test "renders login page with email filled in (sudo mode)", %{conn: conn, user: user} do
@@ -23,7 +23,7 @@ defmodule OrganizerWeb.UserSessionControllerTest do
         |> get(~p"/users/log-in")
         |> html_response(200)
 
-      assert html =~ "Você precisa se reautenticar"
+      assert html =~ "Reautentique para continuar com segurança"
       refute html =~ "Cadastrar"
 
       assert html =~
