@@ -15,6 +15,7 @@ defmodule OrganizerWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug :put_secure_browser_headers
     plug :fetch_session
     plug :fetch_current_scope_for_user
   end
@@ -31,14 +32,38 @@ defmodule OrganizerWeb.Router do
     live "/dashboard", DashboardLive
   end
 
-  scope "/api/v1", OrganizerWeb.Api do
+  scope "/api/v1", OrganizerWeb.API.V1 do
     pipe_through [:api, :require_authenticated_api_user]
 
-    get "/tasks", TaskApiController, :index
-    post "/tasks", TaskApiController, :create
-    get "/tasks/:id", TaskApiController, :show
-    put "/tasks/:id", TaskApiController, :update
-    delete "/tasks/:id", TaskApiController, :delete
+    get "/tasks", TaskController, :index
+    post "/tasks", TaskController, :create
+    get "/tasks/:id", TaskController, :show
+    put "/tasks/:id", TaskController, :update
+    delete "/tasks/:id", TaskController, :delete
+
+    get "/finance-entries", FinanceEntryController, :index
+    post "/finance-entries", FinanceEntryController, :create
+    get "/finance-entries/:id", FinanceEntryController, :show
+    put "/finance-entries/:id", FinanceEntryController, :update
+    delete "/finance-entries/:id", FinanceEntryController, :delete
+
+    get "/goals", GoalController, :index
+    post "/goals", GoalController, :create
+    get "/goals/:id", GoalController, :show
+    put "/goals/:id", GoalController, :update
+    delete "/goals/:id", GoalController, :delete
+
+    get "/fixed-costs", FixedCostController, :index
+    post "/fixed-costs", FixedCostController, :create
+    get "/fixed-costs/:id", FixedCostController, :show
+    put "/fixed-costs/:id", FixedCostController, :update
+    delete "/fixed-costs/:id", FixedCostController, :delete
+
+    get "/important-dates", ImportantDateController, :index
+    post "/important-dates", ImportantDateController, :create
+    get "/important-dates/:id", ImportantDateController, :show
+    put "/important-dates/:id", ImportantDateController, :update
+    delete "/important-dates/:id", ImportantDateController, :delete
   end
 
   # Other scopes may use custom stacks.
@@ -84,7 +109,6 @@ defmodule OrganizerWeb.Router do
     pipe_through [:browser]
 
     get "/users/log-in", UserSessionController, :new
-    get "/users/log-in/:token", UserSessionController, :confirm
     post "/users/log-in", UserSessionController, :create
     delete "/users/log-out", UserSessionController, :delete
   end

@@ -22,6 +22,7 @@ defmodule Organizer.Planning.Goal do
   end
 
   def horizons, do: @horizons
+  def statuses, do: @statuses
 
   def changeset(goal, attrs) do
     goal

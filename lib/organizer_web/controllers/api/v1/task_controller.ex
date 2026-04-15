@@ -1,4 +1,4 @@
-defmodule OrganizerWeb.Api.TaskApiController do
+defmodule OrganizerWeb.API.V1.TaskController do
   use OrganizerWeb, :controller
 
   alias Organizer.Planning
@@ -21,12 +21,8 @@ defmodule OrganizerWeb.Api.TaskApiController do
   end
 
   def show(conn, %{"id" => id}) do
-    with {:ok, tasks} <- Planning.list_tasks(conn.assigns.current_scope, %{}),
-         task when not is_nil(task) <- Enum.find(tasks, &(to_string(&1.id) == id)) do
+    with {:ok, task} <- Planning.get_task(conn.assigns.current_scope, id) do
       json(conn, %{data: task_json(task)})
-    else
-      nil -> {:error, :not_found}
-      {:error, _reason} = error -> error
     end
   end
 

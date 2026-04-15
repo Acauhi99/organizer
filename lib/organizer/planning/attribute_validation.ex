@@ -1,6 +1,6 @@
-defmodule Organizer.Planning.Core do
+defmodule Organizer.Planning.AttributeValidation do
   @moduledoc """
-  Functional core for parsing and validating user input.
+  Validation and normalization rules for planning attributes.
   """
 
   @task_statuses ~w(todo in_progress done)
