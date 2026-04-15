@@ -1,73 +1,83 @@
-<Layouts.app flash={@flash} current_scope={@current_scope}>
-  <div class="mx-auto max-w-sm space-y-4">
-    <div class="text-center">
-      <.header>
-        <p>Log in</p>
-        <:subtitle>
+<Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
+  <section class="mx-auto max-w-6xl py-4 sm:py-8">
+    <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <article class="brand-hero-card rounded-[2rem] p-6 sm:p-8">
+        <p class="hero-eyebrow text-xs font-semibold uppercase tracking-[0.18em]">Acesso seguro</p>
+        <h2 class="mt-3 text-3xl font-black leading-tight sm:text-4xl">Entrar</h2>
+
+        <p class="hero-copy mt-4 max-w-xl text-sm leading-relaxed sm:text-base">
           <%= if @current_scope do %>
-            You need to reauthenticate to perform sensitive actions on your account.
+            Você precisa se reautenticar para executar ações sensíveis na sua conta.
           <% else %>
-            Don't have an account? <.link
-              navigate={~p"/users/register"}
-              class="font-semibold text-brand hover:underline"
-              phx-no-format
-            >Sign up</.link> for an account now.
+            Entre com e-mail e senha para acessar seu ambiente com segurança.
           <% end %>
-        </:subtitle>
-      </.header>
-    </div>
-
-    <div :if={local_mail_adapter?()} class="alert alert-info">
-      <.icon name="hero-information-circle" class="size-6 shrink-0" />
-      <div>
-        <p>You are running the local mail adapter.</p>
-        <p>
-          To see sent emails, visit <.link href="/dev/mailbox" class="underline">the mailbox page</.link>.
         </p>
-      </div>
+
+        <div :if={!@current_scope} class="micro-surface hero-copy mt-6 rounded-2xl p-4 text-sm">
+          Ainda não tem conta?
+          <.link
+            navigate={~p"/users/register"}
+            class="font-semibold text-info underline-offset-2 hover:underline"
+            phx-no-format
+          >Cadastre-se</.link>
+          agora.
+        </div>
+
+        <div class="mt-8 grid gap-3 sm:grid-cols-2">
+          <div class="micro-surface rounded-2xl p-3">
+            <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">Acesso protegido</p>
+            <p class="hero-meta-copy mt-1 text-xs">Sessão vinculada ao seu e-mail e senha.</p>
+          </div>
+          <div class="micro-surface rounded-2xl p-3">
+            <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">Modo seguro</p>
+            <p class="hero-meta-copy mt-1 text-xs">Opção de manter sessão no dispositivo.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="surface-card rounded-[2rem] p-6 sm:p-8">
+        <div class="space-y-1 text-center">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">Acesso da conta</p>
+          <h1 class="text-2xl font-black text-base-content">Entrar</h1>
+        </div>
+
+        <div :if={local_mail_adapter?()} class="alert alert-info mt-4 shadow-sm">
+          <.icon name="hero-information-circle" class="size-6 shrink-0" />
+          <div>
+            <p>Você está usando o adaptador local de e-mail.</p>
+            <p>
+              Para ver os e-mails enviados, acesse <.link href="/dev/mailbox" class="underline">a página da caixa de saída</.link>.
+            </p>
+          </div>
+        </div>
+
+        <.form :let={f} for={@form} as={:user} id="login_form_password" action={~p"/users/log-in"} class="mt-4 space-y-3">
+          <.input
+            readonly={!!@current_scope}
+            field={f[:email]}
+            type="email"
+            label="E-mail"
+            autocomplete="username"
+            spellcheck="false"
+            required
+            phx-mounted={JS.focus()}
+          />
+          <.input
+            field={f[:password]}
+            type="password"
+            label="Senha"
+            autocomplete="current-password"
+            spellcheck="false"
+            required
+          />
+          <.button variant="primary" class="w-full" name={@form[:remember_me].name} value="true">
+            Entrar e manter sessão <span aria-hidden="true">→</span>
+          </.button>
+          <.button variant="soft" class="w-full mt-2">
+            Entrar só desta vez
+          </.button>
+        </.form>
+      </article>
     </div>
-
-    <.form :let={f} for={@form} as={:user} id="login_form_magic" action={~p"/users/log-in"}>
-      <.input
-        readonly={!!@current_scope}
-        field={f[:email]}
-        type="email"
-        label="Email"
-        autocomplete="username"
-        spellcheck="false"
-        required
-        phx-mounted={JS.focus()}
-      />
-      <.button class="btn btn-primary w-full">
-        Log in with email <span aria-hidden="true">→</span>
-      </.button>
-    </.form>
-
-    <div class="divider">or</div>
-
-    <.form :let={f} for={@form} as={:user} id="login_form_password" action={~p"/users/log-in"}>
-      <.input
-        readonly={!!@current_scope}
-        field={f[:email]}
-        type="email"
-        label="Email"
-        autocomplete="username"
-        spellcheck="false"
-        required
-      />
-      <.input
-        field={f[:password]}
-        type="password"
-        label="Password"
-        autocomplete="current-password"
-        spellcheck="false"
-      />
-      <.button class="btn btn-primary w-full" name={@form[:remember_me].name} value="true">
-        Log in and stay logged in <span aria-hidden="true">→</span>
-      </.button>
-      <.button class="btn btn-primary btn-soft w-full mt-2">
-        Log in only this time
-      </.button>
-    </.form>
-  </div>
+  </section>
 </Layouts.app>

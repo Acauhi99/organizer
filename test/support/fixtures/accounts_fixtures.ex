@@ -1,6 +1,6 @@
 defmodule Organizer.AccountsFixtures do
   @moduledoc """
-  This module defines test helpers for creating
+  This module defines test builders for creating
   entities via the `Organizer.Accounts` context.
   """
 

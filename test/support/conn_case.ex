@@ -37,7 +37,7 @@ defmodule OrganizerWeb.ConnCase do
   end
 
   @doc """
-  Setup helper that registers and logs in users.
+  Setup routine that registers and logs in users.
 
       setup :register_and_log_in_user
 

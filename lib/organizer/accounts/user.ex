@@ -29,6 +29,25 @@ defmodule Organizer.Accounts.User do
     |> validate_email(opts)
   end
 
+  @doc """
+  A user changeset for registration with email and password.
+
+  By default, this confirms the user on create so they can start using
+  the app immediately after registering.
+
+  ## Options
+
+    * `:confirm` - Sets `confirmed_at` when the changeset is valid.
+      Defaults to `true`.
+  """
+  def registration_changeset(user, attrs, opts \\ []) do
+    user
+    |> cast(attrs, [:email, :password])
+    |> validate_email(opts)
+    |> validate_password(opts)
+    |> maybe_confirm_user(opts)
+  end
+
   defp validate_email(changeset, opts) do
     changeset =
       changeset
@@ -101,6 +120,16 @@ defmodule Organizer.Accounts.User do
       # would keep the database transaction open longer and hurt performance.
       |> put_change(:hashed_password, Bcrypt.hash_pwd_salt(password))
       |> delete_change(:password)
+    else
+      changeset
+    end
+  end
+
+  defp maybe_confirm_user(changeset, opts) do
+    confirm? = Keyword.get(opts, :confirm, true)
+
+    if confirm? and changeset.valid? do
+      put_change(changeset, :confirmed_at, DateTime.utc_now(:second))
     else
       changeset
     end

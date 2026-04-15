@@ -3,7 +3,7 @@ defmodule Organizer.DataCase do
   This module defines the setup for tests requiring
   access to the application's data layer.
 
-  You may define functions here to be used as helpers in
+  You may define functions here to be used as support routines in
   your tests.
 
   Finally, if the test case interacts with the database,
@@ -41,7 +41,7 @@ defmodule Organizer.DataCase do
   end
 
   @doc """
-  A helper that transforms changeset errors into a map of messages.
+  A routine that transforms changeset errors into a map of messages.
 
       assert {:error, changeset} = Accounts.create_user(%{password: "short"})
       assert "password is too short" in errors_on(changeset).password

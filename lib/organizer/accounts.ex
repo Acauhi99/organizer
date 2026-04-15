@@ -80,6 +80,25 @@ defmodule Organizer.Accounts do
     |> Repo.insert()
   end
 
+  @doc """
+  Registers a user with email and password and confirms the account.
+
+  This flow reduces onboarding friction by allowing immediate sign-in
+  right after account creation.
+  """
+  def register_user_with_password(attrs) do
+    %User{}
+    |> User.registration_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for user registration with password.
+  """
+  def change_user_registration(user, attrs \\ %{}, opts \\ []) do
+    User.registration_changeset(user, attrs, Keyword.put_new(opts, :confirm, false))
+  end
+
   ## Settings
 
   @doc """
@@ -219,30 +238,32 @@ defmodule Organizer.Accounts do
      `mix help phx.gen.auth`.
   """
   def login_user_by_magic_link(token) do
-    {:ok, query} = UserToken.verify_magic_link_token_query(token)
+    with {:ok, query} <- UserToken.verify_magic_link_token_query(token) do
+      case Repo.one(query) do
+        # Prevent session fixation attacks by disallowing magic links for unconfirmed users with password
+        {%User{confirmed_at: nil, hashed_password: hash}, _token} when not is_nil(hash) ->
+          raise """
+          magic link log in is not allowed for unconfirmed users with a password set!
 
-    case Repo.one(query) do
-      # Prevent session fixation attacks by disallowing magic links for unconfirmed users with password
-      {%User{confirmed_at: nil, hashed_password: hash}, _token} when not is_nil(hash) ->
-        raise """
-        magic link log in is not allowed for unconfirmed users with a password set!
+          This cannot happen with the default implementation, which indicates that you
+          might have adapted the code to a different use case. Please make sure to read the
+          "Mixing magic link and password registration" section of `mix help phx.gen.auth`.
+          """
 
-        This cannot happen with the default implementation, which indicates that you
-        might have adapted the code to a different use case. Please make sure to read the
-        "Mixing magic link and password registration" section of `mix help phx.gen.auth`.
-        """
+        {%User{confirmed_at: nil} = user, _token} ->
+          user
+          |> User.confirm_changeset()
+          |> update_user_and_delete_all_tokens()
 
-      {%User{confirmed_at: nil} = user, _token} ->
-        user
-        |> User.confirm_changeset()
-        |> update_user_and_delete_all_tokens()
+        {user, token} ->
+          Repo.delete!(token)
+          {:ok, {user, []}}
 
-      {user, token} ->
-        Repo.delete!(token)
-        {:ok, {user, []}}
-
-      nil ->
-        {:error, :not_found}
+        nil ->
+          {:error, :not_found}
+      end
+    else
+      _ -> {:error, :not_found}
     end
   end
 
@@ -281,7 +302,7 @@ defmodule Organizer.Accounts do
     :ok
   end
 
-  ## Token helper
+  ## Token lifecycle support
 
   defp update_user_and_delete_all_tokens(changeset) do
     Repo.transact(fn ->

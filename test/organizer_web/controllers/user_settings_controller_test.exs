@@ -10,7 +10,7 @@ defmodule OrganizerWeb.UserSettingsControllerTest do
     test "renders settings page", %{conn: conn} do
       conn = get(conn, ~p"/users/settings")
       response = html_response(conn, 200)
-      assert response =~ "Settings"
+      assert response =~ "Configurações da conta"
     end
 
     test "redirects if user is not logged in" do
@@ -25,7 +25,7 @@ defmodule OrganizerWeb.UserSettingsControllerTest do
       assert redirected_to(conn) == ~p"/users/log-in"
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-               "You must re-authenticate to access this page."
+               "Você precisa se reautenticar para acessar esta página."
     end
   end
 
@@ -45,7 +45,7 @@ defmodule OrganizerWeb.UserSettingsControllerTest do
       assert get_session(new_password_conn, :user_token) != get_session(conn, :user_token)
 
       assert Phoenix.Flash.get(new_password_conn.assigns.flash, :info) =~
-               "Password updated successfully"
+               "Senha atualizada com sucesso"
 
       assert Accounts.get_user_by_email_and_password(user.email, "new valid password")
     end
@@ -61,7 +61,7 @@ defmodule OrganizerWeb.UserSettingsControllerTest do
         })
 
       response = html_response(old_password_conn, 200)
-      assert response =~ "Settings"
+      assert response =~ "Configurações da conta"
       assert response =~ "should be at least 12 character(s)"
       assert response =~ "does not match password"
 
@@ -81,7 +81,7 @@ defmodule OrganizerWeb.UserSettingsControllerTest do
       assert redirected_to(conn) == ~p"/users/settings"
 
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~
-               "A link to confirm your email"
+               "Enviamos para o novo endereço"
 
       assert Accounts.get_user_by_email(user.email)
     end
@@ -94,7 +94,7 @@ defmodule OrganizerWeb.UserSettingsControllerTest do
         })
 
       response = html_response(conn, 200)
-      assert response =~ "Settings"
+      assert response =~ "Configurações da conta"
       assert response =~ "must have the @ sign and no spaces"
     end
   end
@@ -116,7 +116,7 @@ defmodule OrganizerWeb.UserSettingsControllerTest do
       assert redirected_to(conn) == ~p"/users/settings"
 
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~
-               "Email changed successfully"
+               "E-mail alterado com sucesso"
 
       refute Accounts.get_user_by_email(user.email)
       assert Accounts.get_user_by_email(email)
@@ -126,7 +126,7 @@ defmodule OrganizerWeb.UserSettingsControllerTest do
       assert redirected_to(conn) == ~p"/users/settings"
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) =~
-               "Email change link is invalid or it has expired"
+               "O link de alteração de e-mail é inválido ou expirou"
     end
 
     test "does not update email with invalid token", %{conn: conn, user: user} do
@@ -134,7 +134,7 @@ defmodule OrganizerWeb.UserSettingsControllerTest do
       assert redirected_to(conn) == ~p"/users/settings"
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) =~
-               "Email change link is invalid or it has expired"
+               "O link de alteração de e-mail é inválido ou expirou"
 
       assert Accounts.get_user_by_email(user.email)
     end

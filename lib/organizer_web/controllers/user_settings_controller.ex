@@ -28,7 +28,7 @@ defmodule OrganizerWeb.UserSettingsController do
         conn
         |> put_flash(
           :info,
-          "A link to confirm your email change has been sent to the new address."
+          "Enviamos para o novo endereço um link para confirmar a alteração de e-mail."
         )
         |> redirect(to: ~p"/users/settings")
 
@@ -44,7 +44,7 @@ defmodule OrganizerWeb.UserSettingsController do
     case Accounts.update_user_password(user, user_params) do
       {:ok, {user, _}} ->
         conn
-        |> put_flash(:info, "Password updated successfully.")
+        |> put_flash(:info, "Senha atualizada com sucesso.")
         |> put_session(:user_return_to, ~p"/users/settings")
         |> UserAuth.log_in_user(user)
 
@@ -57,12 +57,12 @@ defmodule OrganizerWeb.UserSettingsController do
     case Accounts.update_user_email(conn.assigns.current_scope.user, token) do
       {:ok, _user} ->
         conn
-        |> put_flash(:info, "Email changed successfully.")
+        |> put_flash(:info, "E-mail alterado com sucesso.")
         |> redirect(to: ~p"/users/settings")
 
       {:error, _} ->
         conn
-        |> put_flash(:error, "Email change link is invalid or it has expired.")
+        |> put_flash(:error, "O link de alteração de e-mail é inválido ou expirou.")
         |> redirect(to: ~p"/users/settings")
     end
   end

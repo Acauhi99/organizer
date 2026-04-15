@@ -1,6 +1,8 @@
 defmodule OrganizerWeb.UserAuth do
   use OrganizerWeb, :verified_routes
 
+  require Logger
+
   import Plug.Conn
   import Phoenix.Controller
 
@@ -67,11 +69,15 @@ defmodule OrganizerWeb.UserAuth do
   def fetch_current_scope_for_user(conn, _opts) do
     with {token, conn} <- ensure_user_token(conn),
          {user, token_inserted_at} <- Accounts.get_user_by_session_token(token) do
+      Logger.metadata(user_id: user.id)
+
       conn
       |> assign(:current_scope, Scope.for_user(user))
       |> maybe_reissue_user_session_token(user, token_inserted_at)
     else
-      nil -> assign(conn, :current_scope, Scope.for_user(nil))
+      nil ->
+        Logger.metadata(user_id: nil)
+        assign(conn, :current_scope, Scope.for_user(nil))
     end
   end
 
@@ -174,7 +180,7 @@ defmodule OrganizerWeb.UserAuth do
       conn
     else
       conn
-      |> put_flash(:error, "You must re-authenticate to access this page.")
+      |> put_flash(:error, "Você precisa se reautenticar para acessar esta página.")
       |> maybe_store_return_to()
       |> redirect(to: ~p"/users/log-in")
       |> halt()
@@ -204,7 +210,7 @@ defmodule OrganizerWeb.UserAuth do
       conn
     else
       conn
-      |> put_flash(:error, "You must log in to access this page.")
+      |> put_flash(:error, "Você precisa entrar para acessar esta página.")
       |> maybe_store_return_to()
       |> redirect(to: ~p"/users/log-in")
       |> halt()

@@ -22,17 +22,17 @@ defmodule Organizer.Accounts.UserNotifier do
   Deliver instructions to update a user email.
   """
   def deliver_update_email_instructions(user, url) do
-    deliver(user.email, "Update email instructions", """
+    deliver(user.email, "Instruções para alterar e-mail", """
 
     ==============================
 
-    Hi #{user.email},
+    Olá #{user.email},
 
-    You can change your email by visiting the URL below:
+    Você pode alterar seu e-mail acessando a URL abaixo:
 
     #{url}
 
-    If you didn't request this change, please ignore this.
+    Se você não solicitou essa alteração, ignore este e-mail.
 
     ==============================
     """)
@@ -49,34 +49,34 @@ defmodule Organizer.Accounts.UserNotifier do
   end
 
   defp deliver_magic_link_instructions(user, url) do
-    deliver(user.email, "Log in instructions", """
+    deliver(user.email, "Instruções de acesso", """
 
     ==============================
 
-    Hi #{user.email},
+    Olá #{user.email},
 
-    You can log into your account by visiting the URL below:
+    Você pode entrar na sua conta acessando a URL abaixo:
 
     #{url}
 
-    If you didn't request this email, please ignore this.
+    Se você não solicitou este e-mail, ignore esta mensagem.
 
     ==============================
     """)
   end
 
   defp deliver_confirmation_instructions(user, url) do
-    deliver(user.email, "Confirmation instructions", """
+    deliver(user.email, "Instruções de confirmação", """
 
     ==============================
 
-    Hi #{user.email},
+    Olá #{user.email},
 
-    You can confirm your account by visiting the URL below:
+    Você pode confirmar sua conta acessando a URL abaixo:
 
     #{url}
 
-    If you didn't create an account with us, please ignore this.
+    Se você não criou uma conta conosco, ignore esta mensagem.
 
     ==============================
     """)

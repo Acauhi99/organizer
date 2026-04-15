@@ -1,59 +1,69 @@
-<Layouts.app flash={@flash} current_scope={@current_scope}>
-  <div class="mx-auto max-w-sm">
-    <div class="text-center">
-      <.header>Welcome {@user.email}</.header>
-    </div>
+<Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
+  <section class="mx-auto max-w-3xl py-4 sm:py-8">
+    <article class="surface-card rounded-3xl p-6 sm:p-8">
+      <div class="text-center">
+        <p class="hero-eyebrow text-xs font-semibold uppercase tracking-[0.18em]">Link mágico verificado</p>
+        <h1 class="mt-2 text-2xl font-black text-base-content sm:text-3xl">Bem-vindo, {@user.email}</h1>
+        <p class="mt-2 text-sm text-base-content/78">
+          Escolha por quanto tempo esta sessão deve ficar ativa neste dispositivo.
+        </p>
+      </div>
 
-    <.form
-      :if={!@user.confirmed_at}
-      for={@form}
-      id="confirmation_form"
-      action={~p"/users/log-in?_action=confirmed"}
-      phx-mounted={JS.focus_first()}
-    >
-      <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
-      <.button
-        name={@form[:remember_me].name}
-        value="true"
-        phx-disable-with="Confirming..."
-        class="btn btn-primary w-full"
+      <.form
+        :if={!@user.confirmed_at}
+        for={@form}
+        id="confirmation_form"
+        action={~p"/users/log-in?_action=confirmed"}
+        phx-mounted={JS.focus_first()}
+        class="mx-auto mt-6 max-w-md"
       >
-        Confirm and stay logged in
-      </.button>
-      <.button phx-disable-with="Confirming..." class="btn btn-primary btn-soft w-full mt-2">
-        Confirm and log in only this time
-      </.button>
-    </.form>
-
-    <.form
-      :if={@user.confirmed_at}
-      for={@form}
-      id="login_form"
-      action={~p"/users/log-in"}
-      phx-mounted={JS.focus_first()}
-    >
-      <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
-      <%= if @current_scope do %>
-        <.button variant="primary" phx-disable-with="Logging in..." class="btn btn-primary w-full">
-          Log in
-        </.button>
-      <% else %>
+        <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
         <.button
+          variant="primary"
           name={@form[:remember_me].name}
           value="true"
-          phx-disable-with="Logging in..."
-          class="btn btn-primary w-full"
+          phx-disable-with="Confirmando..."
+          class="w-full"
         >
-          Keep me logged in on this device
+          Confirmar e manter sessão
         </.button>
-        <.button phx-disable-with="Logging in..." class="btn btn-primary btn-soft w-full mt-2">
-          Log me in only this time
+        <.button variant="soft" phx-disable-with="Confirmando..." class="w-full mt-2">
+          Confirmar e entrar só desta vez
         </.button>
-      <% end %>
-    </.form>
+      </.form>
 
-    <p :if={!@user.confirmed_at} class="alert alert-outline mt-8">
-      Tip: If you prefer passwords, you can enable them in the user settings.
-    </p>
-  </div>
+      <.form
+        :if={@user.confirmed_at}
+        for={@form}
+        id="login_form"
+        action={~p"/users/log-in"}
+        phx-mounted={JS.focus_first()}
+        class="mx-auto mt-6 max-w-md"
+      >
+        <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
+        <%= if @current_scope do %>
+          <.button variant="primary" phx-disable-with="Entrando..." class="w-full">
+            Entrar
+          </.button>
+        <% else %>
+          <.button
+            variant="primary"
+            name={@form[:remember_me].name}
+            value="true"
+            phx-disable-with="Entrando..."
+            class="w-full"
+          >
+            Manter sessão neste dispositivo
+          </.button>
+          <.button variant="soft" phx-disable-with="Entrando..." class="w-full mt-2">
+            Entrar só desta vez
+          </.button>
+        <% end %>
+      </.form>
+
+      <p :if={!@user.confirmed_at} class="alert alert-outline mx-auto mt-6 max-w-md">
+        Dica: se preferir senha, você pode ativá-la nas configurações do usuário.
+      </p>
+    </article>
+  </section>
 </Layouts.app>

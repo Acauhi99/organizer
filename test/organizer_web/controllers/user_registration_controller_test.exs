@@ -7,7 +7,7 @@ defmodule OrganizerWeb.UserRegistrationControllerTest do
     test "renders registration page", %{conn: conn} do
       conn = get(conn, ~p"/users/register")
       response = html_response(conn, 200)
-      assert response =~ "Register"
+      assert response =~ "Cadastrar"
       assert response =~ ~p"/users/log-in"
       assert response =~ ~p"/users/register"
     end
@@ -15,7 +15,7 @@ defmodule OrganizerWeb.UserRegistrationControllerTest do
     test "redirects if already logged in", %{conn: conn} do
       conn = conn |> log_in_user(user_fixture()) |> get(~p"/users/register")
 
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/dashboard"
     end
   end
 
@@ -33,7 +33,7 @@ defmodule OrganizerWeb.UserRegistrationControllerTest do
       assert redirected_to(conn) == ~p"/users/log-in"
 
       assert conn.assigns.flash["info"] =~
-               ~r/An email was sent to .*, please access it to confirm your account/
+               ~r/Enviamos um e-mail para .*\. Acesse o link para confirmar sua conta\./
     end
 
     test "render errors for invalid data", %{conn: conn} do
@@ -43,7 +43,7 @@ defmodule OrganizerWeb.UserRegistrationControllerTest do
         })
 
       response = html_response(conn, 200)
-      assert response =~ "Register"
+      assert response =~ "Cadastrar"
       assert response =~ "must have the @ sign and no spaces"
     end
   end
