@@ -95,6 +95,10 @@ defmodule OrganizerWeb.Router do
 
     get "/users/register", UserRegistrationController, :new
     post "/users/register", UserRegistrationController, :create
+    get "/users/reset-password", UserResetPasswordController, :new
+    post "/users/reset-password", UserResetPasswordController, :create
+    get "/users/reset-password/:token", UserResetPasswordController, :edit
+    put "/users/reset-password/:token", UserResetPasswordController, :update
   end
 
   scope "/", OrganizerWeb do

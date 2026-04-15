@@ -1,0 +1,87 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
+  <section class="public-auth-shell mx-auto max-w-6xl py-4 sm:py-8">
+    <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <article class="brand-hero-card public-auth-hero rounded-[2rem] p-6 sm:p-8">
+        <p class="hero-eyebrow text-xs font-semibold uppercase tracking-[0.18em]">Nova senha</p>
+        <h1 class="mt-3 text-3xl font-black leading-tight sm:text-4xl">Defina sua nova senha</h1>
+        <p class="hero-copy mt-4 max-w-xl text-sm leading-relaxed sm:text-base">
+          Use uma senha forte para manter sua conta protegida e voltar ao planejamento com tranquilidade.
+        </p>
+
+        <div class="mt-6 grid gap-3 sm:grid-cols-2">
+          <div class="micro-surface public-point rounded-2xl p-3">
+            <div class="flex items-start gap-2">
+              <span class="public-icon-wrap mt-0.5">
+                <.icon name="hero-shield-check" class="size-4" />
+              </span>
+              <div>
+                <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
+                  Mais seguranca
+                </p>
+                <p class="hero-meta-copy mt-1 text-xs">
+                  A nova senha substitui a credencial anterior.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="micro-surface public-point rounded-2xl p-3">
+            <div class="flex items-start gap-2">
+              <span class="public-icon-wrap mt-0.5">
+                <.icon name="hero-key" class="size-4" />
+              </span>
+              <div>
+                <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
+                  Acesso renovado
+                </p>
+                <p class="hero-meta-copy mt-1 text-xs">
+                  Depois de salvar, faça login normalmente.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="surface-card public-form-card rounded-[2rem] p-6 sm:p-8">
+        <div class="space-y-1 text-center">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">
+            Redefinicao de senha
+          </p>
+          <h2 class="text-2xl font-black text-base-content">Redefinir senha</h2>
+          <p class="text-sm text-base-content/75">Crie uma nova senha para sua conta.</p>
+        </div>
+
+        <div class="public-divider mt-5"></div>
+
+        <.form
+          for={@form}
+          id="reset_password_form"
+          action={~p"/users/reset-password/#{@token}"}
+          method="put"
+          class="mt-4"
+        >
+          <.input
+            field={@form[:password]}
+            type="password"
+            label="Nova senha"
+            required
+            autocomplete="new-password"
+            spellcheck="false"
+          />
+          <.input
+            field={@form[:password_confirmation]}
+            type="password"
+            label="Confirmar nova senha"
+            required
+            autocomplete="new-password"
+            spellcheck="false"
+          />
+          <.button variant="primary" class="w-full" phx-disable-with="Salvando...">
+            Salvar nova senha
+          </.button>
+        </.form>
+      </article>
+    </div>
+  </section>
+</Layouts.app>
