@@ -39,12 +39,14 @@ db-create:
 	mix ecto.create
 
 db-migrate:
-	mix ecto.migrate
+	mix compile --no-warnings
+	mix ecto.migrate --no-compile
 
 db-reset:
-	mix ecto.drop
-	mix ecto.create
-	mix ecto.migrate
+	mix compile --no-warnings
+	mix ecto.drop --no-compile
+	mix ecto.create --no-compile
+	mix ecto.migrate --no-compile
 
 run: db-migrate
-	mix phx.server
+	mix phx.server --no-compile
