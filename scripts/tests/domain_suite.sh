@@ -1,0 +1,41 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+cd "$ROOT_DIR"
+
+HOST_UID="$(id -u)"
+HOST_GID="$(id -g)"
+
+TEST_IMAGE="${TEST_IMAGE:-organizer-app:latest}"
+if ! docker image inspect "$TEST_IMAGE" >/dev/null 2>&1; then
+  TEST_IMAGE="elixir:1.17"
+fi
+
+TEST_FILES="test/organizer/accounts_test.exs \
+test/organizer/planning_test.exs \
+test/organizer/planning/analytics_test.exs"
+
+echo "[unit-tests] Running domain-focused suite in Docker image: $TEST_IMAGE"
+echo "[unit-tests] Cleaning test build artifacts (_build/test and organizer_test.db*)"
+
+status=0
+
+docker run --rm \
+  -v "$PWD":/app \
+  alpine:3.20 \
+  sh -lc "rm -rf /app/_build/test /app/organizer_test.db /app/organizer_test.db-shm /app/organizer_test.db-wal"
+
+docker run --rm \
+  -e MIX_ENV=test \
+  -v "$PWD":/app \
+  -w /app \
+  "$TEST_IMAGE" \
+  sh -lc "sh scripts/docker/run_mix.sh test $TEST_FILES > /tmp/domain-tests.log 2>&1; run_status=\$?; tail -n 80 /tmp/domain-tests.log; echo DOMAIN_EXIT:\$run_status; exit \$run_status" || status=$?
+
+docker run --rm \
+  -v "$PWD":/app \
+  alpine:3.20 \
+  sh -lc "chown -R $HOST_UID:$HOST_GID /app/_build /app/organizer_test.db /app/organizer_test.db-shm /app/organizer_test.db-wal 2>/dev/null || true"
+
+exit "$status"

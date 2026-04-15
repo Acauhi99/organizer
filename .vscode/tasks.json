@@ -1,0 +1,14 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "DB: migrate (dev)",
+			"type": "shell",
+			"command": "mix",
+			"args": [
+				"ecto.migrate"
+			],
+			"problemMatcher": []
+		}
+	]
+}

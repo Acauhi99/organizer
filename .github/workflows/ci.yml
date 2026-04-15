@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir and OTP
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: 1.17.3
+          otp-version: 27.2
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libsqlite3-dev
+
+      - name: Cache deps and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-
+
+      - name: Fetch dependencies
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile with warnings as errors
+        run: mix compile --warnings-as-errors
+
+      - name: Static analysis (xref)
+        run: mix xref warnings
+
+      - name: Run unit-first suite
+        run: mix test test/organizer/accounts_test.exs test/organizer/planning_test.exs test/organizer/planning/analytics_test.exs
+
+      - name: Run focused web suite
+        run: mix test test/organizer_web/live/dashboard_live_test.exs test/organizer_web/live/auth_flow_live_test.exs test/organizer_web/controllers/api/v1/task_controller_test.exs test/organizer_web/controllers/api/v1/finance_entry_controller_test.exs test/organizer_web/controllers/api/v1/goal_controller_test.exs test/organizer_web/controllers/api/v1/fixed_cost_controller_test.exs test/organizer_web/controllers/api/v1/important_date_controller_test.exs
