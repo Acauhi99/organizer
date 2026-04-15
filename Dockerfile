@@ -5,16 +5,20 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+ENV MIX_ENV=prod
 
 RUN mix local.hex --force && mix local.rebar --force
 
 COPY mix.exs mix.lock ./
 COPY config config
-RUN mix deps.get
+RUN mix deps.get --only prod
 
-COPY . .
+COPY priv priv
+COPY lib lib
+COPY assets assets
+
+RUN mix compile && mix assets.deploy
 
 EXPOSE 4000
-ENV MIX_ENV=dev
 
-CMD ["mix", "phx.server"]
+CMD ["sh", "-c", "mix ecto.migrate --no-compile && mix phx.server --no-compile"]
