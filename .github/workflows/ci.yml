@@ -4,11 +4,19 @@ on:
   push:
     branches:
       - main
-      - master
   pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  validate:
     runs-on: ubuntu-latest
     env:
       MIX_ENV: test
@@ -49,8 +57,5 @@ jobs:
       - name: Static analysis (xref)
         run: mix xref warnings
 
-      - name: Run unit-first suite
-        run: mix test test/organizer/accounts_test.exs test/organizer/planning_test.exs test/organizer/planning/analytics_test.exs
-
-      - name: Run focused web suite
-        run: mix test test/organizer_web/live/dashboard_live_test.exs test/organizer_web/live/auth_flow_live_test.exs test/organizer_web/controllers/api/v1/task_controller_test.exs test/organizer_web/controllers/api/v1/finance_entry_controller_test.exs test/organizer_web/controllers/api/v1/goal_controller_test.exs test/organizer_web/controllers/api/v1/fixed_cost_controller_test.exs test/organizer_web/controllers/api/v1/important_date_controller_test.exs
+      - name: Run test suite
+        run: mix test
