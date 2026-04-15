@@ -24,7 +24,8 @@ defmodule OrganizerWeb.Endpoint do
     at: "/",
     from: :organizer,
     gzip: not code_reloading?,
-    only: OrganizerWeb.static_paths()
+    only: OrganizerWeb.static_paths(),
+    only_matching: ["favicon"]
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
