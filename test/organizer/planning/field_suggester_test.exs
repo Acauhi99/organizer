@@ -1,37 +1,34 @@
 defmodule Organizer.Planning.FieldSuggesterTest do
-  # async: false because FieldSuggester uses named ETS + named GenServer
+  # async: false because FieldSuggester uses a single named ETS table
   use ExUnit.Case, async: false
 
   alias Organizer.Planning.FieldSuggester
 
   # ---------------------------------------------------------------------------
-  # Setup: start a fresh GenServer (and thus ETS table) for each test.
-  # We avoid name clashes with the application-level instance by starting
-  # an unnamed process and interacting with ETS directly where needed.
+  # Setup: wipe ETS data between tests WITHOUT stopping the supervised process.
+  #
+  # Stopping the application-level GenServer causes race conditions: the
+  # supervisor may restart it between steps, leading to crashes that propagate
+  # to other workers (including Organizer.Repo) and break unrelated tests.
+  #
+  # Instead we keep the process alive and simply clear all ETS rows before
+  # each test. The named GenServer and table remain stable throughout the run.
   # ---------------------------------------------------------------------------
 
   setup do
-    # Stop the globally registered FieldSuggester if running (started by app supervisor)
+    # Ensure the GenServer is up (it should always be, but be defensive)
     case Process.whereis(FieldSuggester) do
-      nil -> :ok
-      pid -> GenServer.stop(pid, :normal)
+      nil ->
+        {:ok, _pid} = FieldSuggester.start_link([])
+
+      _pid ->
+        :ok
     end
 
-    # Drop the ETS table if it survived a previous crash
+    # Wipe all rows so each test starts with an empty table
     if :ets.whereis(:field_suggestions) != :undefined do
-      :ets.delete(:field_suggestions)
+      :ets.delete_all_objects(:field_suggestions)
     end
-
-    # Start fresh
-    {:ok, pid} = FieldSuggester.start_link([])
-
-    on_exit(fn ->
-      if Process.alive?(pid), do: GenServer.stop(pid, :normal)
-
-      if :ets.whereis(:field_suggestions) != :undefined do
-        :ets.delete(:field_suggestions)
-      end
-    end)
 
     :ok
   end

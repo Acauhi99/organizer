@@ -7,42 +7,30 @@ defmodule Organizer.Planning.FieldSuggesterPropertyTest do
   alias Organizer.Planning.FilterNormalization
 
   # ---------------------------------------------------------------------------
-  # Setup: isolated GenServer + ETS per test (same pattern as unit test file)
+  # Setup: wipe ETS data between tests WITHOUT stopping the supervised process.
+  #
+  # Stopping the application-level GenServer causes race conditions: the
+  # supervisor may restart it between steps, leading to crashes that propagate
+  # to other workers (including Organizer.Repo) and break unrelated tests.
+  #
+  # Instead we keep the process alive and simply clear all ETS rows before
+  # each test. The named GenServer and table remain stable throughout the run.
   # ---------------------------------------------------------------------------
 
   setup do
-    # Stop the globally registered FieldSuggester (started by app supervisor).
-    # The supervisor may restart it immediately, so we handle both cases.
+    # Ensure the GenServer is up (it should always be, but be defensive)
     case Process.whereis(FieldSuggester) do
-      nil -> :ok
-      pid -> GenServer.stop(pid, :normal)
+      nil ->
+        {:ok, _pid} = FieldSuggester.start_link([])
+
+      _pid ->
+        :ok
     end
 
-    # Drop ETS if it survived
+    # Wipe all rows so each test starts with an empty table
     if :ets.whereis(:field_suggestions) != :undefined do
-      :ets.delete(:field_suggestions)
+      :ets.delete_all_objects(:field_suggestions)
     end
-
-    # Start our own fresh instance.
-    # If the supervisor already restarted FieldSuggester, grab that pid instead.
-    pid =
-      case FieldSuggester.start_link([]) do
-        {:ok, pid} ->
-          pid
-
-        {:error, {:already_started, pid}} ->
-          # Supervisor restarted it; wipe its ETS data to start clean
-          :ets.delete_all_objects(:field_suggestions)
-          pid
-      end
-
-    on_exit(fn ->
-      if Process.alive?(pid), do: GenServer.stop(pid, :normal)
-
-      if :ets.whereis(:field_suggestions) != :undefined do
-        :ets.delete(:field_suggestions)
-      end
-    end)
 
     :ok
   end
