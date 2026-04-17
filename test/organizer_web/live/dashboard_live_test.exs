@@ -46,7 +46,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       payload = """
       tarefa: Comprar ração | data=#{today} | prioridade=alta
-      financeiro: tipo=despesa | valor=12590 | categoria=pet | data=#{today}
+      financeiro: tipo=despesa | natureza=fixa | pagamento=credito | valor=125,90 | categoria=pet | data=#{today}
       meta: Reserva viagem | horizonte=medio | alvo=200000
       """
 
@@ -62,7 +62,14 @@ defmodule OrganizerWeb.DashboardLiveTest do
       {:ok, goals} = Planning.list_goals(scope, %{})
 
       assert Enum.any?(tasks, &(&1.title == "Comprar ração"))
-      assert Enum.any?(finances, &(&1.category == "pet" and &1.amount_cents == 12_590))
+
+      assert Enum.any?(finances, fn entry ->
+               entry.category == "pet" and
+                 entry.amount_cents == 12_590 and
+                 entry.expense_profile == :fixed and
+                 entry.payment_method == :credit
+             end)
+
       assert Enum.any?(goals, &(&1.title == "Reserva viagem"))
     end
 
@@ -81,9 +88,9 @@ defmodule OrganizerWeb.DashboardLiveTest do
       {:ok, finances} = Planning.list_finance_entries(scope, %{})
       {:ok, goals} = Planning.list_goals(scope, %{})
 
-      assert Enum.any?(tasks, &(&1.title == "Revisar orçamento"))
-      assert Enum.any?(finances, &(&1.kind == :expense and &1.category == "moradia"))
-      assert Enum.any?(goals, &(&1.title == "Reserva de emergência"))
+      assert Enum.any?(tasks, &String.contains?(&1.title, "reunião com equipe"))
+      assert Enum.any?(finances, &(&1.kind == :expense and &1.category == "almoço"))
+      assert Enum.any?(goals, &(&1.title == "aprender Elixir"))
     end
 
     test "previews lines without creating records", %{conn: conn, scope: scope} do
@@ -232,7 +239,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       payload = """
       tarefa: Ajustar parser | data=15-04-2026 | prioridade=urgente
-      financeiro: tipo=despesa | valor=R$ 1.234,56 | categoria=moradia | data=15/04/2026
+      financeiro: tipo=despesa | natureza=variavel | pagamento=debito | valor=R$ 1.234,56 | categoria=moradia | data=15/04/2026
       meta: Meta com alvo | horizonte=médio | alvo=10.000 | data=2026/12/01
       """
 
@@ -252,6 +259,8 @@ defmodule OrganizerWeb.DashboardLiveTest do
       finance = Enum.find(finances, &(&1.category == "moradia" and &1.amount_cents == 123_456))
       assert finance
       assert Date.to_iso8601(finance.occurred_on) == "2026-04-15"
+      assert finance.expense_profile == :variable
+      assert finance.payment_method == :debit
 
       goal = Enum.find(goals, &(&1.title == "Meta com alvo"))
       assert goal
@@ -373,6 +382,8 @@ defmodule OrganizerWeb.DashboardLiveTest do
         "_id" => to_string(entry.id),
         "finance" => %{
           "kind" => "income",
+          "expense_profile" => "",
+          "payment_method" => "",
           "amount_cents" => 9000,
           "category" => "freela",
           "occurred_on" => Date.to_iso8601(Date.utc_today()),
@@ -385,6 +396,30 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert updated_entry.kind == :income
       assert updated_entry.category == "freela"
       assert updated_entry.amount_cents == 9000
+
+      view
+      |> element("#finance-edit-btn-#{entry.id}")
+      |> render_click()
+
+      view
+      |> form("#finance-edit-form-#{entry.id}", %{
+        "_id" => to_string(entry.id),
+        "finance" => %{
+          "kind" => "expense",
+          "expense_profile" => "fixed",
+          "payment_method" => "credit",
+          "amount_cents" => 9500,
+          "category" => "assinatura",
+          "occurred_on" => Date.to_iso8601(Date.utc_today()),
+          "description" => "plano anual"
+        }
+      })
+      |> render_submit()
+
+      assert {:ok, expense_entry} = Planning.get_finance_entry(scope, entry.id)
+      assert expense_entry.kind == :expense
+      assert expense_entry.expense_profile == :fixed
+      assert expense_entry.payment_method == :credit
 
       view
       |> element("#finance-delete-btn-#{entry.id}")

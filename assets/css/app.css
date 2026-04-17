@@ -449,7 +449,35 @@ a:focus-visible {
 
 .ds-edit-form {
   border: 1px solid color-mix(in oklab, var(--color-base-content) 16%, transparent);
-  background: color-mix(in oklab, var(--color-base-100) 68%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 80%, transparent);
+}
+
+.ds-edit-form:disabled,
+.ds-edit-form.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ds-edit-form.loading {
+  position: relative;
+  opacity: 0.8;
+}
+
+.ds-edit-form.loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .ds-empty-state {
@@ -524,6 +552,46 @@ a:focus-visible {
   border-color: color-mix(in oklab, var(--color-info) 62%, transparent);
   outline: 2px solid color-mix(in oklab, var(--color-info) 28%, transparent);
   outline-offset: 1px;
+}
+
+.input.input-error,
+.select.input-error,
+.textarea.input-error {
+  border-color: color-mix(in oklab, var(--color-error) 62%, transparent);
+}
+
+.input.input-error:focus,
+.select.input-error:focus,
+.textarea.input-error:focus {
+  border-color: color-mix(in oklab, var(--color-error) 72%, transparent);
+  outline: 2px solid color-mix(in oklab, var(--color-error) 28%, transparent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-error) 18%, transparent);
+}
+
+.input:disabled,
+.select:disabled,
+.textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: color-mix(in oklab, var(--color-base-100) 72%, transparent);
+  border-color: color-mix(in oklab, var(--color-base-content) 8%, transparent);
+}
+
+.input.loading,
+.select.loading,
+.textarea.loading {
+  position: relative;
+  animation: pulse-input 2s infinite;
+}
+
+@keyframes pulse-input {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 .bulk-studio-shell {

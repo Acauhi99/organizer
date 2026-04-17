@@ -11,6 +11,7 @@ Aplicação de organização pessoal com Phoenix (LiveView + API), SQLite e aute
 	- pré-visualização, correções guiadas e importação incremental por bloco
 	- histórico de payload, favoritos, modo estrito e desfazer última importação
 - Operações de tarefas, finanças e metas no mesmo painel com filtros e edição inline.
+- Classificação financeira por lançamento de despesa com natureza (`fixed`/`variable`) e forma de pagamento (`credit`/`debit`) no fluxo de captura rápida.
 - Visão analítica com comparativos por período, capacidade planejada e indicadores de risco de sobrecarga.
 - API REST em `/api/v1` para:
 	- `tasks`
@@ -34,11 +35,29 @@ flowchart TD
 
 		Planning --> Validation[AttributeValidation]
 		Planning --> Analytics[Planning.Analytics]
+		Planning --> Cache[AnalyticsCache GenServer]
 		Planning --> Repo[Ecto Repo]
 		Repo --> DB[(SQLite)]
 
+		Cache --> ETS[(ETS Cache)]
+		Cache --> Analytics
+
 		Live --> Assets[assets/css + assets/js]
 ```
+
+### Infraestrutura OTP
+
+A aplicação utiliza padrões OTP para performance e escalabilidade:
+
+- **AnalyticsCache (GenServer)**: Cache distribuído com ETS para cálculos de analytics. Fornece invalidação automática quando tarefas, finanças ou metas são alteradas. TTL de 5 minutos com fallback automático em cache miss.
+  - Chave de cache: `analytics:user:{user_id}:days:{days}`
+  - Acesso: `Organizer.Planning.AnalyticsCache.get_analytics/2`
+  - Isolamento por usuário para segurança
+
+- **Task.Supervisor**: Gerenciador de tarefas assíncronas para operações não-bloqueantes (email, bulk operations). Nomeado como `Organizer.TaskSupervisor`.
+  - Uso: `Task.Supervisor.async_nolink(Organizer.TaskSupervisor, fn -> ... end)`
+
+- **Phoenix.PubSub**: Sistema de pub/sub para broadcast de eventos (atualmente usado por LiveDashboard e telemetria).
 
 ## Convenções de código e evolução
 

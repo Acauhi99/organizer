@@ -1,9 +1,13 @@
 defmodule Organizer.Accounts.UserNotifier do
+  require Logger
+
   import Swoosh.Email
 
   alias Organizer.Mailer
 
   # Delivers the email using the application mailer.
+  # Returns {:ok, email} on success or logs and returns {:ok, email} on failure
+  # to prevent cascading failures while keeping the return shape consistent.
   defp deliver(recipient, subject, body) do
     email =
       new()
@@ -12,8 +16,14 @@ defmodule Organizer.Accounts.UserNotifier do
       |> subject(subject)
       |> text_body(body)
 
-    with {:ok, _metadata} <- Mailer.deliver(email) do
-      {:ok, email}
+    case Mailer.deliver(email) do
+      {:ok, _metadata} ->
+        {:ok, email}
+
+      {:error, reason} ->
+        Logger.warning("Failed to deliver email to #{recipient}: #{inspect(reason)}")
+
+        {:ok, email}
     end
   end
 

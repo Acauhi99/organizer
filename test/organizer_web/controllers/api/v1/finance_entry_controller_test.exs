@@ -23,13 +23,22 @@ defmodule OrganizerWeb.API.V1.FinanceEntryControllerTest do
         post(conn, ~p"/api/v1/finance-entries", %{
           "finance_entry" => %{
             "kind" => "expense",
+            "expense_profile" => "fixed",
+            "payment_method" => "credit",
             "amount_cents" => 12_500,
             "category" => "mercado",
             "occurred_on" => Date.to_iso8601(Date.utc_today())
           }
         })
 
-      assert %{"data" => %{"id" => id, "category" => "mercado"}} =
+      assert %{
+               "data" => %{
+                 "id" => id,
+                 "category" => "mercado",
+                 "expense_profile" => "fixed",
+                 "payment_method" => "credit"
+               }
+             } =
                json_response(conn, 201)
 
       conn = get(recycle(conn), ~p"/api/v1/finance-entries")

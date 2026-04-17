@@ -238,4 +238,67 @@ defmodule OrganizerWeb.UserAuth do
   end
 
   defp maybe_store_return_to(conn), do: conn
+
+  @doc """
+  LiveView on_mount callback for authentication.
+
+  When called with :authenticated, authenticates the user via session token,
+  assigns current_scope, and redirects to login page if authentication fails.
+
+  When called with :default, authenticates if token is available but does not require it.
+  """
+  def on_mount(:authenticated, _params, session, socket) do
+    with {token, _socket} <- ensure_user_token_from_session(session),
+         {user, token_inserted_at} <- Accounts.get_user_by_session_token(token) do
+      Logger.metadata(user_id: user.id)
+
+      socket =
+        socket
+        |> Phoenix.Component.assign(:current_scope, Scope.for_user(user))
+        |> maybe_reissue_user_session_token_liveview(user, token_inserted_at, session)
+
+      {:cont, socket}
+    else
+      nil ->
+        Logger.metadata(user_id: nil)
+        {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/users/log-in")}
+    end
+  end
+
+  def on_mount(:default, _params, session, socket) do
+    with {token, _socket} <- ensure_user_token_from_session(session),
+         {user, token_inserted_at} <- Accounts.get_user_by_session_token(token) do
+      Logger.metadata(user_id: user.id)
+
+      socket =
+        socket
+        |> Phoenix.Component.assign(:current_scope, Scope.for_user(user))
+        |> maybe_reissue_user_session_token_liveview(user, token_inserted_at, session)
+
+      {:cont, socket}
+    else
+      nil ->
+        Logger.metadata(user_id: nil)
+        {:cont, Phoenix.Component.assign(socket, :current_scope, Scope.for_user(nil))}
+    end
+  end
+
+  # Helper to extract token from LiveView session (no Phoenix.Conn needed)
+  defp ensure_user_token_from_session(session) do
+    if token = session["user_token"] do
+      {token, nil}
+    else
+      # Note: Cannot access cookies in on_mount without conn, so we only check session
+      # Remember-me cookie is handled by fetch_current_scope_for_user plug for initial requests
+      nil
+    end
+  end
+
+  # Reissue token if needed (LiveView version)
+  # Note: In LiveView, we cannot set cookies directly; token reissue happens on subsequent HTTP requests
+  defp maybe_reissue_user_session_token_liveview(socket, _user, _token_inserted_at, _session) do
+    # Token reissue will be handled by fetch_current_scope_for_user on next HTTP request
+    # This is deferred to avoid complexity in LiveView on_mount callback
+    socket
+  end
 end

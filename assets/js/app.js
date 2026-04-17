@@ -35,7 +35,8 @@ const BULK_PREFIX_TEMPLATES = [
   {prefixes: ["t", "ta", "tar", "task", "tarefa"], value: () => "tarefa: "},
   {
     prefixes: ["f", "fi", "fin", "finance", "financeiro"],
-    value: (today) => `financeiro: tipo=despesa | valor=0 | categoria=geral | data=${today}`,
+    value: (today) =>
+      `financeiro: tipo=despesa | natureza=variavel | pagamento=debito | valor=0 | categoria=geral | data=${today}`,
   },
   {
     prefixes: ["r", "rec", "receita", "income"],
@@ -43,7 +44,8 @@ const BULK_PREFIX_TEMPLATES = [
   },
   {
     prefixes: ["d", "des", "despesa", "expense"],
-    value: (today) => `financeiro: tipo=despesa | valor=0 | categoria=geral | data=${today}`,
+    value: (today) =>
+      `financeiro: tipo=despesa | natureza=variavel | pagamento=debito | valor=0 | categoria=geral | data=${today}`,
   },
   {prefixes: ["m", "me", "meta", "goal"], value: () => "meta: "},
 ]
@@ -94,6 +96,38 @@ const findBulkTemplate = (trimmedLine) => {
   return match.value(today)
 }
 
+const FIELD_PATTERNS = [
+  "prioridade", "priority",
+  "status",
+  "horizonte", "horizon",
+  "tipo", "kind",
+  "natureza", "expense_profile",
+  "pagamento", "payment_method",
+]
+
+const computeFieldAutocomplete = ({value, start, end, pushEvent}) => {
+  if (typeof start !== "number" || typeof end !== "number" || start !== end) {
+    return null
+  }
+
+  const source = value || ""
+  const {lineStart, lineEnd} = currentLineBounds(source, start)
+  const currentLine = source.slice(lineStart, lineEnd)
+
+  // Detect cursor after campo=prefix pattern
+  const beforeCursor = currentLine.slice(0, start - lineStart)
+  const fieldMatch = beforeCursor.match(/\b([a-z_]+)=([a-zA-Z]*)$/i)
+
+  if (!fieldMatch) return null
+
+  const fieldName = fieldMatch[1].toLowerCase()
+  const prefix = fieldMatch[2]
+
+  if (!FIELD_PATTERNS.includes(fieldName)) return null
+
+  return {fieldName, prefix, lineStart, lineEnd, beforeCursor}
+}
+
 const computeTypeAutocomplete = ({value, start, end}) => {
   if (typeof start !== "number" || typeof end !== "number" || start !== end) {
     return null
@@ -139,6 +173,9 @@ const hooks = {
       this.importSelector = this.el.dataset.importSelector || BULK_DEFAULT_SELECTORS.import
       this.fixAllSelector = this.el.dataset.fixAllSelector || BULK_DEFAULT_SELECTORS.fixAll
 
+      this.validationTimeout = null
+      this.previousValue = ""
+
       this.onKeyDown = (event) => {
         const action = resolveBulkShortcutAction(event)
 
@@ -147,6 +184,25 @@ const hooks = {
         }
 
         if (action === "autocomplete") {
+          // Try field value autocomplete first
+          const fieldContext = computeFieldAutocomplete({
+            value: this.el.value,
+            start: this.el.selectionStart,
+            end: this.el.selectionEnd,
+            pushEvent: this.pushEventTo.bind(this),
+          })
+
+          if (fieldContext) {
+            event.preventDefault()
+            this.pendingFieldComplete = fieldContext
+            this.pushEventTo(this.el.form || document, "complete_field_value", {
+              field: fieldContext.fieldName,
+              prefix: fieldContext.prefix,
+            }).catch(() => {})
+            return
+          }
+
+          // Fall back to type autocomplete
           if (this.applyTypeAutocomplete()) {
             event.preventDefault()
           }
@@ -164,11 +220,123 @@ const hooks = {
         this.clickSelector(selectorByAction[action])
       }
 
+      this.onInput = (event) => {
+        // Real-time validation as user types
+        clearTimeout(this.validationTimeout)
+        
+        // Only validate if content has changed significantly
+        if (event.target.value !== this.previousValue) {
+          this.previousValue = event.target.value
+          
+          // Debounce validation to avoid spam
+          this.validationTimeout = setTimeout(() => {
+            this.validateCurrentLines()
+          }, 500)
+        }
+      }
+
       this.el.addEventListener("keydown", this.onKeyDown)
+      this.el.addEventListener("input", this.onInput)
+
+      this.handleAutocompleteResult = (event) => {
+        const ctx = this.pendingFieldComplete
+        if (!ctx || event.field !== ctx.fieldName) return
+        this.pendingFieldComplete = null
+
+        const completed = event.completed
+        if (!completed) return
+
+        const source = this.el.value
+        const prefix = ctx.prefix
+        const prefixStart = ctx.lineStart + ctx.beforeCursor.length - prefix.length
+
+        const nextValue =
+          source.slice(0, prefixStart) +
+          completed +
+          source.slice(prefixStart + prefix.length)
+
+        this.el.value = nextValue
+        const newCursor = prefixStart + completed.length
+        this.el.setSelectionRange(newCursor, newCursor)
+        this.el.dispatchEvent(new Event("input", {bubbles: true}))
+      }
+
+      this.el.addEventListener("phx:field-autocomplete-result", (e) => {
+        this.handleAutocompleteResult(e.detail)
+      })
+
+      // Confidence overlay
+      this.confidenceIndicators = {}
+
+      this.handleBulkLineValidated = (event) => {
+        const {index, confidence_level} = event
+        if (confidence_level === "ignored") {
+          delete this.confidenceIndicators[index]
+        } else {
+          this.confidenceIndicators[index] = confidence_level
+        }
+        this.renderConfidenceOverlay()
+      }
+
+      window.addEventListener("phx:bulk-line-validated", (e) => {
+        this.handleBulkLineValidated(e.detail)
+      })
     },
 
     destroyed() {
+      clearTimeout(this.validationTimeout)
       this.el.removeEventListener("keydown", this.onKeyDown)
+      this.el.removeEventListener("input", this.onInput)
+      // Remove overlay if exists
+      const overlay = document.getElementById("bulk-confidence-overlay")
+      if (overlay) overlay.remove()
+    },
+
+    validateCurrentLines() {
+      // Send validation for individual lines as user types
+      const lines = this.el.value.split(/\r?\n/)
+      
+      lines.forEach((line, index) => {
+        if (line.trim().length > 0) {
+          // Emit validation event to LiveView
+          this.pushEventTo(this.el.form || document, "validate_bulk_line", {
+            line: line,
+            index: index + 1,
+          }).catch(() => {
+            // Silently ignore validation errors (network issues, etc)
+          })
+        }
+      })
+    },
+
+    renderConfidenceOverlay() {
+      const overlayId = "bulk-confidence-overlay"
+      let overlay = document.getElementById(overlayId)
+
+      if (!overlay) {
+        overlay = document.createElement("div")
+        overlay.id = overlayId
+        overlay.style.cssText = "position:absolute;right:-20px;top:0;display:flex;flex-direction:column;gap:2px;pointer-events:none;"
+        this.el.parentElement.style.position = "relative"
+        this.el.parentElement.appendChild(overlay)
+      }
+
+      const colorMap = {
+        high: "#34d399",    // emerald-400
+        medium: "#fbbf24",  // amber-400
+        low: "#fb923c",     // orange-400
+        error: "#f87171",   // red-400
+      }
+
+      const lineHeight = 20 // approximate px per line
+      overlay.innerHTML = ""
+
+      Object.entries(this.confidenceIndicators).forEach(([lineIdx, level]) => {
+        const dot = document.createElement("div")
+        const color = colorMap[level] || "#9ca3af"
+        dot.style.cssText = `width:8px;height:8px;border-radius:50%;background:${color};position:absolute;top:${(parseInt(lineIdx)-1) * lineHeight + 6}px;`
+        overlay.appendChild(dot)
+      })
     },
 
     clickSelector(selector) {
@@ -176,6 +344,49 @@ const hooks = {
 
       if (button && !button.disabled) {
         button.click()
+      }
+    },
+
+    renderCorrelationChip(suggestion, lineIndex) {
+      // Remove any existing chip for this line first
+      const existingChip = document.getElementById(`bulk-correlation-chip-${lineIndex}`)
+      if (existingChip) existingChip.remove()
+
+      // Don't show if dismissed in this session
+      const dismissKey = `${lineIndex}:${suggestion.field}=${suggestion.value}`
+      if (this.dismissedCorrelations && this.dismissedCorrelations.has(dismissKey)) return
+
+      const chip = document.createElement("div")
+      chip.id = `bulk-correlation-chip-${lineIndex}`
+      chip.style.cssText = "position:absolute;left:0;font-size:0.65rem;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:6px;padding:2px 8px;cursor:pointer;color:#a5b4fc;z-index:10;"
+
+      const lineHeight = 20
+      chip.style.top = `${lineIndex * lineHeight + lineHeight + 2}px`
+      chip.textContent = `+ ${suggestion.field}=${suggestion.value}`
+      chip.title = "Clique para inserir campo correlacionado"
+
+      chip.addEventListener("click", () => {
+        this.pushEventTo(this.el.form || document, "accept_correlation_suggestion", {
+          line_index: lineIndex,
+          field: suggestion.field,
+          value: suggestion.value,
+        }).catch(() => {})
+        chip.remove()
+      })
+
+      chip.addEventListener("contextmenu", (e) => {
+        e.preventDefault()
+        if (!this.dismissedCorrelations) this.dismissedCorrelations = new Set()
+        this.dismissedCorrelations.add(dismissKey)
+        this.pushEventTo(this.el.form || document, "dismiss_correlation_suggestion", {
+          line_index: lineIndex,
+        }).catch(() => {})
+        chip.remove()
+      })
+
+      if (this.el.parentElement) {
+        this.el.parentElement.style.position = "relative"
+        this.el.parentElement.appendChild(chip)
       }
     },
 

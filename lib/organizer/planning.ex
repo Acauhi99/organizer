@@ -8,6 +8,7 @@ defmodule Organizer.Planning do
   alias Organizer.Accounts.Scope
   alias Organizer.Planning.Analytics
   alias Organizer.Planning.AttributeValidation
+  alias Organizer.Planning.FilterNormalization
   alias Organizer.Planning.FinanceEntry
   alias Organizer.Planning.FixedCost
   alias Organizer.Planning.Goal
@@ -22,6 +23,8 @@ defmodule Organizer.Planning do
 
       days =
         parse_positive_integer_or_default(Map.get(params, "days") || Map.get(params, :days), 7)
+
+      query_text = Map.get(params, "q") || Map.get(params, :q) || ""
 
       with {:ok, status_filter} <-
              parse_enum_filter_value(status_filter, Task.statuses(), :status),
@@ -50,18 +53,36 @@ defmodule Organizer.Planning do
           from t in query,
             where: is_nil(t.due_on) or t.due_on <= ^Date.add(Date.utc_today(), days)
 
+        # Text search on title and notes
+        query =
+          if is_binary(query_text) and String.trim(query_text) != "" do
+            search_pattern = "%#{String.trim(query_text)}%"
+
+            from t in query,
+              where: ilike(t.title, ^search_pattern) or ilike(t.notes, ^search_pattern)
+          else
+            query
+          end
+
         {:ok, Repo.all(query)}
       end
     end
   end
 
   def create_task(%Scope{} = scope, attrs) when is_map(attrs) do
-    with {:ok, user_id} <- scope_user_id(scope),
-         {:ok, normalized} <- AttributeValidation.validate_task_attrs(attrs) do
-      %Task{user_id: user_id}
-      |> Task.changeset(normalized)
-      |> persist_changeset()
+    result =
+      with {:ok, user_id} <- scope_user_id(scope),
+           {:ok, normalized} <- AttributeValidation.validate_task_attrs(attrs) do
+        %Task{user_id: user_id}
+        |> Task.changeset(normalized)
+        |> persist_changeset()
+      end
+
+    with {:ok, _task} <- result do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
     end
+
+    result
   end
 
   def get_task(%Scope{} = scope, id) do
@@ -75,26 +96,40 @@ defmodule Organizer.Planning do
   end
 
   def update_task(%Scope{} = scope, id, attrs) when is_map(attrs) do
-    with {:ok, user_id} <- scope_user_id(scope),
-         %Task{} = task <- Repo.get_by(Task, id: id, user_id: user_id) do
-      task
-      |> Task.changeset(attrs)
-      |> persist_changeset()
-    else
-      nil -> {:error, :not_found}
-      {:error, _reason} = error -> error
+    result =
+      with {:ok, user_id} <- scope_user_id(scope),
+           %Task{} = task <- Repo.get_by(Task, id: id, user_id: user_id) do
+        task
+        |> Task.changeset(attrs)
+        |> persist_changeset()
+      else
+        nil -> {:error, :not_found}
+        {:error, _reason} = error -> error
+      end
+
+    with {:ok, _task} <- result do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
     end
+
+    result
   end
 
   def delete_task(%Scope{} = scope, id) do
-    with {:ok, user_id} <- scope_user_id(scope),
-         %Task{} = task <- Repo.get_by(Task, id: id, user_id: user_id),
-         {:ok, task} <- Repo.delete(task) do
-      {:ok, task}
-    else
-      nil -> {:error, :not_found}
-      {:error, _reason} = error -> error
+    result =
+      with {:ok, user_id} <- scope_user_id(scope),
+           %Task{} = task <- Repo.get_by(Task, id: id, user_id: user_id),
+           {:ok, task} <- Repo.delete(task) do
+        {:ok, task}
+      else
+        nil -> {:error, :not_found}
+        {:error, _reason} = error -> error
+      end
+
+    with {:ok, _task} <- result do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
     end
+
+    result
   end
 
   def list_finance_entries(%Scope{} = scope, params \\ %{}) do
@@ -104,22 +139,117 @@ defmodule Organizer.Planning do
 
       start_on = Date.add(Date.utc_today(), -days)
 
-      query =
-        from f in FinanceEntry,
-          where: f.user_id == ^user_id and f.occurred_on >= ^start_on,
-          order_by: [desc: f.occurred_on, desc: f.inserted_at]
+      kind_filter = Map.get(params, "kind") || Map.get(params, :kind)
 
-      {:ok, Repo.all(query)}
+      expense_profile_filter =
+        Map.get(params, "expense_profile") || Map.get(params, :expense_profile)
+
+      payment_method_filter =
+        Map.get(params, "payment_method") || Map.get(params, :payment_method)
+
+      category_filter = Map.get(params, "category") || Map.get(params, :category) || ""
+      query_text = Map.get(params, "q") || Map.get(params, :q) || ""
+
+      min_amount_cents =
+        parse_non_negative_integer_or_default(
+          Map.get(params, "min_amount_cents") || Map.get(params, :min_amount_cents),
+          0
+        )
+
+      max_amount_cents =
+        parse_non_negative_integer_or_default(
+          Map.get(params, "max_amount_cents") || Map.get(params, :max_amount_cents),
+          nil
+        )
+
+      with {:ok, kind_filter} <-
+             parse_enum_filter_value(kind_filter, FinanceEntry.kinds(), :kind),
+           {:ok, expense_profile_filter} <-
+             parse_enum_filter_value(
+               expense_profile_filter,
+               FinanceEntry.expense_profiles(),
+               :expense_profile
+             ),
+           {:ok, payment_method_filter} <-
+             parse_enum_filter_value(
+               payment_method_filter,
+               FinanceEntry.payment_methods(),
+               :payment_method
+             ) do
+        query =
+          from f in FinanceEntry,
+            where: f.user_id == ^user_id and f.occurred_on >= ^start_on,
+            order_by: [desc: f.occurred_on, desc: f.inserted_at]
+
+        query =
+          if is_atom(kind_filter) and not is_nil(kind_filter) do
+            from f in query, where: f.kind == ^kind_filter
+          else
+            query
+          end
+
+        query =
+          if is_atom(expense_profile_filter) and not is_nil(expense_profile_filter) do
+            from f in query, where: f.expense_profile == ^expense_profile_filter
+          else
+            query
+          end
+
+        query =
+          if is_atom(payment_method_filter) and not is_nil(payment_method_filter) do
+            from f in query, where: f.payment_method == ^payment_method_filter
+          else
+            query
+          end
+
+        query =
+          if is_binary(category_filter) and String.trim(category_filter) != "" do
+            search_pattern = "%#{String.trim(category_filter)}%"
+            from f in query, where: ilike(f.category, ^search_pattern)
+          else
+            query
+          end
+
+        query =
+          if is_binary(query_text) and String.trim(query_text) != "" do
+            search_pattern = "%#{String.trim(query_text)}%"
+
+            from f in query,
+              where: ilike(f.description, ^search_pattern) or ilike(f.category, ^search_pattern)
+          else
+            query
+          end
+
+        query =
+          from f in query,
+            where: f.amount_cents >= ^min_amount_cents
+
+        query =
+          if is_integer(max_amount_cents) and max_amount_cents >= 0 do
+            from f in query, where: f.amount_cents <= ^max_amount_cents
+          else
+            query
+          end
+
+        {:ok, Repo.all(query)}
+      end
     end
   end
 
   def create_finance_entry(%Scope{} = scope, attrs) when is_map(attrs) do
-    with {:ok, user_id} <- scope_user_id(scope),
-         {:ok, normalized} <- AttributeValidation.validate_finance_entry_attrs(attrs) do
-      %FinanceEntry{user_id: user_id}
-      |> FinanceEntry.changeset(normalized)
-      |> persist_changeset()
+    result =
+      with {:ok, user_id} <- scope_user_id(scope),
+           {:ok, normalized} <- AttributeValidation.validate_finance_entry_attrs(attrs) do
+        %FinanceEntry{user_id: user_id}
+        |> FinanceEntry.changeset(normalized)
+        |> persist_changeset()
+      end
+
+    with {:ok, _entry} <- result do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
     end
+
+    result
   end
 
   def get_finance_entry(%Scope{} = scope, id) do
@@ -133,27 +263,41 @@ defmodule Organizer.Planning do
   end
 
   def update_finance_entry(%Scope{} = scope, id, attrs) when is_map(attrs) do
-    with {:ok, user_id} <- scope_user_id(scope),
-         %FinanceEntry{} = entry <- Repo.get_by(FinanceEntry, id: id, user_id: user_id),
-         {:ok, normalized} <- AttributeValidation.validate_finance_entry_attrs(attrs) do
-      entry
-      |> FinanceEntry.changeset(normalized)
-      |> persist_changeset()
-    else
-      nil -> {:error, :not_found}
-      {:error, _reason} = error -> error
+    result =
+      with {:ok, user_id} <- scope_user_id(scope),
+           %FinanceEntry{} = entry <- Repo.get_by(FinanceEntry, id: id, user_id: user_id),
+           {:ok, normalized} <- AttributeValidation.validate_finance_entry_attrs(attrs) do
+        entry
+        |> FinanceEntry.changeset(normalized)
+        |> persist_changeset()
+      else
+        nil -> {:error, :not_found}
+        {:error, _reason} = error -> error
+      end
+
+    with {:ok, _entry} <- result do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
     end
+
+    result
   end
 
   def delete_finance_entry(%Scope{} = scope, id) do
-    with {:ok, user_id} <- scope_user_id(scope),
-         %FinanceEntry{} = entry <- Repo.get_by(FinanceEntry, id: id, user_id: user_id),
-         {:ok, entry} <- Repo.delete(entry) do
-      {:ok, entry}
-    else
-      nil -> {:error, :not_found}
-      {:error, _reason} = error -> error
+    result =
+      with {:ok, user_id} <- scope_user_id(scope),
+           %FinanceEntry{} = entry <- Repo.get_by(FinanceEntry, id: id, user_id: user_id),
+           {:ok, entry} <- Repo.delete(entry) do
+        {:ok, entry}
+      else
+        nil -> {:error, :not_found}
+        {:error, _reason} = error -> error
+      end
+
+    with {:ok, _entry} <- result do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
     end
+
+    result
   end
 
   def finance_summary(%Scope{} = scope, days \\ 30) do
@@ -174,6 +318,23 @@ defmodule Organizer.Planning do
     with {:ok, user_id} <- scope_user_id(scope) do
       status_filter = Map.get(params, "status") || Map.get(params, :status)
       horizon_filter = Map.get(params, "horizon") || Map.get(params, :horizon)
+
+      days =
+        parse_positive_integer_or_default(Map.get(params, "days") || Map.get(params, :days), 365)
+
+      progress_min =
+        parse_non_negative_integer_or_default(
+          Map.get(params, "progress_min") || Map.get(params, :progress_min),
+          0
+        )
+
+      progress_max =
+        parse_non_negative_integer_or_default(
+          Map.get(params, "progress_max") || Map.get(params, :progress_max),
+          nil
+        )
+
+      query_text = Map.get(params, "q") || Map.get(params, :q) || ""
 
       with {:ok, status_filter} <-
              parse_enum_filter_value(status_filter, Goal.statuses(), :status),
@@ -198,18 +359,61 @@ defmodule Organizer.Planning do
             query
           end
 
+        # Filter by period (due_on)
+        query =
+          from g in query,
+            where: is_nil(g.due_on) or g.due_on <= ^Date.add(Date.utc_today(), days)
+
+        # Filter by text search
+        query =
+          if is_binary(query_text) and String.trim(query_text) != "" do
+            search_pattern = "%#{String.trim(query_text)}%"
+
+            from g in query,
+              where: ilike(g.title, ^search_pattern) or ilike(g.notes, ^search_pattern)
+          else
+            query
+          end
+
+        # Filter by progress range (defensively handle division by zero)
+        query =
+          if progress_min > 0 or is_integer(progress_max) do
+            from g in query,
+              where:
+                fragment(
+                  "CASE WHEN ? > 0 THEN CAST(? * 100.0 / ? AS INTEGER) ELSE 0 END >= ? AND (? IS NULL OR CAST(? * 100.0 / ? AS INTEGER) <= ?)",
+                  g.target_value,
+                  g.current_value,
+                  g.target_value,
+                  ^progress_min,
+                  ^progress_max,
+                  g.current_value,
+                  g.target_value,
+                  ^progress_max
+                )
+          else
+            query
+          end
+
         {:ok, Repo.all(query)}
       end
     end
   end
 
   def create_goal(%Scope{} = scope, attrs) when is_map(attrs) do
-    with {:ok, user_id} <- scope_user_id(scope),
-         {:ok, normalized} <- AttributeValidation.validate_goal_attrs(attrs) do
-      %Goal{user_id: user_id}
-      |> Goal.changeset(normalized)
-      |> persist_changeset()
+    result =
+      with {:ok, user_id} <- scope_user_id(scope),
+           {:ok, normalized} <- AttributeValidation.validate_goal_attrs(attrs) do
+        %Goal{user_id: user_id}
+        |> Goal.changeset(normalized)
+        |> persist_changeset()
+      end
+
+    with {:ok, _goal} <- result do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
     end
+
+    result
   end
 
   def get_goal(%Scope{} = scope, id) do
@@ -223,27 +427,41 @@ defmodule Organizer.Planning do
   end
 
   def update_goal(%Scope{} = scope, id, attrs) when is_map(attrs) do
-    with {:ok, user_id} <- scope_user_id(scope),
-         %Goal{} = goal <- Repo.get_by(Goal, id: id, user_id: user_id),
-         {:ok, normalized} <- AttributeValidation.validate_goal_attrs(attrs) do
-      goal
-      |> Goal.changeset(normalized)
-      |> persist_changeset()
-    else
-      nil -> {:error, :not_found}
-      {:error, _reason} = error -> error
+    result =
+      with {:ok, user_id} <- scope_user_id(scope),
+           %Goal{} = goal <- Repo.get_by(Goal, id: id, user_id: user_id),
+           {:ok, normalized} <- AttributeValidation.validate_goal_attrs(attrs) do
+        goal
+        |> Goal.changeset(normalized)
+        |> persist_changeset()
+      else
+        nil -> {:error, :not_found}
+        {:error, _reason} = error -> error
+      end
+
+    with {:ok, _goal} <- result do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
     end
+
+    result
   end
 
   def delete_goal(%Scope{} = scope, id) do
-    with {:ok, user_id} <- scope_user_id(scope),
-         %Goal{} = goal <- Repo.get_by(Goal, id: id, user_id: user_id),
-         {:ok, goal} <- Repo.delete(goal) do
-      {:ok, goal}
-    else
-      nil -> {:error, :not_found}
-      {:error, _reason} = error -> error
+    result =
+      with {:ok, user_id} <- scope_user_id(scope),
+           %Goal{} = goal <- Repo.get_by(Goal, id: id, user_id: user_id),
+           {:ok, goal} <- Repo.delete(goal) do
+        {:ok, goal}
+      else
+        nil -> {:error, :not_found}
+        {:error, _reason} = error -> error
+      end
+
+    with {:ok, _goal} <- result do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
     end
+
+    result
   end
 
   def list_important_dates(%Scope{} = scope, days \\ 30) do
@@ -448,25 +666,8 @@ defmodule Organizer.Planning do
   defp read_option_value(opts, key) when is_list(opts), do: Keyword.get(opts, key)
   defp read_option_value(_opts, _key), do: nil
 
-  defp parse_enum_filter_value(nil, _allowed_atoms, _field), do: {:ok, nil}
-  defp parse_enum_filter_value("", _allowed_atoms, _field), do: {:ok, nil}
-  defp parse_enum_filter_value("all", _allowed_atoms, _field), do: {:ok, nil}
-
-  defp parse_enum_filter_value(value, allowed_atoms, field) when is_atom(value) do
-    if value in allowed_atoms do
-      {:ok, value}
-    else
-      {:error, {:validation, %{field => ["is invalid"]}}}
-    end
+  defp parse_enum_filter_value(value, allowed_atoms, field) do
+    # Use the new FilterNormalization module with typo tolerance
+    FilterNormalization.normalize_filter_value(value, allowed_atoms, field)
   end
-
-  defp parse_enum_filter_value(value, allowed_atoms, field) when is_binary(value) do
-    case Enum.find(allowed_atoms, &(Atom.to_string(&1) == value)) do
-      nil -> {:error, {:validation, %{field => ["is invalid"]}}}
-      atom -> {:ok, atom}
-    end
-  end
-
-  defp parse_enum_filter_value(_value, _allowed_atoms, field),
-    do: {:error, {:validation, %{field => ["is invalid"]}}}
 end

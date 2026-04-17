@@ -27,9 +27,11 @@ defmodule OrganizerWeb.Router do
   end
 
   scope "/", OrganizerWeb do
-    pipe_through [:browser, :require_authenticated_user]
+    pipe_through :browser
 
-    live "/dashboard", DashboardLive
+    live_session :authenticated, on_mount: {OrganizerWeb.UserAuth, :authenticated} do
+      live "/dashboard", DashboardLive
+    end
   end
 
   scope "/api/v1", OrganizerWeb.API.V1 do

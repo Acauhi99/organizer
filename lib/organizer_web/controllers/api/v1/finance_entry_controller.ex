@@ -42,6 +42,8 @@ defmodule OrganizerWeb.API.V1.FinanceEntryController do
     %{
       id: entry.id,
       kind: to_string(entry.kind),
+      expense_profile: enum_to_string(entry.expense_profile),
+      payment_method: enum_to_string(entry.payment_method),
       amount_cents: entry.amount_cents,
       category: entry.category,
       description: entry.description,
@@ -50,4 +52,7 @@ defmodule OrganizerWeb.API.V1.FinanceEntryController do
       updated_at: DateTime.to_iso8601(entry.updated_at)
     }
   end
+
+  defp enum_to_string(nil), do: nil
+  defp enum_to_string(value), do: to_string(value)
 end

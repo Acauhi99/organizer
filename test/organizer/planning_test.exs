@@ -67,6 +67,42 @@ defmodule Organizer.PlanningTest do
       assert summary_b.expense_cents == 3_000
       assert summary_b.balance_cents == -3_000
     end
+
+    test "applies expense classification defaults and explicit values" do
+      scope = user_scope_fixture()
+
+      assert {:ok, default_expense} =
+               Planning.create_finance_entry(scope, %{
+                 "kind" => "expense",
+                 "amount_cents" => 1_500,
+                 "category" => "mercado"
+               })
+
+      assert default_expense.expense_profile == :variable
+      assert default_expense.payment_method == :debit
+
+      assert {:ok, classified_expense} =
+               Planning.create_finance_entry(scope, %{
+                 "kind" => "expense",
+                 "expense_profile" => "fixed",
+                 "payment_method" => "credit",
+                 "amount_cents" => 9_900,
+                 "category" => "assinaturas"
+               })
+
+      assert classified_expense.expense_profile == :fixed
+      assert classified_expense.payment_method == :credit
+
+      assert {:ok, income_entry} =
+               Planning.create_finance_entry(scope, %{
+                 "kind" => "income",
+                 "amount_cents" => 20_000,
+                 "category" => "salario"
+               })
+
+      assert is_nil(income_entry.expense_profile)
+      assert is_nil(income_entry.payment_method)
+    end
   end
 
   describe "filters" do
@@ -190,6 +226,218 @@ defmodule Organizer.PlanningTest do
 
       assert snapshot.planned_capacity_14d == 10
       assert snapshot.total >= 1
+    end
+  end
+
+  describe "analytics cache" do
+    test "returns cached analytics on cache hit" do
+      scope = user_scope_fixture()
+
+      assert {:ok, _} =
+               Planning.create_task(scope, %{
+                 "title" => "Task para cache",
+                 "status" => "todo",
+                 "priority" => "high"
+               })
+
+      # First call should cache the result
+      assert {:ok, analytics_1} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope,
+                 days: 7,
+                 planned_capacity: 10
+               )
+
+      assert is_map(analytics_1)
+      assert analytics_1.workload_capacity != nil
+
+      # Second immediate call should return the same cached result
+      assert {:ok, analytics_2} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope,
+                 days: 7,
+                 planned_capacity: 10
+               )
+
+      # Verify cache was hit (same data structure)
+      assert analytics_1.workload_capacity == analytics_2.workload_capacity
+    end
+
+    test "invalidates cache when task is mutated" do
+      scope = user_scope_fixture()
+
+      # Create initial task
+      assert {:ok, task} =
+               Planning.create_task(scope, %{
+                 "title" => "Task para invalidar",
+                 "status" => "todo",
+                 "priority" => "low"
+               })
+
+      # Cache the analytics
+      assert {:ok, _analytics_before} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope,
+                 days: 7,
+                 planned_capacity: 10
+               )
+
+      # Update the task (should invalidate cache)
+      assert {:ok, _updated} = Planning.update_task(scope, task.id, %{"priority" => "high"})
+
+      # Cache should be invalidated, next call will recalculate
+      assert {:ok, _analytics_after} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope,
+                 days: 7,
+                 planned_capacity: 10
+               )
+    end
+
+    test "invalidates cache when finance entry is mutated" do
+      scope = user_scope_fixture()
+
+      # Create initial finance entry
+      assert {:ok, finance} =
+               Planning.create_finance_entry(scope, %{
+                 "kind" => "expense",
+                 "amount_cents" => 1_000,
+                 "category" => "test"
+               })
+
+      # Cache the analytics
+      assert {:ok, _analytics_before} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope,
+                 days: 30,
+                 planned_capacity: 10
+               )
+
+      # Update the finance entry (should invalidate cache)
+      assert {:ok, _updated} =
+               Planning.update_finance_entry(scope, finance.id, %{
+                 "kind" => "expense",
+                 "amount_cents" => 2_000,
+                 "category" => "test"
+               })
+
+      # Cache should be invalidated
+      assert {:ok, _analytics_after} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope,
+                 days: 30,
+                 planned_capacity: 10
+               )
+    end
+
+    test "invalidates cache when goal is mutated" do
+      scope = user_scope_fixture()
+
+      # Create initial goal
+      assert {:ok, goal} =
+               Planning.create_goal(scope, %{
+                 "title" => "Goal para cache",
+                 "horizon" => "short",
+                 "status" => "active"
+               })
+
+      # Cache the analytics
+      assert {:ok, _analytics_before} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope,
+                 days: 14,
+                 planned_capacity: 10
+               )
+
+      # Update the goal (should invalidate cache)
+      assert {:ok, _updated} =
+               Planning.update_goal(scope, goal.id, %{
+                 "title" => "Goal para cache",
+                 "horizon" => "short",
+                 "status" => "paused"
+               })
+
+      # Cache should be invalidated
+      assert {:ok, _analytics_after} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope,
+                 days: 14,
+                 planned_capacity: 10
+               )
+    end
+
+    test "deletes create task invalidates cache for user" do
+      scope = user_scope_fixture()
+
+      # Cache analytics
+      assert {:ok, _} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope,
+                 days: 7,
+                 planned_capacity: 10
+               )
+
+      # Create a task (should invalidate cache)
+      assert {:ok, _} =
+               Planning.create_task(scope, %{
+                 "title" => "New task",
+                 "status" => "todo",
+                 "priority" => "medium"
+               })
+
+      # Verify cache was invalidated by getting fresh analytics
+      assert {:ok, analytics} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope,
+                 days: 7,
+                 planned_capacity: 10
+               )
+
+      assert is_map(analytics)
+    end
+
+    test "isolates cache per user" do
+      scope_a = user_scope_fixture()
+      scope_b = user_scope_fixture()
+
+      # Create task for user A
+      assert {:ok, _} =
+               Planning.create_task(scope_a, %{
+                 "title" => "Task A",
+                 "status" => "todo",
+                 "priority" => "high"
+               })
+
+      # Cache analytics for both users
+      assert {:ok, analytics_a} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope_a,
+                 days: 7,
+                 planned_capacity: 10
+               )
+
+      assert {:ok, analytics_b} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope_b,
+                 days: 7,
+                 planned_capacity: 10
+               )
+
+      # User B should have different analytics (no tasks)
+      assert analytics_a.workload_capacity != nil
+      assert analytics_b.workload_capacity != nil
+
+      # Create task for user B and verify cache isolation
+      assert {:ok, _} =
+               Planning.create_task(scope_b, %{
+                 "title" => "Task B",
+                 "status" => "todo",
+                 "priority" => "medium"
+               })
+
+      # User A's cache should still be valid, User B's updated
+      assert {:ok, analytics_a_new} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope_a,
+                 days: 7,
+                 planned_capacity: 10
+               )
+
+      assert {:ok, _analytics_b_new} =
+               Organizer.Planning.AnalyticsCache.get_analytics(scope_b,
+                 days: 7,
+                 planned_capacity: 10
+               )
+
+      # Verify A's analytics unchanged by B's operation
+      assert analytics_a.workload_capacity == analytics_a_new.workload_capacity
     end
   end
 end

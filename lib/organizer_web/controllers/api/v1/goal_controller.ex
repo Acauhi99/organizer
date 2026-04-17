@@ -5,8 +5,8 @@ defmodule OrganizerWeb.API.V1.GoalController do
 
   action_fallback OrganizerWeb.ApiFallbackController
 
-  def index(conn, _params) do
-    with {:ok, goals} <- Planning.list_goals(conn.assigns.current_scope) do
+  def index(conn, params) do
+    with {:ok, goals} <- Planning.list_goals(conn.assigns.current_scope, params) do
       json(conn, %{data: Enum.map(goals, &goal_json/1)})
     end
   end

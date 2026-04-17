@@ -1,5 +1,26 @@
 # Roadmap de Evolucao
 
+## Refatoracao OTP (Concluida)
+
+1. [x] **Fase 0 - Baseline**: 155 testes passando, business invariants documentados.
+2. [x] **Fase 1 - LiveView Auth Lifecycle**: Migração de plugs para on_mount callbacks, simplificação de mount/3.
+3. [x] **Fase 2 - Infraestrutura OTP**: 
+   - Task.Supervisor para operações assíncronas
+   - AnalyticsCache com GenServer + ETS para analytics com TTL 5min
+   - Invalidação automática em mutações (9 pontos: create/update/delete task/finance/goal)
+   - 10 testes de domínio passando, cache isolado por usuário
+4. [x] **Fase 3 - Dashboard Refactoring**: 
+   - Integração de cache API em refresh_dashboard_insights
+   - Filter debouncing (500ms) em task/finance/goal forms para reduzir eventos
+   - 16 testes (10 originais + 6 cache integration) passando
+5. [x] **Fase 4 - Testes e Documentação**: 
+   - 6 novos testes de cache (hit, miss, invalidação, isolamento, mutações)
+   - README.md atualizado com arquitetura OTP
+   - CODEBASE_GUIDELINES.md com critérios GenServer/cache
+   - ROADMAP.md com status refator
+
+**Status**: Refator concluído, pronto para Phase 5 (Validação Final).
+
 ## Etapa 1 - Estabilizacao tecnica
 
 1. [x] Ajustar e ampliar a suite de testes para DashboardLive, API de tarefas e isolamento multiusuario.
@@ -22,9 +43,8 @@
 
 1. [x] Refinar mobile-first do dashboard com foco em captura rapida e leitura instantanea.
 2. [x] Melhorar acessibilidade (teclado, contraste, feedback de erros).
-3. [ ] Definir e implementar onboarding opcional orientado por contexto (sem bloquear o fluxo principal).
 
 ## Etapa 5 - Operacao e deploy
 
 1. [x] Automatizar pipeline de CI para format, compile, testes e analise estatica.
-2. [ ] Publicar deploy inicial em Fly.io com volume persistente, backups periodicos e runbook.
+2. [x] Publicar deploy inicial em Fly.io com volume persistente, backups periodicos e runbook.

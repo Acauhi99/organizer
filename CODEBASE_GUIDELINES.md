@@ -60,10 +60,61 @@ Aplicação prática:
   - `DESIGN_SYSTEM.md` para novas classes visuais
 - Não usar emojis em documentação de engenharia.
 
+## Padrões OTP: GenServer e Cache
+
+### Quando usar GenServer
+
+Um GenServer é apropriado para:
+- Manutenção de estado de longa vida (ex: cache, conexões)
+- Operações que precisam de sincronização entre requisições
+- Agregação de múltiplas operações em uma estrutura única
+
+Exemplo: `Organizer.Planning.AnalyticsCache` gerencia cache compartilhado com invalidação automática.
+
+### Cache Pattern
+
+Ao implementar cache, siga:
+
+1. **Chave de Cache Determinística**
+   - Inclua isolamento por usuário: `cache:user:{id}:data:{type}`
+   - Evite colisões entre diferentes tipos de dados
+
+2. **Invalidação Automática**
+   - Invalidar no contexto onde dados mutam (ex: `Planning.create_task`)
+   - Usar `GenServer.cast` para invalidação não-bloqueante
+   - Preferir invalidação por usuário (broadcasts) a manual
+
+3. **Fallback em Cache Miss**
+   - Sempre incluir fallback gracioso para recalcular dados
+   - Não tratar cache miss como erro de sistema
+   - Exemplo: `get_cache -> {:ok, cached} | {:error, reason} -> {:ok, recalculate}`
+
+4. **TTL e Expiração**
+   - Defina TTL apropriado (ex: 5 minutos para analytics)
+   - Adicione lógica de comparação de data com `DateTime.compare`
+   - Use `{:continue, :refresh}` para renovação lazy se necessário
+
+5. **Testes de Cache**
+   - Teste cache hit: mesmos dados retornados
+   - Teste cache miss + recalculation: fallback funciona
+   - Teste invalidação: cache limpo após mutação
+   - Teste isolamento: usuário A não vê cache de usuário B
+
+### Exemplo Real: AnalyticsCache
+
+```elixir
+# Implementação em lib/organizer/planning/analytics_cache.ex
+# - Gerenciado por GenServer com ETS
+# - get_analytics/2 com fallback a Planning.analytics_overview
+# - Invalidado via invalidate_for_user quando Planning muta dados
+# - Chaves: analytics:user:{id}:days:{days}
+```
+
 ## Checklist de Pull Request
 - [ ] Nome dos módulos e funções descrevem comportamento.
 - [ ] Não foi criado módulo/função com nome genérico (`helper`, `utils`).
 - [ ] Testes cobrem comportamento de sucesso e falha.
 - [ ] IDs de elementos foram adicionados quando necessário para testes.
 - [ ] README/ROADMAP/DESIGN_SYSTEM atualizados quando aplicável.
+- [ ] Para cache: incluído fallback e testes de invalidação.
 - [ ] `mix precommit` executado com sucesso.

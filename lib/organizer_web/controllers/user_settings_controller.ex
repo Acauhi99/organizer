@@ -5,6 +5,7 @@ defmodule OrganizerWeb.UserSettingsController do
   alias OrganizerWeb.UserAuth
 
   import OrganizerWeb.UserAuth, only: [require_sudo_mode: 2]
+  import Phoenix.Component, only: [to_form: 2]
 
   plug :require_sudo_mode
   plug :assign_email_and_password_changesets
@@ -33,7 +34,9 @@ defmodule OrganizerWeb.UserSettingsController do
         |> redirect(to: ~p"/users/settings")
 
       changeset ->
-        render(conn, :edit, email_changeset: %{changeset | action: :insert})
+        render(conn, :edit,
+          email_form: to_form(Map.put(changeset, :action, :validate), as: :user)
+        )
     end
   end
 
@@ -49,7 +52,7 @@ defmodule OrganizerWeb.UserSettingsController do
         |> UserAuth.log_in_user(user)
 
       {:error, changeset} ->
-        render(conn, :edit, password_changeset: changeset)
+        render(conn, :edit, password_form: to_form(changeset, as: :user))
     end
   end
 
@@ -71,7 +74,7 @@ defmodule OrganizerWeb.UserSettingsController do
     user = conn.assigns.current_scope.user
 
     conn
-    |> assign(:email_changeset, Accounts.change_user_email(user))
-    |> assign(:password_changeset, Accounts.change_user_password(user))
+    |> assign(:email_form, to_form(Accounts.change_user_email(user), as: :user))
+    |> assign(:password_form, to_form(Accounts.change_user_password(user), as: :user))
   end
 end

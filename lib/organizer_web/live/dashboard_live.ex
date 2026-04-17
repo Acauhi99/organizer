@@ -1,30 +1,39 @@
 defmodule OrganizerWeb.DashboardLive do
   use OrganizerWeb, :live_view
 
-  alias Organizer.Accounts
-  alias Organizer.Accounts.Scope
   alias Organizer.Planning
   alias Organizer.Planning.AttributeValidation
+  alias Organizer.Planning.BulkParser
+  alias Organizer.Planning.BulkScoring
+  alias Organizer.Planning.FieldSuggester
   alias Contex.{Dataset, Plot}
 
   @task_status_filters ["all", "todo", "in_progress", "done"]
   @task_priority_filters ["all", "low", "medium", "high"]
   @task_days_filters ["7", "14", "30"]
   @finance_days_filters ["7", "30", "90"]
+  @finance_kind_filters ["all", "income", "expense"]
+  @finance_expense_profile_filters ["all", "fixed", "variable"]
+  @finance_payment_method_filters ["all", "credit", "debit"]
   @goal_status_filters ["all", "active", "paused", "done"]
+  @goal_horizon_filters ["all", "short", "medium", "long"]
   @analytics_days_filters ["7", "15", "30", "90", "365"]
   @analytics_capacity_filters ["5", "10", "15", "20", "30"]
   @bulk_template_keys ["mixed", "tasks", "finance", "goals"]
   @ops_tabs ["tasks", "finances", "goals"]
 
   @impl true
-  def mount(_params, session, socket) do
-    with token when is_binary(token) <- session["user_token"],
-         {user, _inserted_at} <- Accounts.get_user_by_session_token(token) do
-      scope = Scope.for_user(user)
-      {:ok, initialize_dashboard_state(socket, scope)}
-    else
-      _ -> {:ok, redirect(socket, to: ~p"/users/log-in")}
+  def mount(_params, _session, socket) do
+    # Authentication is handled by live_session :authenticated on_mount callback
+    # which ensures current_scope is already assigned to the socket
+    case socket.assigns do
+      %{current_scope: %{user: user}} when not is_nil(user) ->
+        scope = socket.assigns.current_scope
+        {:ok, initialize_dashboard_state(socket, scope)}
+
+      _ ->
+        # Fallback redirect if authentication somehow failed
+        {:ok, redirect(socket, to: ~p"/users/log-in")}
     end
   end
 
@@ -346,6 +355,86 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   @impl true
+  def handle_event("validate_bulk_line", %{"line" => raw_line, "index" => index_value}, socket) do
+    # Real-time validation as user types in the bulk editor
+    # Index can be either integer or string from JavaScript
+    index = if is_integer(index_value), do: index_value, else: String.to_integer(index_value)
+    entry = build_bulk_preview_entry(raw_line, index)
+    score = BulkScoring.score_entry(entry)
+
+    # Send incremental validation feedback to client
+    {:noreply,
+     socket
+     |> push_event("bulk-line-validated", %{
+       index: index,
+       entry: %{
+         status: entry.status,
+         error: entry[:error],
+         suggested_line: entry[:suggested_line],
+         type: entry[:type]
+       },
+       score: score.score,
+       confidence_level: score.confidence_level |> to_string(),
+       feedback: score.feedback
+     })}
+  end
+
+  @impl true
+  def handle_event("select_disambiguation", %{"index" => index, "line" => new_line}, socket) do
+    with index when is_integer(index) <- parse_index(index),
+         preview when not is_nil(preview) <- socket.assigns.bulk_preview do
+      updated_entry = build_bulk_preview_entry(new_line, index)
+
+      updated_entries =
+        Enum.map(preview.entries, fn entry ->
+          if entry.line_number == index, do: updated_entry, else: entry
+        end)
+
+      updated_preview = %{
+        preview
+        | entries: updated_entries,
+          valid_total: Enum.count(updated_entries, &(&1.status == :valid)),
+          invalid_total: Enum.count(updated_entries, &(&1.status == :invalid)),
+          ignored_total: Enum.count(updated_entries, &(&1.status == :ignored)),
+          scoring: BulkScoring.score_entries(updated_entries)
+      }
+
+      {:noreply, assign(socket, :bulk_preview, updated_preview)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("dismiss_disambiguation", _params, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event(
+        "accept_correlation_suggestion",
+        %{"line_index" => _idx, "field" => _field, "value" => _value},
+        socket
+      ) do
+    # The actual text insertion is handled client-side by BulkCaptureEditor
+    # This handler just acknowledges the action
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("dismiss_correlation_suggestion", _params, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("complete_field_value", %{"field" => field, "prefix" => prefix}, socket) do
+    {:ok, completed} = FieldSuggester.complete(field, socket.assigns.current_scope, prefix)
+
+    {:noreply,
+     push_event(socket, "field-autocomplete-result", %{field: field, completed: completed})}
+  end
+
+  @impl true
   def handle_event("undo_last_bulk_import", _params, socket) do
     case socket.assigns.last_bulk_import do
       nil ->
@@ -654,6 +743,8 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   defp initialize_dashboard_state(socket, scope) do
+    top_categories = FieldSuggester.suggest_values("category", scope)
+
     socket
     |> assign(:current_scope, scope)
     |> assign(:bulk_form, to_form(%{"payload" => ""}, as: :bulk))
@@ -666,6 +757,7 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:bulk_template_favorites, [])
     |> assign(:bulk_import_block_size, 3)
     |> assign(:bulk_import_block_index, 0)
+    |> assign(:bulk_top_categories, top_categories)
     |> assign(:ops_tab, "tasks")
     |> assign(:task_filters, default_task_filters())
     |> assign(:finance_filters, default_finance_filters())
@@ -701,14 +793,16 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   defp refresh_dashboard_insights(socket) do
+    # Load analytics from cache (recalculates on miss/invalidation)
+    analytics_result =
+      Organizer.Planning.AnalyticsCache.get_analytics(
+        socket.assigns.current_scope,
+        days: socket.assigns.analytics_filters.days,
+        planned_capacity: socket.assigns.analytics_filters.planned_capacity
+      )
+
     {:ok, workload_capacity_snapshot} =
       Planning.burndown_snapshot(socket.assigns.current_scope, %{
-        planned_capacity: socket.assigns.analytics_filters.planned_capacity
-      })
-
-    {:ok, insights_overview} =
-      Planning.analytics_overview(socket.assigns.current_scope, %{
-        days: socket.assigns.analytics_filters.days,
         planned_capacity: socket.assigns.analytics_filters.planned_capacity
       })
 
@@ -718,6 +812,31 @@ defmodule OrganizerWeb.DashboardLive do
       Planning.list_finance_entries(socket.assigns.current_scope, %{
         days: socket.assigns.finance_filters.days
       })
+
+    # Extract insights_overview from cache or use fallback with default structure
+    insights_overview =
+      case analytics_result do
+        {:ok, cached_analytics} ->
+          cached_analytics
+
+        {:error, _reason} ->
+          %{
+            progress_by_period: %{},
+            workload_capacity: %{
+              capacity_gap: 0,
+              open_14d: 0,
+              planned_capacity_14d: 10,
+              overload_alert: false,
+              overdue_open: 0,
+              executed_last_7d: 0
+            },
+            burnout_risk_assessment: %{
+              level: :low,
+              score: 0,
+              signals: []
+            }
+          }
+      end
 
     socket
     |> assign(:workload_capacity_snapshot, workload_capacity_snapshot)
@@ -735,15 +854,24 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   defp default_task_filters do
-    %{status: "all", priority: "all", days: "14"}
+    %{status: "all", priority: "all", days: "14", q: ""}
   end
 
   defp default_finance_filters do
-    %{days: "30"}
+    %{
+      days: "30",
+      kind: "all",
+      expense_profile: "all",
+      payment_method: "all",
+      category: "",
+      q: "",
+      min_amount_cents: "",
+      max_amount_cents: ""
+    }
   end
 
   defp default_goal_filters do
-    %{status: "all"}
+    %{status: "all", horizon: "all", days: "365", progress_min: "", progress_max: "", q: ""}
   end
 
   defp default_analytics_filters do
@@ -754,7 +882,8 @@ defmodule OrganizerWeb.DashboardLive do
     %{
       status: Map.get(filters, "status"),
       priority: Map.get(filters, "priority"),
-      days: Map.get(filters, "days")
+      days: Map.get(filters, "days"),
+      q: Map.get(filters, "q")
     }
     |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
     |> Map.new()
@@ -762,7 +891,14 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp normalize_finance_filters(filters) when is_map(filters) do
     %{
-      days: Map.get(filters, "days")
+      days: Map.get(filters, "days"),
+      kind: Map.get(filters, "kind"),
+      expense_profile: Map.get(filters, "expense_profile"),
+      payment_method: Map.get(filters, "payment_method"),
+      category: Map.get(filters, "category"),
+      q: Map.get(filters, "q"),
+      min_amount_cents: Map.get(filters, "min_amount_cents"),
+      max_amount_cents: Map.get(filters, "max_amount_cents")
     }
     |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
     |> Map.new()
@@ -770,7 +906,12 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp normalize_goal_filters(filters) when is_map(filters) do
     %{
-      status: Map.get(filters, "status")
+      status: Map.get(filters, "status"),
+      horizon: Map.get(filters, "horizon"),
+      days: Map.get(filters, "days"),
+      progress_min: Map.get(filters, "progress_min"),
+      progress_max: Map.get(filters, "progress_max"),
+      q: Map.get(filters, "q")
     }
     |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
     |> Map.new()
@@ -796,17 +937,93 @@ defmodule OrganizerWeb.DashboardLive do
     |> Map.update(:days, "14", fn value ->
       if value in @task_days_filters, do: value, else: "14"
     end)
+    |> Map.update(:q, "", fn value ->
+      if is_binary(value), do: String.trim(value), else: ""
+    end)
   end
 
   defp sanitize_finance_filters(filters) do
-    Map.update(filters, :days, "30", fn value ->
+    filters
+    |> Map.update(:days, "30", fn value ->
       if value in @finance_days_filters, do: value, else: "30"
+    end)
+    |> Map.update(:kind, "all", fn value ->
+      if value in @finance_kind_filters, do: value, else: "all"
+    end)
+    |> Map.update(:expense_profile, "all", fn value ->
+      if value in @finance_expense_profile_filters, do: value, else: "all"
+    end)
+    |> Map.update(:payment_method, "all", fn value ->
+      if value in @finance_payment_method_filters, do: value, else: "all"
+    end)
+    |> Map.update(:category, "", fn value ->
+      if is_binary(value), do: String.trim(value), else: ""
+    end)
+    |> Map.update(:q, "", fn value ->
+      if is_binary(value), do: String.trim(value), else: ""
+    end)
+    |> Map.update(:min_amount_cents, "", fn value ->
+      if is_binary(value) and String.trim(value) != "" do
+        case Integer.parse(String.trim(value)) do
+          {n, ""} when n >= 0 -> Integer.to_string(n)
+          _ -> ""
+        end
+      else
+        ""
+      end
+    end)
+    |> Map.update(:max_amount_cents, "", fn value ->
+      if is_binary(value) and String.trim(value) != "" do
+        case Integer.parse(String.trim(value)) do
+          {n, ""} when n >= 0 -> Integer.to_string(n)
+          _ -> ""
+        end
+      else
+        ""
+      end
     end)
   end
 
   defp sanitize_goal_filters(filters) do
-    Map.update(filters, :status, "all", fn value ->
+    filters
+    |> Map.update(:status, "all", fn value ->
       if value in @goal_status_filters, do: value, else: "all"
+    end)
+    |> Map.update(:horizon, "all", fn value ->
+      if value in @goal_horizon_filters, do: value, else: "all"
+    end)
+    |> Map.update(:days, "365", fn value ->
+      if is_binary(value) and String.trim(value) != "" do
+        case Integer.parse(String.trim(value)) do
+          {n, ""} when n >= 1 and n <= 3650 -> Integer.to_string(n)
+          _ -> "365"
+        end
+      else
+        "365"
+      end
+    end)
+    |> Map.update(:progress_min, "", fn value ->
+      if is_binary(value) and String.trim(value) != "" do
+        case Integer.parse(String.trim(value)) do
+          {n, ""} when n >= 0 and n <= 100 -> Integer.to_string(n)
+          _ -> ""
+        end
+      else
+        ""
+      end
+    end)
+    |> Map.update(:progress_max, "", fn value ->
+      if is_binary(value) and String.trim(value) != "" do
+        case Integer.parse(String.trim(value)) do
+          {n, ""} when n >= 0 and n <= 100 -> Integer.to_string(n)
+          _ -> ""
+        end
+      else
+        ""
+      end
+    end)
+    |> Map.update(:q, "", fn value ->
+      if is_binary(value), do: String.trim(value), else: ""
     end)
   end
 
@@ -1232,16 +1449,29 @@ defmodule OrganizerWeb.DashboardLive do
 
           <details class="bulk-examples mt-3">
             <summary>Ver formatos e exemplos</summary>
-            <div class="bulk-code-list mt-2">
-              <p class="bulk-code-line">
-                tarefa: Revisar orçamento | data=2026-04-20 | prioridade=alta
-              </p>
-              <p class="bulk-code-line">
-                financeiro: tipo=despesa | valor=125,90 | categoria=moradia | data=2026-04-05
-              </p>
-              <p class="bulk-code-line">
-                meta: Reserva de emergência | horizonte=medio | alvo=300000
-              </p>
+            <div class="bulk-code-list mt-2 space-y-3">
+              <div>
+                <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50 mb-1">
+                  Formato mínimo (recomendado)
+                </p>
+                <p class="bulk-code-line">tarefa: reunião amanhã</p>
+                <p class="bulk-code-line">financeiro: almoço 35</p>
+                <p class="bulk-code-line">meta: aprender Elixir</p>
+              </div>
+              <div>
+                <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50 mb-1">
+                  Formato completo (controle total)
+                </p>
+                <p class="bulk-code-line">
+                  tarefa: Revisar orçamento | data=2026-04-20 | prioridade=alta
+                </p>
+                <p class="bulk-code-line">
+                  financeiro: tipo=despesa | natureza=fixa | pagamento=credito | valor=125,90 | categoria=moradia | data=2026-04-05
+                </p>
+                <p class="bulk-code-line">
+                  meta: Reserva de emergência | horizonte=medio | alvo=300000
+                </p>
+              </div>
             </div>
           </details>
 
@@ -1321,6 +1551,7 @@ defmodule OrganizerWeb.DashboardLive do
               type="textarea"
               label="Linhas para interpretação"
               rows="9"
+              placeholder={bulk_capture_placeholder(@bulk_top_categories)}
               phx-hook="BulkCaptureEditor"
               data-preview-selector="#bulk-preview-btn"
               data-import-selector="#bulk-import-btn"
@@ -1331,7 +1562,7 @@ defmodule OrganizerWeb.DashboardLive do
               id="bulk-shortcuts-help"
               class="bulk-shortcuts-help mt-2 rounded-lg px-3 py-2"
             >
-              <span class="bulk-shortcut-chip">Tab: completar tipo</span>
+              <span class="bulk-shortcut-chip">Tab: completar tipo ou campo</span>
               <span class="bulk-shortcut-chip">Ctrl/Cmd+Enter: preview</span>
               <span class="bulk-shortcut-chip">Ctrl/Cmd+Shift+F: corrigir tudo</span>
               <span class="bulk-shortcut-chip">Ctrl/Cmd+Shift+I: importar</span>
@@ -1549,6 +1780,28 @@ defmodule OrganizerWeb.DashboardLive do
               </article>
             </div>
 
+            <%!-- Scoring summary --%>
+            <div
+              id="bulk-scoring-summary"
+              class="rounded-lg border border-base-content/12 bg-base-100/40 px-3 py-2"
+            >
+              <%= cond do %>
+                <% @bulk_preview.scoring.errors == 0 and @bulk_preview.scoring.low_confidence == 0 and @bulk_preview.scoring.medium_confidence == 0 and @bulk_preview.valid_total > 0 -> %>
+                  <p class="text-xs font-medium text-emerald-300">
+                    <.icon name="hero-check-circle" class="w-3.5 h-3.5 inline-block mr-1" />Pronto para importar — todas as linhas com alta confiança.
+                  </p>
+                <% @bulk_preview.scoring.medium_confidence > 0 or @bulk_preview.scoring.low_confidence > 0 -> %>
+                  <p class="text-xs text-amber-200">
+                    <.icon name="hero-exclamation-triangle" class="w-3.5 h-3.5 inline-block mr-1" />
+                    {@bulk_preview.scoring.medium_confidence + @bulk_preview.scoring.low_confidence} linha(s) com confiança reduzida — revise antes de importar.
+                  </p>
+                <% true -> %>
+                  <p class="text-xs text-base-content/60">
+                    {@bulk_preview.scoring.high_confidence} alta · {@bulk_preview.scoring.medium_confidence} média · {@bulk_preview.scoring.low_confidence} baixa · {@bulk_preview.scoring.errors} erro(s)
+                  </p>
+              <% end %>
+            </div>
+
             <div class="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-base-content/12 bg-base-100/40 p-3">
               <article
                 :for={entry <- @bulk_preview.entries}
@@ -1568,6 +1821,18 @@ defmodule OrganizerWeb.DashboardLive do
                 <p class="mt-1 text-sm font-medium text-base-content/95">
                   {bulk_preview_entry_label(entry)}
                 </p>
+
+                <div
+                  :if={entry.status == :valid and Map.get(entry, :inferred_fields, []) != []}
+                  class="mt-1 flex flex-wrap gap-1"
+                >
+                  <span
+                    :for={field <- Map.get(entry, :inferred_fields, [])}
+                    class="rounded px-1.5 py-0.5 text-[0.6rem] font-medium uppercase tracking-wide border border-violet-400/30 bg-violet-500/10 text-violet-300"
+                  >
+                    {field} inferido
+                  </span>
+                </div>
 
                 <div
                   :if={entry.status == :invalid and Map.get(entry, :suggested_line)}
@@ -1692,28 +1957,56 @@ defmodule OrganizerWeb.DashboardLive do
           </div>
 
           <div class="mt-3 grid gap-2 md:grid-cols-4">
-            <article class="micro-surface rounded-lg p-3">
-              <p class="text-xs uppercase tracking-wide text-base-content/65">Tarefas abertas</p>
+            <article
+              id="ops-card-tasks-open"
+              class="micro-surface rounded-lg p-3"
+              aria-label={"Tarefas abertas nos últimos #{@task_filters.days} dias"}
+            >
+              <div class="flex items-center justify-between">
+                <p class="text-xs uppercase tracking-wide text-base-content/65">Tarefas abertas</p>
+                <span class="text-xs text-base-content/65">{@task_filters.days}d</span>
+              </div>
               <p class="mt-1 text-lg font-semibold text-base-content">
                 {@ops_counts.tasks_open}
               </p>
             </article>
-            <article class="micro-surface rounded-lg p-3">
-              <p class="text-xs uppercase tracking-wide text-base-content/65">Tarefas no filtro</p>
+            <article
+              id="ops-card-tasks-total"
+              class="micro-surface rounded-lg p-3"
+              aria-label={"Tarefas no filtro nos últimos #{@task_filters.days} dias"}
+            >
+              <div class="flex items-center justify-between">
+                <p class="text-xs uppercase tracking-wide text-base-content/65">Tarefas no filtro</p>
+                <span class="text-xs text-base-content/65">{@task_filters.days}d</span>
+              </div>
               <p class="mt-1 text-lg font-semibold text-base-content">
                 {@ops_counts.tasks_total}
               </p>
             </article>
-            <article class="micro-surface rounded-lg p-3">
-              <p class="text-xs uppercase tracking-wide text-base-content/65">
-                Lançamentos no filtro
-              </p>
+            <article
+              id="ops-card-finances-total"
+              class="micro-surface rounded-lg p-3"
+              aria-label={"Lançamentos no filtro nos últimos #{@finance_filters.days} dias"}
+            >
+              <div class="flex items-center justify-between">
+                <p class="text-xs uppercase tracking-wide text-base-content/65">
+                  Lançamentos no filtro
+                </p>
+                <span class="text-xs text-base-content/65">{@finance_filters.days}d</span>
+              </div>
               <p class="mt-1 text-lg font-semibold text-base-content">
                 {@ops_counts.finances_total}
               </p>
             </article>
-            <article class="micro-surface rounded-lg p-3">
-              <p class="text-xs uppercase tracking-wide text-base-content/65">Metas ativas</p>
+            <article
+              id="ops-card-goals-active"
+              class="micro-surface rounded-lg p-3"
+              aria-label={"Metas ativas nos próximos #{@goal_filters.days} dias"}
+            >
+              <div class="flex items-center justify-between">
+                <p class="text-xs uppercase tracking-wide text-base-content/65">Metas ativas</p>
+                <span class="text-xs text-base-content/65">{@goal_filters.days}d</span>
+              </div>
               <p class="mt-1 text-lg font-semibold text-base-content">
                 {@ops_counts.goals_active}/{@ops_counts.goals_total}
               </p>
@@ -1731,7 +2024,8 @@ defmodule OrganizerWeb.DashboardLive do
               <form
                 id="task-filters"
                 phx-change="filter_tasks"
-                class="mt-3 grid gap-2 sm:grid-cols-3"
+                phx-debounce="500"
+                class="mt-3 grid gap-2 sm:grid-cols-4"
                 aria-label="Filtros de tarefas"
               >
                 <select name="filters[status]" class="select select-bordered select-sm">
@@ -1755,6 +2049,14 @@ defmodule OrganizerWeb.DashboardLive do
                   <option value="14" selected={@task_filters.days == "14"}>14 dias</option>
                   <option value="30" selected={@task_filters.days == "30"}>30 dias</option>
                 </select>
+                <input
+                  type="text"
+                  name="filters[q]"
+                  value={@task_filters.q}
+                  placeholder="Buscar por título ou notas..."
+                  class="input input-bordered input-sm"
+                  maxlength="100"
+                />
               </form>
               <div id="tasks" phx-update="stream" class="mt-3 space-y-2">
                 <div
@@ -1892,14 +2194,78 @@ defmodule OrganizerWeb.DashboardLive do
               <form
                 id="finance-filters"
                 phx-change="filter_finances"
-                class="mt-3"
+                phx-debounce="500"
+                class="mt-3 grid gap-2 sm:grid-cols-4 lg:grid-cols-6"
                 aria-label="Filtros de lançamentos"
               >
-                <select name="filters[days]" class="select select-bordered select-sm w-full">
+                <select name="filters[days]" class="select select-bordered select-sm">
                   <option value="7" selected={@finance_filters.days == "7"}>Últimos 7 dias</option>
                   <option value="30" selected={@finance_filters.days == "30"}>Últimos 30 dias</option>
                   <option value="90" selected={@finance_filters.days == "90"}>Últimos 90 dias</option>
                 </select>
+                <select name="filters[kind]" class="select select-bordered select-sm">
+                  <option value="all" selected={@finance_filters.kind == "all"}>Todos tipos</option>
+                  <option value="income" selected={@finance_filters.kind == "income"}>Receita</option>
+                  <option value="expense" selected={@finance_filters.kind == "expense"}>
+                    Despesa
+                  </option>
+                </select>
+                <select name="filters[expense_profile]" class="select select-bordered select-sm">
+                  <option value="all" selected={@finance_filters.expense_profile == "all"}>
+                    Todos perfis
+                  </option>
+                  <option value="fixed" selected={@finance_filters.expense_profile == "fixed"}>
+                    Fixa
+                  </option>
+                  <option value="variable" selected={@finance_filters.expense_profile == "variable"}>
+                    Variável
+                  </option>
+                </select>
+                <select name="filters[payment_method]" class="select select-bordered select-sm">
+                  <option value="all" selected={@finance_filters.payment_method == "all"}>
+                    Todos métodos
+                  </option>
+                  <option value="credit" selected={@finance_filters.payment_method == "credit"}>
+                    Crédito
+                  </option>
+                  <option value="debit" selected={@finance_filters.payment_method == "debit"}>
+                    Débito
+                  </option>
+                </select>
+                <input
+                  type="text"
+                  name="filters[category]"
+                  value={@finance_filters.category}
+                  placeholder="Categoria..."
+                  class="input input-bordered input-sm"
+                  maxlength="50"
+                />
+                <input
+                  type="text"
+                  name="filters[q]"
+                  value={@finance_filters.q}
+                  placeholder="Buscar descrição..."
+                  class="input input-bordered input-sm"
+                  maxlength="100"
+                />
+                <input
+                  type="number"
+                  name="filters[min_amount_cents]"
+                  value={@finance_filters.min_amount_cents}
+                  placeholder="Valor mín..."
+                  class="input input-bordered input-sm"
+                  min="0"
+                  step="100"
+                />
+                <input
+                  type="number"
+                  name="filters[max_amount_cents]"
+                  value={@finance_filters.max_amount_cents}
+                  placeholder="Valor máx..."
+                  class="input input-bordered input-sm"
+                  min="0"
+                  step="100"
+                />
               </form>
               <div id="finances" phx-update="stream" class="mt-3 space-y-2">
                 <div
@@ -1915,9 +2281,7 @@ defmodule OrganizerWeb.DashboardLive do
                 >
                   <p class="font-medium text-base-content">{entry.category}</p>
                   <p class="text-xs text-base-content/65">
-                    {to_string(entry.kind)} • {format_money(entry.amount_cents)} • {Date.to_iso8601(
-                      entry.occurred_on
-                    )}
+                    {finance_entry_meta_line(entry)}
                   </p>
                   <div class="mt-2 flex gap-2">
                     <button
@@ -1962,6 +2326,52 @@ defmodule OrganizerWeb.DashboardLive do
                         >
                           <option value="income" selected={entry.kind == :income}>Receita</option>
                           <option value="expense" selected={entry.kind == :expense}>Despesa</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label
+                          class="text-xs font-medium text-base-content/70"
+                          for={"finance-expense-profile-#{entry.id}"}
+                        >
+                          Natureza da despesa
+                        </label>
+                        <select
+                          id={"finance-expense-profile-#{entry.id}"}
+                          name="finance[expense_profile]"
+                          class="select select-bordered w-full"
+                        >
+                          <option value="" selected={is_nil(entry.expense_profile)}>
+                            Não se aplica
+                          </option>
+                          <option value="fixed" selected={entry.expense_profile == :fixed}>
+                            Fixa
+                          </option>
+                          <option value="variable" selected={entry.expense_profile == :variable}>
+                            Variável
+                          </option>
+                        </select>
+                      </div>
+                      <div>
+                        <label
+                          class="text-xs font-medium text-base-content/70"
+                          for={"finance-payment-method-#{entry.id}"}
+                        >
+                          Pagamento
+                        </label>
+                        <select
+                          id={"finance-payment-method-#{entry.id}"}
+                          name="finance[payment_method]"
+                          class="select select-bordered w-full"
+                        >
+                          <option value="" selected={is_nil(entry.payment_method)}>
+                            Não se aplica
+                          </option>
+                          <option value="debit" selected={entry.payment_method == :debit}>
+                            Débito
+                          </option>
+                          <option value="credit" selected={entry.payment_method == :credit}>
+                            Crédito
+                          </option>
                         </select>
                       </div>
                       <div>
@@ -2046,15 +2456,63 @@ defmodule OrganizerWeb.DashboardLive do
               <form
                 id="goal-filters"
                 phx-change="filter_goals"
-                class="mt-3"
+                phx-debounce="500"
+                class="mt-3 grid gap-2 sm:grid-cols-4 lg:grid-cols-6"
                 aria-label="Filtros de metas"
               >
-                <select name="filters[status]" class="select select-bordered select-sm w-full">
+                <select name="filters[status]" class="select select-bordered select-sm">
                   <option value="all" selected={@goal_filters.status == "all"}>Todos status</option>
                   <option value="active" selected={@goal_filters.status == "active"}>Ativa</option>
                   <option value="paused" selected={@goal_filters.status == "paused"}>Pausada</option>
                   <option value="done" selected={@goal_filters.status == "done"}>Concluída</option>
                 </select>
+                <select name="filters[horizon]" class="select select-bordered select-sm">
+                  <option value="all" selected={@goal_filters.horizon == "all"}>
+                    Todos horizontes
+                  </option>
+                  <option value="short" selected={@goal_filters.horizon == "short"}>
+                    Curto prazo
+                  </option>
+                  <option value="medium" selected={@goal_filters.horizon == "medium"}>
+                    Médio prazo
+                  </option>
+                  <option value="long" selected={@goal_filters.horizon == "long"}>Longo prazo</option>
+                </select>
+                <input
+                  type="number"
+                  name="filters[days]"
+                  value={@goal_filters.days}
+                  placeholder="Próximos dias..."
+                  class="input input-bordered input-sm"
+                  min="1"
+                  max="3650"
+                />
+                <input
+                  type="number"
+                  name="filters[progress_min]"
+                  value={@goal_filters.progress_min}
+                  placeholder="Progresso mín %..."
+                  class="input input-bordered input-sm"
+                  min="0"
+                  max="100"
+                />
+                <input
+                  type="number"
+                  name="filters[progress_max]"
+                  value={@goal_filters.progress_max}
+                  placeholder="Progresso máx %..."
+                  class="input input-bordered input-sm"
+                  min="0"
+                  max="100"
+                />
+                <input
+                  type="text"
+                  name="filters[q]"
+                  value={@goal_filters.q}
+                  placeholder="Buscar por título ou descrição..."
+                  class="input input-bordered input-sm"
+                  maxlength="100"
+                />
               </form>
               <div id="goals" phx-update="stream" class="mt-3 space-y-2">
                 <div
@@ -2557,6 +3015,35 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp normalize_finance_category(category), do: to_string(category)
 
+  defp finance_entry_meta_line(entry) do
+    [
+      finance_kind_label(Map.get(entry, :kind)),
+      finance_expense_profile_label(Map.get(entry, :expense_profile)),
+      finance_payment_method_label(Map.get(entry, :payment_method)),
+      format_money(Map.get(entry, :amount_cents)),
+      entry |> Map.get(:occurred_on) |> date_input_value()
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" • ")
+  end
+
+  defp finance_kind_label(:income), do: "receita"
+  defp finance_kind_label(:expense), do: "despesa"
+  defp finance_kind_label(value) when is_atom(value), do: Atom.to_string(value)
+  defp finance_kind_label(_), do: "tipo pendente"
+
+  defp finance_expense_profile_label(:fixed), do: "fixa"
+  defp finance_expense_profile_label(:variable), do: "variável"
+  defp finance_expense_profile_label(nil), do: nil
+  defp finance_expense_profile_label(value) when is_atom(value), do: Atom.to_string(value)
+  defp finance_expense_profile_label(_), do: nil
+
+  defp finance_payment_method_label(:credit), do: "crédito"
+  defp finance_payment_method_label(:debit), do: "débito"
+  defp finance_payment_method_label(nil), do: nil
+  defp finance_payment_method_label(value) when is_atom(value), do: Atom.to_string(value)
+  defp finance_payment_method_label(_), do: nil
+
   defp money_axis_formatter(value) when is_number(value) do
     "R$ " <> :erlang.float_to_binary(value / 100, decimals: 0)
   end
@@ -2633,12 +3120,16 @@ defmodule OrganizerWeb.DashboardLive do
         build_bulk_preview_entry(line, line_number)
       end)
 
+    # Add scoring information for confidence-based feedback
+    scoring = BulkScoring.score_entries(entries)
+
     %{
       entries: entries,
       lines_total: length(entries),
       valid_total: Enum.count(entries, &(&1.status == :valid)),
       invalid_total: Enum.count(entries, &(&1.status == :invalid)),
-      ignored_total: Enum.count(entries, &(&1.status == :ignored))
+      ignored_total: Enum.count(entries, &(&1.status == :ignored)),
+      scoring: scoring
     }
   end
 
@@ -2721,6 +3212,8 @@ defmodule OrganizerWeb.DashboardLive do
         nil
       end
 
+    FieldSuggester.record_import(entries, scope)
+
     %{result | last_bulk_import: last_bulk_import}
   end
 
@@ -2763,24 +3256,32 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp build_bulk_preview_entry(raw_line, line_number) do
     line = String.trim(raw_line)
+    entry = BulkParser.parse_line(raw_line)
 
-    case parse_bulk_line(raw_line) do
-      :skip ->
+    case entry.status do
+      :ignored ->
         %{line_number: line_number, raw: line, status: :ignored}
 
-      {:error, reason} ->
+      :invalid ->
         %{
           line_number: line_number,
           raw: line,
           status: :invalid,
-          error: reason,
-          suggested_line: suggest_bulk_fix(line, reason)
+          error: entry.error,
+          suggested_line: suggest_bulk_fix(line, entry.error)
         }
 
-      {:ok, {type, attrs}} ->
-        case validate_preview_entry(type, attrs) do
+      :valid ->
+        case validate_preview_entry(entry.type, entry.attrs) do
           :ok ->
-            %{line_number: line_number, raw: line, status: :valid, type: type, attrs: attrs}
+            %{
+              line_number: line_number,
+              raw: line,
+              status: :valid,
+              type: entry.type,
+              attrs: entry.attrs,
+              inferred_fields: entry.inferred_fields
+            }
 
           {:error, reason, suggested_line} ->
             %{
@@ -2900,9 +3401,21 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   defp suggest_finance_validation_fix(attrs, details) do
-    if Enum.any?([:kind, :amount_cents, :category, :occurred_on], &Map.has_key?(details, &1)) do
+    if Enum.any?(
+         [:kind, :amount_cents, :category, :occurred_on, :expense_profile, :payment_method],
+         &Map.has_key?(details, &1)
+       ) do
       attrs
       |> Map.put_new("kind", "expense")
+      |> then(fn fixed ->
+        if Map.get(fixed, "kind") == "expense" do
+          fixed
+          |> Map.put_new("expense_profile", "variable")
+          |> Map.put_new("payment_method", "debit")
+        else
+          fixed
+        end
+      end)
       |> Map.put_new("amount_cents", 100)
       |> Map.put_new("category", "geral")
       |> Map.put_new("occurred_on", Date.to_iso8601(Date.utc_today()))
@@ -2910,6 +3423,10 @@ defmodule OrganizerWeb.DashboardLive do
         body =
           [
             "tipo=#{Map.get(fixed, "kind")}",
+            Map.get(fixed, "kind") == "expense" &&
+              "natureza=#{Map.get(fixed, "expense_profile")}",
+            Map.get(fixed, "kind") == "expense" &&
+              "pagamento=#{Map.get(fixed, "payment_method")}",
             "valor=#{Map.get(fixed, "amount_cents")}",
             "categoria=#{Map.get(fixed, "category")}",
             "data=#{Map.get(fixed, "occurred_on")}",
@@ -2997,446 +3514,49 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp bulk_preview_fixable_count(_entries), do: 0
 
-  defp parse_bulk_line(line) do
-    trimmed = String.trim(line)
-
-    cond do
-      trimmed == "" ->
-        :skip
-
-      String.contains?(trimmed, ":") ->
-        [raw_type, raw_body] = String.split(trimmed, ":", parts: 2)
-        type = normalize_token(raw_type)
-        body = String.trim(raw_body)
-
-        cond do
-          type in ["tarefa", "task", "t"] ->
-            parse_task_line(body)
-
-          type in ["financeiro", "finance", "lancamento", "lanc", "fin", "f"] ->
-            parse_finance_line(body, nil)
-
-          type in ["meta", "goal", "g"] ->
-            parse_goal_line(body)
-
-          type in ["receita", "despesa", "income", "expense"] ->
-            parse_finance_line(body, type)
-
-          true ->
-            {:error, "tipo não reconhecido. Use: tarefa, financeiro ou meta"}
-        end
-
-      true ->
-        {:error, "formato inválido. Use o padrão tipo: conteúdo"}
-    end
-  end
-
   defp bulk_template_payload("mixed") do
+    amanha = Date.to_iso8601(Date.add(Date.utc_today(), 1))
+
     """
-    tarefa: Revisar orçamento | data=2026-04-20 | prioridade=alta
-    financeiro: tipo=despesa | valor=125,90 | categoria=moradia | data=2026-04-05
-    meta: Reserva de emergência | horizonte=medio | alvo=300000
+    tarefa: reunião com equipe #{amanha}
+    financeiro: almoço 35
+    meta: aprender Elixir
     """
     |> String.trim()
   end
 
   defp bulk_template_payload("tasks") do
+    amanha = Date.to_iso8601(Date.add(Date.utc_today(), 1))
+
     """
-    tarefa: Revisar metas da semana | data=2026-04-20 | prioridade=alta
-    tarefa: Organizar documentos | data=2026-04-21 | prioridade=media
-    tarefa: Planejar descanso | prioridade=baixa
+    tarefa: revisar metas da semana #{amanha} alta
+    tarefa: organizar documentos
+    tarefa: planejar descanso baixa
     """
     |> String.trim()
   end
 
   defp bulk_template_payload("finance") do
+    today = Date.to_iso8601(Date.utc_today())
+
     """
-    financeiro: tipo=despesa | valor=98,40 | categoria=alimentacao | data=2026-04-12
-    financeiro: tipo=receita | valor=250000 | categoria=freela | data=2026-04-10
-    financeiro: despesa 4590 transporte 2026-04-11
+    financeiro: almoço 35
+    financeiro: salário 5000
+    financeiro: uber #{today} 18,50
     """
     |> String.trim()
   end
 
   defp bulk_template_payload("goals") do
     """
-    meta: Reserva anual | horizonte=longo | alvo=1200000 | atual=250000
-    meta: Curso de especialização | horizonte=medio | alvo=80000
-    meta: Rotina de treino | horizonte=curto | status=active
+    meta: reserva de emergência horizonte=longo alvo=300000
+    meta: aprender Elixir
+    meta: rotina de treino horizonte=curto
     """
     |> String.trim()
   end
 
   defp bulk_template_payload(_), do: ""
-
-  defp parse_task_line(body) do
-    segments = split_pipe_segments(body)
-
-    case segments do
-      [] ->
-        {:error, "tarefa sem título"}
-
-      [title | rest] ->
-        kv = parse_kv_segments(rest)
-
-        attrs =
-          %{"title" => title}
-          |> maybe_put(
-            "due_on",
-            normalize_date_token(map_get_any(kv, ["data", "date", "due", "vencimento"]))
-          )
-          |> maybe_put(
-            "priority",
-            map_priority(map_get_any(kv, ["prioridade", "priority", "prio"]))
-          )
-          |> maybe_put("status", map_task_status(map_get_any(kv, ["status"])))
-          |> maybe_put("notes", map_get_any(kv, ["nota", "notas", "notes"]))
-
-        {:ok, {:task, attrs}}
-    end
-  end
-
-  defp parse_goal_line(body) do
-    segments = split_pipe_segments(body)
-
-    case segments do
-      [] ->
-        {:error, "meta sem título"}
-
-      [title | rest] ->
-        kv = parse_kv_segments(rest)
-
-        attrs =
-          %{"title" => title}
-          |> maybe_put("horizon", map_goal_horizon(map_get_any(kv, ["horizonte", "horizon"])))
-          |> maybe_put("status", map_goal_status(map_get_any(kv, ["status"])))
-          |> maybe_put(
-            "target_value",
-            parse_int_token(map_get_any(kv, ["alvo", "target", "target_value"]))
-          )
-          |> maybe_put(
-            "current_value",
-            parse_int_token(map_get_any(kv, ["atual", "current", "current_value"]))
-          )
-          |> maybe_put(
-            "due_on",
-            normalize_date_token(map_get_any(kv, ["data", "date", "due", "prazo"]))
-          )
-          |> maybe_put("notes", map_get_any(kv, ["nota", "notas", "notes"]))
-
-        {:ok, {:goal, attrs}}
-    end
-  end
-
-  defp parse_finance_line(body, declared_kind) do
-    segments = split_pipe_segments(body)
-    kv = parse_kv_segments(segments)
-
-    free_segments =
-      segments
-      |> Enum.reject(&String.contains?(&1, "="))
-
-    {kind, amount_cents, category, occurred_on, description} =
-      parse_finance_fields(kv, free_segments, declared_kind)
-
-    attrs =
-      %{}
-      |> maybe_put("kind", kind)
-      |> maybe_put("amount_cents", amount_cents)
-      |> maybe_put("category", category)
-      |> maybe_put("occurred_on", occurred_on)
-      |> maybe_put("description", description)
-
-    {:ok, {:finance, attrs}}
-  end
-
-  defp parse_finance_fields(kv, free_segments, declared_kind) do
-    free_tokens =
-      free_segments
-      |> Enum.join(" ")
-      |> String.split(~r/\s+/, trim: true)
-
-    kind =
-      declared_kind
-      |> map_finance_kind()
-      |> fallback(map_finance_kind(map_get_any(kv, ["tipo", "kind"])))
-      |> fallback(detect_kind_in_tokens(free_tokens))
-
-    amount_cents =
-      parse_amount_cents_token(map_get_any(kv, ["valor", "amount", "centavos", "amount_cents"])) ||
-        detect_amount_in_tokens(free_tokens)
-
-    category =
-      map_get_any(kv, ["categoria", "category"]) ||
-        detect_category_in_tokens(free_tokens, kind, amount_cents)
-
-    occurred_on = normalize_date_token(map_get_any(kv, ["data", "date", "quando", "occurred_on"]))
-    description = map_get_any(kv, ["descricao", "description", "desc"])
-
-    {kind, amount_cents, category, occurred_on, description}
-  end
-
-  defp detect_kind_in_tokens(tokens) do
-    tokens
-    |> Enum.find_value(&map_finance_kind/1)
-  end
-
-  defp detect_amount_in_tokens(tokens) do
-    tokens
-    |> Enum.find_value(&parse_amount_cents_token/1)
-  end
-
-  defp detect_category_in_tokens(tokens, kind, amount_cents) do
-    cleaned =
-      tokens
-      |> Enum.reject(fn token ->
-        map_finance_kind(token) == kind or parse_amount_cents_token(token) == amount_cents
-      end)
-
-    case cleaned do
-      [] -> nil
-      [first | _] -> first
-    end
-  end
-
-  defp split_pipe_segments(body) do
-    body
-    |> String.split("|", trim: true)
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-  end
-
-  defp parse_kv_segments(segments) do
-    Enum.reduce(segments, %{}, fn segment, acc ->
-      case String.split(segment, "=", parts: 2) do
-        [key, value] -> Map.put(acc, normalize_token(key), String.trim(value))
-        _ -> acc
-      end
-    end)
-  end
-
-  defp map_get_any(map, keys) do
-    Enum.find_value(keys, fn key ->
-      Map.get(map, key)
-    end)
-  end
-
-  defp map_priority(nil), do: nil
-
-  defp map_priority(value) do
-    case normalize_token(value) do
-      "baixa" -> "low"
-      "low" -> "low"
-      "b" -> "low"
-      "media" -> "medium"
-      "média" -> "medium"
-      "medium" -> "medium"
-      "normal" -> "medium"
-      "m" -> "medium"
-      "alta" -> "high"
-      "high" -> "high"
-      "urgente" -> "high"
-      "h" -> "high"
-      _ -> nil
-    end
-  end
-
-  defp map_task_status(nil), do: nil
-
-  defp map_task_status(value) do
-    case normalize_token(value) do
-      "todo" -> "todo"
-      "pendente" -> "todo"
-      "in_progress" -> "in_progress"
-      "andamento" -> "in_progress"
-      "em_andamento" -> "in_progress"
-      "done" -> "done"
-      "concluida" -> "done"
-      "concluída" -> "done"
-      _ -> nil
-    end
-  end
-
-  defp map_goal_horizon(nil), do: nil
-
-  defp map_goal_horizon(value) do
-    case normalize_token(value) do
-      "curto" -> "short"
-      "short" -> "short"
-      "medio" -> "medium"
-      "médio" -> "medium"
-      "medium" -> "medium"
-      "longo" -> "long"
-      "long" -> "long"
-      _ -> nil
-    end
-  end
-
-  defp map_goal_status(nil), do: nil
-
-  defp map_goal_status(value) do
-    case normalize_token(value) do
-      "active" -> "active"
-      "ativa" -> "active"
-      "paused" -> "paused"
-      "pausada" -> "paused"
-      "done" -> "done"
-      "concluida" -> "done"
-      "concluída" -> "done"
-      _ -> nil
-    end
-  end
-
-  defp map_finance_kind(nil), do: nil
-
-  defp map_finance_kind(value) do
-    case normalize_token(value) do
-      "receita" -> "income"
-      "income" -> "income"
-      "despesa" -> "expense"
-      "expense" -> "expense"
-      _ -> nil
-    end
-  end
-
-  defp parse_int_token(nil), do: nil
-
-  defp parse_int_token(value) when is_integer(value), do: value
-
-  defp parse_int_token(value) when is_binary(value) do
-    cleaned =
-      value
-      |> String.trim()
-      |> String.replace(~r/[^0-9-]/u, "")
-
-    case Integer.parse(cleaned) do
-      {int, ""} -> int
-      _ -> nil
-    end
-  end
-
-  defp parse_int_token(_), do: nil
-
-  defp parse_amount_cents_token(nil), do: nil
-
-  defp parse_amount_cents_token(value) when is_integer(value), do: value
-
-  defp parse_amount_cents_token(value) when is_binary(value) do
-    cleaned =
-      value
-      |> String.trim()
-      |> String.replace(" ", "")
-      |> String.replace("R$", "")
-      |> String.replace(~r/[^0-9,\.\-]/u, "")
-
-    sign = if String.starts_with?(cleaned, "-"), do: -1, else: 1
-
-    normalized =
-      cleaned
-      |> String.replace("-", "")
-      |> normalize_amount_numeric_string()
-
-    cond do
-      normalized == "" ->
-        nil
-
-      true ->
-        normalized
-        |> amount_string_to_cents()
-        |> case do
-          nil -> nil
-          cents -> sign * cents
-        end
-    end
-  end
-
-  defp parse_amount_cents_token(_), do: nil
-
-  defp normalize_date_token(nil), do: nil
-  defp normalize_date_token(%Date{} = date), do: Date.to_iso8601(date)
-
-  defp normalize_date_token(value) when is_binary(value) do
-    cleaned = String.trim(value)
-
-    case normalize_token(cleaned) do
-      "hoje" ->
-        Date.to_iso8601(Date.utc_today())
-
-      "amanha" ->
-        Date.utc_today() |> Date.add(1) |> Date.to_iso8601()
-
-      "amanhã" ->
-        Date.utc_today() |> Date.add(1) |> Date.to_iso8601()
-
-      "ontem" ->
-        Date.utc_today() |> Date.add(-1) |> Date.to_iso8601()
-
-      _ ->
-        normalize_explicit_date(cleaned)
-    end
-  end
-
-  defp normalize_date_token(_), do: nil
-
-  defp normalize_explicit_date(cleaned) do
-    case Date.from_iso8601(cleaned) do
-      {:ok, date} ->
-        Date.to_iso8601(date)
-
-      _ ->
-        with [y, m, d] <-
-               Regex.run(~r/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/u, cleaned,
-                 capture: :all_but_first
-               ),
-             {year, ""} <- Integer.parse(y),
-             {month, ""} <- Integer.parse(m),
-             {day, ""} <- Integer.parse(d),
-             {:ok, date} <- Date.new(year, month, day) do
-          Date.to_iso8601(date)
-        else
-          _ ->
-            with [a, b, y] <-
-                   Regex.run(~r/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/u, cleaned,
-                     capture: :all_but_first
-                   ),
-                 {da, ""} <- Integer.parse(a),
-                 {db, ""} <- Integer.parse(b),
-                 {dy, ""} <- Integer.parse(y),
-                 {year, month, day} <- infer_date_parts(da, db, dy),
-                 {:ok, date} <- Date.new(year, month, day) do
-              Date.to_iso8601(date)
-            else
-              _ -> cleaned
-            end
-        end
-    end
-  end
-
-  defp amount_string_to_cents(value) do
-    cond do
-      Regex.match?(~r/^\d+$/u, value) ->
-        parse_int_token(value)
-
-      Regex.match?(~r/^\d+\.\d{1,2}$/u, value) ->
-        [whole, frac] = String.split(value, ".", parts: 2)
-        cents = parse_int_token(whole)
-
-        frac_cents =
-          case String.length(frac) do
-            1 -> parse_int_token(frac) * 10
-            _ -> parse_int_token(frac)
-          end
-
-        cents * 100 + frac_cents
-
-      true ->
-        nil
-    end
-  end
-
-  defp infer_date_parts(a, b, y) when a > 12, do: {y, b, a}
-  defp infer_date_parts(a, b, y) when b > 12, do: {y, a, b}
-  defp infer_date_parts(a, b, y), do: {y, b, a}
 
   defp normalize_token(value) when is_binary(value) do
     value
@@ -3445,12 +3565,6 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   defp normalize_token(value), do: value |> to_string() |> normalize_token()
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
-
-  defp fallback(nil, value), do: value
-  defp fallback(value, _other), do: value
 
   defp total_bulk_created(created) do
     created.tasks + created.finances + created.goals
@@ -3482,10 +3596,18 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   defp bulk_preview_entry_label(%{status: :valid, type: :finance, attrs: attrs}) do
-    kind = Map.get(attrs, "kind", "tipo pendente")
-    category = Map.get(attrs, "category", "categoria pendente")
-    amount = format_bulk_amount(Map.get(attrs, "amount_cents"))
-    "Financeiro: #{kind} • #{amount} • #{category}"
+    parts = [
+      Map.get(attrs, "kind", "tipo pendente"),
+      bulk_finance_expense_profile_label(attrs),
+      bulk_finance_payment_method_label(attrs),
+      format_bulk_amount(Map.get(attrs, "amount_cents")),
+      Map.get(attrs, "category", "categoria pendente")
+    ]
+
+    "Financeiro: " <>
+      (parts
+       |> Enum.reject(&is_nil/1)
+       |> Enum.join(" • "))
   end
 
   defp bulk_preview_entry_label(%{status: :valid, type: :goal, attrs: attrs}) do
@@ -3501,6 +3623,30 @@ defmodule OrganizerWeb.DashboardLive do
     do: format_money(amount_cents)
 
   defp format_bulk_amount(_), do: "valor pendente"
+
+  defp bulk_finance_expense_profile_label(attrs) do
+    if Map.get(attrs, "kind") == "expense" do
+      case Map.get(attrs, "expense_profile") do
+        "fixed" -> "fixa"
+        "variable" -> "variável"
+        _ -> "variável"
+      end
+    else
+      nil
+    end
+  end
+
+  defp bulk_finance_payment_method_label(attrs) do
+    if Map.get(attrs, "kind") == "expense" do
+      case Map.get(attrs, "payment_method") do
+        "credit" -> "crédito"
+        "debit" -> "débito"
+        _ -> "débito"
+      end
+    else
+      nil
+    end
+  end
 
   defp add_bulk_error(acc, line_number, message) do
     Map.update!(acc, :errors, fn errors ->
@@ -3582,6 +3728,14 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp template_favorited?(favorites, key), do: key in favorites
 
+  defp bulk_capture_placeholder([top_cat | _]) do
+    "tarefa: reunião amanhã\nfinanceiro: #{top_cat} 35\nmeta: aprender Elixir"
+  end
+
+  defp bulk_capture_placeholder(_) do
+    "tarefa: reunião amanhã\nfinanceiro: almoço 35\nmeta: aprender Elixir"
+  end
+
   defp toggle_string_flag(list, value) do
     if value in list do
       Enum.reject(list, &(&1 == value))
@@ -3660,6 +3814,10 @@ defmodule OrganizerWeb.DashboardLive do
   defp bulk_entry_normalized_line(%{status: :valid, type: :finance, attrs: attrs}) do
     [
       "financeiro: tipo=#{Map.get(attrs, "kind", "expense")}",
+      Map.get(attrs, "kind") == "expense" &&
+        "natureza=#{Map.get(attrs, "expense_profile", "variable")}",
+      Map.get(attrs, "kind") == "expense" &&
+        "pagamento=#{Map.get(attrs, "payment_method", "debit")}",
       Map.get(attrs, "amount_cents") && "valor=#{Map.get(attrs, "amount_cents")}",
       Map.get(attrs, "category") && "categoria=#{Map.get(attrs, "category")}",
       Map.get(attrs, "occurred_on") && "data=#{Map.get(attrs, "occurred_on")}",
@@ -3689,47 +3847,14 @@ defmodule OrganizerWeb.DashboardLive do
     String.trim(Map.get(entry, :raw, "")) != String.trim(bulk_entry_normalized_line(entry))
   end
 
-  defp normalize_amount_numeric_string(value) do
-    has_comma = String.contains?(value, ",")
-    has_dot = String.contains?(value, ".")
+  defp parse_index(value) when is_integer(value), do: value
 
-    cond do
-      has_comma and has_dot ->
-        if last_index(value, ",") > last_index(value, ".") do
-          value
-          |> String.replace(".", "")
-          |> String.replace(",", ".")
-        else
-          String.replace(value, ",", "")
-        end
-
-      has_comma ->
-        if Regex.match?(~r/,\d{1,2}$/u, value) do
-          String.replace(value, ",", ".")
-        else
-          String.replace(value, ",", "")
-        end
-
-      has_dot ->
-        if Regex.match?(~r/\.\d{1,2}$/u, value) do
-          value
-        else
-          String.replace(value, ".", "")
-        end
-
-      true ->
-        value
+  defp parse_index(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {i, ""} -> i
+      _ -> nil
     end
   end
 
-  defp last_index(value, pattern) when is_binary(value) and is_binary(pattern) do
-    case :binary.matches(value, pattern) do
-      [] ->
-        -1
-
-      matches ->
-        {index, _len} = List.last(matches)
-        index
-    end
-  end
+  defp parse_index(_), do: nil
 end

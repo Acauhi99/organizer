@@ -6,6 +6,8 @@ defmodule Organizer.Planning.AttributeValidation do
   @task_statuses ~w(todo in_progress done)
   @task_priorities ~w(low medium high)
   @finance_kinds ~w(income expense)
+  @finance_expense_profiles ~w(fixed variable)
+  @finance_payment_methods ~w(credit debit)
   @goal_horizons ~w(short medium long)
   @goal_statuses ~w(active paused done)
 
@@ -32,6 +34,10 @@ defmodule Organizer.Planning.AttributeValidation do
     attrs = normalize_keys(attrs)
 
     {kind, errors} = validate_enum(attrs, :kind, @finance_kinds, nil, %{})
+
+    {expense_profile, payment_method, errors} =
+      validate_expense_classification_attrs(attrs, kind, errors)
+
     {amount_cents, errors} = validate_positive_int(attrs, :amount_cents, errors)
     {category, errors} = validate_required_string(attrs, :category, 2, 80, errors)
     {description, errors} = validate_optional_string(attrs, :description, 300, errors)
@@ -41,6 +47,8 @@ defmodule Organizer.Planning.AttributeValidation do
 
     build_result(errors, %{
       kind: safe_existing_atom(kind),
+      expense_profile: safe_existing_atom(expense_profile),
+      payment_method: safe_existing_atom(payment_method),
       amount_cents: amount_cents,
       category: category,
       description: description,
@@ -155,6 +163,52 @@ defmodule Organizer.Planning.AttributeValidation do
       {value, add_error(errors, field, "is invalid")}
     end
   end
+
+  defp validate_optional_enum(attrs, field, allowed, errors) do
+    case Map.get(attrs, field) do
+      nil ->
+        {nil, errors}
+
+      "" ->
+        {nil, errors}
+
+      value when is_atom(value) ->
+        value
+        |> Atom.to_string()
+        |> validate_optional_enum_value(field, allowed, errors)
+
+      value when is_binary(value) ->
+        value
+        |> String.trim()
+        |> validate_optional_enum_value(field, allowed, errors)
+
+      _ ->
+        {nil, add_error(errors, field, "is invalid")}
+    end
+  end
+
+  defp validate_optional_enum_value(value, _field, _allowed, errors) when value == "",
+    do: {nil, errors}
+
+  defp validate_optional_enum_value(value, field, allowed, errors) do
+    if value in allowed do
+      {value, errors}
+    else
+      {nil, add_error(errors, field, "is invalid")}
+    end
+  end
+
+  defp validate_expense_classification_attrs(attrs, "expense", errors) do
+    {expense_profile, errors} =
+      validate_optional_enum(attrs, :expense_profile, @finance_expense_profiles, errors)
+
+    {payment_method, errors} =
+      validate_optional_enum(attrs, :payment_method, @finance_payment_methods, errors)
+
+    {expense_profile || "variable", payment_method || "debit", errors}
+  end
+
+  defp validate_expense_classification_attrs(_attrs, _kind, errors), do: {nil, nil, errors}
 
   defp validate_optional_date(attrs, field, errors) do
     case Map.get(attrs, field) do
