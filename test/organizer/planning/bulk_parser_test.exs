@@ -276,7 +276,9 @@ defmodule Organizer.Planning.BulkParserTest do
   describe "parse_line/2 — equivalence with explicit defaults (Req 8.7)" do
     test "minimal task equals task with explicit default fields" do
       minimal = BulkParser.parse_line("tarefa: Comprar leite", @opts)
-      explicit = BulkParser.parse_line("tarefa: Comprar leite | status=todo | prioridade=media", @opts)
+
+      explicit =
+        BulkParser.parse_line("tarefa: Comprar leite | status=todo | prioridade=media", @opts)
 
       assert minimal.attrs["title"] == explicit.attrs["title"]
       assert minimal.attrs["status"] == explicit.attrs["status"]
@@ -286,7 +288,9 @@ defmodule Organizer.Planning.BulkParserTest do
 
     test "minimal goal equals goal with explicit default fields" do
       minimal = BulkParser.parse_line("meta: Aprender Elixir", @opts)
-      explicit = BulkParser.parse_line("meta: Aprender Elixir | horizonte=medio | status=ativa", @opts)
+
+      explicit =
+        BulkParser.parse_line("meta: Aprender Elixir | horizonte=medio | status=ativa", @opts)
 
       assert minimal.attrs["title"] == explicit.attrs["title"]
       assert minimal.attrs["horizon"] == explicit.attrs["horizon"]
@@ -360,10 +364,10 @@ defmodule Organizer.Planning.BulkParserTest do
     |> StreamData.filter(fn s ->
       s = String.downcase(s)
       # Must be non-empty after trim
+      # Must not contain any trigger keyword as a substring
+      # Must not look like an ISO date (YYYY-MM-DD)
       String.trim(s) != "" and
-        # Must not contain any trigger keyword as a substring
         not Enum.any?(@trigger_keywords, fn kw -> String.contains?(s, kw) end) and
-        # Must not look like an ISO date (YYYY-MM-DD)
         not Regex.match?(~r/^\d{4}-\d{2}-\d{2}$/, s)
     end)
   end
@@ -380,11 +384,15 @@ defmodule Organizer.Planning.BulkParserTest do
     # **Validates: Requirements 8.7**
     today = Date.to_iso8601(Date.utc_today())
 
-    check all title <- gen_safe_title(),
-              amount <- gen_safe_amount() do
+    check all(
+            title <- gen_safe_title(),
+            amount <- gen_safe_amount()
+          ) do
       # ---- TASK: minimal vs explicit defaults ----
       task_minimal = BulkParser.parse_line("tarefa: #{title}", %{})
-      task_explicit = BulkParser.parse_line("tarefa: #{title} | status=todo | prioridade=media", %{})
+
+      task_explicit =
+        BulkParser.parse_line("tarefa: #{title} | status=todo | prioridade=media", %{})
 
       assert task_minimal.status == :valid,
              "Expected minimal task to be :valid but got: #{inspect(task_minimal)}"
@@ -403,7 +411,9 @@ defmodule Organizer.Planning.BulkParserTest do
 
       # ---- GOAL: minimal vs explicit defaults ----
       goal_minimal = BulkParser.parse_line("meta: #{title}", %{})
-      goal_explicit = BulkParser.parse_line("meta: #{title} | horizonte=medio | status=ativa", %{})
+
+      goal_explicit =
+        BulkParser.parse_line("meta: #{title} | horizonte=medio | status=ativa", %{})
 
       assert goal_minimal.status == :valid,
              "Expected minimal goal to be :valid but got: #{inspect(goal_minimal)}"
@@ -417,12 +427,15 @@ defmodule Organizer.Planning.BulkParserTest do
       assert goal_minimal.attrs["status"] == goal_explicit.attrs["status"],
              "Goal status mismatch: #{inspect(goal_minimal.attrs["status"])} != #{inspect(goal_explicit.attrs["status"])}"
 
-      assert Map.get(goal_minimal.attrs, "target_value") == Map.get(goal_explicit.attrs, "target_value"),
+      assert Map.get(goal_minimal.attrs, "target_value") ==
+               Map.get(goal_explicit.attrs, "target_value"),
              "Goal target_value mismatch"
 
       # ---- FINANCE: minimal vs explicit defaults ----
       finance_minimal = BulkParser.parse_line("financeiro: #{title} #{amount}", %{})
-      finance_explicit = BulkParser.parse_line("financeiro: #{title} #{amount} | occurred_on=#{today}", %{})
+
+      finance_explicit =
+        BulkParser.parse_line("financeiro: #{title} #{amount} | occurred_on=#{today}", %{})
 
       assert finance_minimal.status == :valid,
              "Expected minimal finance to be :valid but got: #{inspect(finance_minimal)}"

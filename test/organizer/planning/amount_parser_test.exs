@@ -9,7 +9,7 @@ defmodule Organizer.Planning.AmountParserTest do
     end
 
     test "1.200,50 -> 120050" do
-      assert AmountParser.parse("1.200,50") == {:ok, 120050}
+      assert AmountParser.parse("1.200,50") == {:ok, 120_050}
     end
   end
 
@@ -19,7 +19,7 @@ defmodule Organizer.Planning.AmountParserTest do
     end
 
     test "1200.50 -> 120050" do
-      assert AmountParser.parse("1200.50") == {:ok, 120050}
+      assert AmountParser.parse("1200.50") == {:ok, 120_050}
     end
   end
 

@@ -263,12 +263,13 @@ defmodule Organizer.Planning.ContextInferrerTest do
   defp gen_capitalization_variant(term) do
     graphemes = String.graphemes(term)
 
-    generators = Enum.map(graphemes, fn g ->
-      StreamData.boolean()
-      |> StreamData.map(fn upper? ->
-        if upper?, do: String.upcase(g), else: String.downcase(g)
+    generators =
+      Enum.map(graphemes, fn g ->
+        StreamData.boolean()
+        |> StreamData.map(fn upper? ->
+          if upper?, do: String.upcase(g), else: String.downcase(g)
+        end)
       end)
-    end)
 
     StreamData.fixed_list(generators)
     |> StreamData.map(&Enum.join/1)
@@ -276,9 +277,11 @@ defmodule Organizer.Planning.ContextInferrerTest do
 
   @tag feature: "ai-like-input-enhancements", property: 9
   property "Propriedade 9: inferência de receita insensível a caixa e acentuação — Validates: Requirements 4.6" do
-    check all term <- StreamData.member_of(@canonical_income_terms),
-              variant <- gen_capitalization_variant(term),
-              max_runs: 200 do
+    check all(
+            term <- StreamData.member_of(@canonical_income_terms),
+            variant <- gen_capitalization_variant(term),
+            max_runs: 200
+          ) do
       assert ContextInferrer.infer_kind(variant) == {:ok, :income},
              "Expected {:ok, :income} for capitalization variant #{inspect(variant)} of term #{inspect(term)}"
     end

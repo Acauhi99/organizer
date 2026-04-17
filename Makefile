@@ -1,19 +1,47 @@
-.PHONY: help test-domain test-web test-all test-unit test-stage2 test-domain-local test-web-local test-local-all db-create db-migrate db-reset run
+.PHONY: help precommit check-format \
+        test-domain test-web test-all \
+        test-unit test-stage2 \
+        test-domain-local test-web-local test-local-all \
+        db-create db-migrate db-reset run setup
+
+# ── defaults ────────────────────────────────────────────────────────────────
 
 help:
-	@echo "Targets disponiveis:"
-	@echo "  make test-domain      # Suite de dominio via Docker"
-	@echo "  make test-web         # Suite web focada via Docker"
-	@echo "  make test-all         # Domain + web via Docker"
-	@echo "  make test-unit        # Alias legado para test-domain"
-	@echo "  make test-stage2      # Alias legado para test-web"
-	@echo "  make test-domain-local # Suite de dominio sem Docker"
-	@echo "  make test-web-local    # Suite web sem Docker"
-	@echo "  make test-local-all    # Domain + web sem Docker"
-	@echo "  make db-create         # Cria banco de desenvolvimento"
-	@echo "  make db-migrate        # Aplica migrations pendentes"
-	@echo "  make db-reset          # Recria banco e reaplica migrations"
-	@echo "  make run               # Sobe app local com migration aplicada"
+	@echo ""
+	@echo "Targets disponíveis:"
+	@echo ""
+	@echo "  make precommit          # Formata, compila (erros=fatal), testa (alias mix precommit)"
+	@echo "  make check-format       # Verifica formatação sem alterar arquivos (igual ao CI)"
+	@echo ""
+	@echo "  make setup              # Instala deps e configura banco"
+	@echo "  make run                # Aplica migrations e sobe o servidor"
+	@echo ""
+	@echo "  make test-domain        # Suite de domínio via Docker"
+	@echo "  make test-web           # Suite web via Docker"
+	@echo "  make test-all           # Domain + web via Docker"
+	@echo ""
+	@echo "  make test-domain-local  # Suite de domínio sem Docker"
+	@echo "  make test-web-local     # Suite web sem Docker"
+	@echo "  make test-local-all     # Domain + web sem Docker"
+	@echo ""
+	@echo "  make db-create          # Cria banco de desenvolvimento"
+	@echo "  make db-migrate         # Aplica migrations pendentes"
+	@echo "  make db-reset           # Recria banco e reaplica migrations"
+	@echo ""
+
+# ── qualidade ───────────────────────────────────────────────────────────────
+
+# Espelho exato do alias `mix precommit` — formata arquivos, compila e testa.
+# Use antes de fazer push para garantir que o CI vai passar.
+precommit:
+	mix precommit
+
+# Mesma verificação de formatação que o CI executa (não altera arquivos).
+# Use para diagnosticar falhas de format sem modificar nada.
+check-format:
+	mix format --check-formatted
+
+# ── testes ──────────────────────────────────────────────────────────────────
 
 test-domain:
 	sh scripts/tests/domain_suite.sh
@@ -23,17 +51,32 @@ test-web:
 
 test-all: test-domain test-web
 
+# aliases legados
 test-unit: test-domain
-
 test-stage2: test-web
 
 test-domain-local:
-	MIX_ENV=test mix test test/organizer/accounts_test.exs test/organizer/planning_test.exs test/organizer/planning/analytics_test.exs
+	MIX_ENV=test mix test \
+	  test/organizer/accounts_test.exs \
+	  test/organizer/planning_test.exs \
+	  test/organizer/planning/analytics_test.exs
 
 test-web-local:
-	MIX_ENV=test mix test test/organizer_web/live/dashboard_live_test.exs test/organizer_web/live/auth_flow_live_test.exs test/organizer_web/controllers/api/v1/task_controller_test.exs test/organizer_web/controllers/api/v1/finance_entry_controller_test.exs test/organizer_web/controllers/api/v1/goal_controller_test.exs test/organizer_web/controllers/api/v1/fixed_cost_controller_test.exs test/organizer_web/controllers/api/v1/important_date_controller_test.exs
+	MIX_ENV=test mix test \
+	  test/organizer_web/live/dashboard_live_test.exs \
+	  test/organizer_web/live/auth_flow_live_test.exs \
+	  test/organizer_web/controllers/api/v1/task_controller_test.exs \
+	  test/organizer_web/controllers/api/v1/finance_entry_controller_test.exs \
+	  test/organizer_web/controllers/api/v1/goal_controller_test.exs \
+	  test/organizer_web/controllers/api/v1/fixed_cost_controller_test.exs \
+	  test/organizer_web/controllers/api/v1/important_date_controller_test.exs
 
 test-local-all: test-domain-local test-web-local
+
+# ── banco ────────────────────────────────────────────────────────────────────
+
+setup:
+	mix setup
 
 db-create:
 	mix ecto.create
@@ -47,6 +90,8 @@ db-reset:
 	mix ecto.drop --no-compile
 	mix ecto.create --no-compile
 	mix ecto.migrate --no-compile
+
+# ── servidor ─────────────────────────────────────────────────────────────────
 
 run: db-migrate
 	mix phx.server --no-compile

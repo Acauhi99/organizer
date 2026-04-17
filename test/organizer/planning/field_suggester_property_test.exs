@@ -310,8 +310,8 @@ defmodule Organizer.Planning.FieldSuggesterPropertyTest do
                            {"payment_method", "credito"}
                          ],
                          fa != fb do
-    {fa, va, fb, vb}
-  end)
+                       {fa, va, fb, vb}
+                     end)
 
   @tag feature: "ai-like-input-enhancements", property: 13
   property "Propriedade 13: par com co-ocorrência >= 3 aparece em suggest_correlations/3" do

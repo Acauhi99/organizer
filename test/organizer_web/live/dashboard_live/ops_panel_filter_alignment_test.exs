@@ -183,7 +183,7 @@ defmodule OrganizerWeb.DashboardLive.OpsPanelFilterAlignmentTest do
 
   describe "Property 1: Period_Label de tarefas reflete o filtro ativo" do
     property "para qualquer days válido, cards de tarefas exibem o label correto", %{conn: conn} do
-      check all days <- StreamData.member_of(["7", "14", "30"]) do
+      check all(days <- StreamData.member_of(["7", "14", "30"])) do
         {:ok, view, _html} = live(conn, ~p"/dashboard")
 
         view
@@ -206,7 +206,7 @@ defmodule OrganizerWeb.DashboardLive.OpsPanelFilterAlignmentTest do
     property "para qualquer days válido, card de lançamentos exibe o label correto", %{
       conn: conn
     } do
-      check all days <- StreamData.member_of(["7", "30", "90"]) do
+      check all(days <- StreamData.member_of(["7", "30", "90"])) do
         {:ok, view, _html} = live(conn, ~p"/dashboard")
 
         view
@@ -226,8 +226,10 @@ defmodule OrganizerWeb.DashboardLive.OpsPanelFilterAlignmentTest do
 
   describe "Property 3: Isolamento entre Period_Labels de abas distintas" do
     property "atualizar filtro de tarefas não altera label de finanças", %{conn: conn} do
-      check all task_days <- StreamData.member_of(["7", "14", "30"]),
-                finance_days <- StreamData.member_of(["7", "30", "90"]) do
+      check all(
+              task_days <- StreamData.member_of(["7", "14", "30"]),
+              finance_days <- StreamData.member_of(["7", "30", "90"])
+            ) do
         {:ok, view, _html} = live(conn, ~p"/dashboard")
 
         # Setar filtro de finanças primeiro
@@ -246,8 +248,10 @@ defmodule OrganizerWeb.DashboardLive.OpsPanelFilterAlignmentTest do
     end
 
     property "atualizar filtro de finanças não altera labels de tarefas", %{conn: conn} do
-      check all task_days <- StreamData.member_of(["7", "14", "30"]),
-                finance_days <- StreamData.member_of(["7", "30", "90"]) do
+      check all(
+              task_days <- StreamData.member_of(["7", "14", "30"]),
+              finance_days <- StreamData.member_of(["7", "30", "90"])
+            ) do
         {:ok, view, _html} = live(conn, ~p"/dashboard")
 
         # Setar filtro de tarefas primeiro
@@ -275,7 +279,7 @@ defmodule OrganizerWeb.DashboardLive.OpsPanelFilterAlignmentTest do
 
   describe "Property 4: Sanitização de Goal_Filters.days" do
     property "valores entre 1 e 3650 são exibidos corretamente no card de metas", %{conn: conn} do
-      check all n <- StreamData.integer(1..3650) do
+      check all(n <- StreamData.integer(1..3650)) do
         {:ok, view, _html} = live(conn, ~p"/dashboard")
 
         view
@@ -287,7 +291,7 @@ defmodule OrganizerWeb.DashboardLive.OpsPanelFilterAlignmentTest do
     end
 
     property "valores fora de 1..3650 fazem fallback para 365d no card de metas", %{conn: conn} do
-      check all n <- StreamData.filter(StreamData.integer(), fn x -> x < 1 or x > 3650 end) do
+      check all(n <- StreamData.filter(StreamData.integer(), fn x -> x < 1 or x > 3650 end)) do
         {:ok, view, _html} = live(conn, ~p"/dashboard")
 
         view
