@@ -36,11 +36,13 @@ flowchart TD
 		Planning --> Validation[AttributeValidation]
 		Planning --> Analytics[Planning.Analytics]
 		Planning --> Cache[AnalyticsCache GenServer]
+		Planning --> Suggester[FieldSuggester GenServer]
 		Planning --> Repo[Ecto Repo]
 		Repo --> DB[(SQLite)]
 
-		Cache --> ETS[(ETS Cache)]
+		Cache --> ETS[(ETS :analytics_cache)]
 		Cache --> Analytics
+		Suggester --> ETS2[(ETS :field_suggestions)]
 
 		Live --> Assets[assets/css + assets/js]
 ```
@@ -54,10 +56,99 @@ A aplicação utiliza padrões OTP para performance e escalabilidade:
   - Acesso: `Organizer.Planning.AnalyticsCache.get_analytics/2`
   - Isolamento por usuário para segurança
 
+- **FieldSuggester (GenServer)**: Sugestão de valores de campos baseada em frequência de uso por usuário. Armazena contadores de frequência e correlações entre campos em ETS. Fallback para valores canônicos estáticos quando não há histórico.
+  - Tabela ETS: `:field_suggestions`
+  - Acesso: `Organizer.Planning.FieldSuggester.suggest_values/2`, `complete/3`, `record_import/2`
+  - Isolamento por usuário para segurança
+
 - **Task.Supervisor**: Gerenciador de tarefas assíncronas para operações não-bloqueantes (email, bulk operations). Nomeado como `Organizer.TaskSupervisor`.
   - Uso: `Task.Supervisor.async_nolink(Organizer.TaskSupervisor, fn -> ... end)`
 
 - **Phoenix.PubSub**: Sistema de pub/sub para broadcast de eventos (atualmente usado por LiveDashboard e telemetria).
+
+## Dashboard
+
+O dashboard (`/dashboard`) é a tela principal da aplicação e foi refatorado com foco em hierarquia visual, onboarding e configurabilidade.
+
+### Hierarquia visual de três níveis
+
+1. **Primário — Bulk Import Hero**: Componente de importação em lote com destaque máximo (40%+ da área visível em desktop). Superfície visual diferenciada com gradiente e borda de destaque.
+2. **Secundário — Operations Panel**: Listagem e edição de tarefas, finanças e metas. Colapsável.
+3. **Terciário — Analytics Panel**: Métricas e gráficos com carregamento assíncrono. Colapsável e oculto por padrão em mobile.
+
+### Onboarding
+
+Novos usuários são guiados por uma sequência de 5 passos ao acessar o dashboard pela primeira vez:
+
+1. Boas-vindas e introdução ao Bulk Import
+2. Formato de entrada (`tipo: conteúdo`)
+3. Sistema de pré-visualização
+4. Correções automáticas
+5. Navegação pelos painéis secundários
+
+O onboarding pode ser pulado a qualquer momento e retomado via menu de ajuda (`?`).
+
+### Controles de visibilidade de painéis
+
+O header do dashboard expõe controles para:
+
+- Alternar visibilidade do Analytics Panel e Operations Panel
+- Mudar o modo de layout:
+  - **Expanded** (padrão): todos os painéis visíveis
+  - **Focused**: apenas header + bulk import
+  - **Minimal**: apenas bulk import
+
+As preferências são persistidas por usuário entre sessões.
+
+### Atalhos de teclado
+
+| Atalho | Ação |
+|--------|------|
+| `Alt+B` | Focar no Bulk Import |
+| `Alt+O` | Alternar Operations Panel |
+| `Alt+A` | Alternar Analytics Panel |
+| `Alt+F` | Ativar/desativar Focus Mode |
+| `Esc` | Sair do Focus Mode |
+| `?` | Abrir menu de ajuda / tutorial |
+
+### Estados vazios educativos
+
+Quando não há dados, cada painel exibe um estado vazio com exemplo de importação e botão para carregar o exemplo diretamente no editor.
+
+## Dashboard
+
+O dashboard (`/dashboard`) é a tela principal da aplicação com hierarquia visual de três níveis:
+
+1. **Bulk Import Hero** (primário) — importação em lote com destaque máximo, sempre visível
+2. **Operations Panel** (secundário) — tarefas, finanças e metas, colapsável
+3. **Analytics Panel** (terciário) — métricas e gráficos, colapsável e oculto por padrão em mobile
+
+### Onboarding
+
+Novos usuários são guiados por 5 passos ao acessar o dashboard pela primeira vez. O progresso é persistido e o tutorial pode ser retomado via menu de ajuda (`?`).
+
+### Controles de visibilidade e layout
+
+O header expõe botões para alternar cada painel e três modos de layout:
+
+| Modo | Painéis visíveis |
+|------|-----------------|
+| **Expanded** (padrão) | Todos |
+| **Focused** | Header + Bulk Import |
+| **Minimal** | Apenas Bulk Import |
+
+### Atalhos de teclado
+
+| Atalho | Ação |
+|--------|------|
+| `Alt+B` | Focar no Bulk Import |
+| `Alt+O` | Alternar Operations Panel |
+| `Alt+A` | Alternar Analytics Panel |
+| `Alt+F` | Ativar/desativar Focus Mode |
+| `Esc` | Sair do Focus Mode |
+| `?` | Abrir menu de ajuda |
+
+Guia completo: [docs/dashboard-user-guide.md](docs/dashboard-user-guide.md)
 
 ## Convenções de código e evolução
 

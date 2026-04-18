@@ -52,6 +52,10 @@ Aplicação prática:
 - Para LiveView:
   - use `has_element?/2` e eventos (`render_click`, `render_submit`, `render_change`).
   - valide o efeito de negócio após interação.
+- Para lógica de parsing e transformação de dados, use **property-based testing** com `stream_data`:
+  - Defina propriedades formais (ex: idempotência, invariantes de domínio, cobertura de casos extremos).
+  - Arquivos de propriedade seguem o padrão `*_property_test.exs` em `test/organizer/planning/`.
+  - Use `StreamData.filter/2` para restringir geradores a entradas válidas de domínio.
 
 ## Documentação e rastreabilidade
 - Toda mudança funcional relevante deve atualizar:
@@ -100,15 +104,20 @@ Ao implementar cache, siga:
    - Teste invalidação: cache limpo após mutação
    - Teste isolamento: usuário A não vê cache de usuário B
 
-### Exemplo Real: AnalyticsCache
+### Exemplos Reais
 
-```elixir
-# Implementação em lib/organizer/planning/analytics_cache.ex
-# - Gerenciado por GenServer com ETS
-# - get_analytics/2 com fallback a Planning.analytics_overview
-# - Invalidado via invalidate_for_user quando Planning muta dados
-# - Chaves: analytics:user:{id}:days:{days}
-```
+**AnalyticsCache** (`lib/organizer/planning/analytics_cache.ex`):
+- GenServer com ETS (`:analytics_cache`)
+- `get_analytics/2` com fallback a recálculo direto
+- Invalidado via `invalidate_for_user/1` em todas as mutações de Planning
+- Chaves: `analytics:user:{id}:days:{days}`
+
+**FieldSuggester** (`lib/organizer/planning/field_suggester.ex`):
+- GenServer com ETS (`:field_suggestions`)
+- `suggest_values/2` rankeado por frequência e recência do usuário; fallback a valores canônicos
+- `complete/3` para autocompletar prefixos de valores de campo
+- `record_import/2` (cast não-bloqueante) atualiza contadores após importação em lote
+- Dois formatos de chave ETS: frequência `{"freq", user_id, field, value}` e correlação `{"corr", user_id, field_a, val_a, field_b, val_b}`
 
 ## Checklist de Pull Request
 - [ ] Nome dos módulos e funções descrevem comportamento.
