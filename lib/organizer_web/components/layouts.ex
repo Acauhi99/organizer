@@ -45,30 +45,24 @@ defmodule OrganizerWeb.Layouts do
         !@current_scope && "public-shell-header-card"
       ]}>
         <div class="space-y-1">
-          <%= if @current_scope do %>
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">
-              Painel Organizer
-            </p>
-            <p class="text-sm text-base-content/80">
-              Priorize a semana, acompanhe metas e ajuste seu financeiro.
-            </p>
-          <% else %>
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">
-              Organizer
-            </p>
-            <p class="text-sm text-base-content/80">
-              Tarefas, metas e financeiro em um painel claro e sem fricção.
-            </p>
-          <% end %>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">
+            Organizer
+          </p>
+          <p class="text-sm text-base-content/80">
+            Tarefas, metas e financeiro em um painel claro e sem fricção.
+          </p>
         </div>
 
         <div class="flex items-center gap-3">
           <%= if @current_scope do %>
-            <.link href={~p"/dashboard"} class="btn btn-outline btn-sm header-cta">
-              Abrir painel
+            <.link href={~p"/dashboard"} class="btn btn-outline btn-sm header-cta tracking-[0.02em]">
+              Painel
             </.link>
           <% else %>
-            <.link href={~p"/users/register"} class="btn btn-outline btn-sm header-cta">
+            <.link
+              href={~p"/users/register"}
+              class="btn btn-outline btn-sm header-cta tracking-[0.02em]"
+            >
               Criar conta
             </.link>
           <% end %>
