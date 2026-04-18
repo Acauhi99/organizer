@@ -24,6 +24,7 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/organizer"
 import topbar from "../vendor/topbar"
+import KeyboardShortcuts from "./keyboard_shortcuts"
 
 const BULK_DEFAULT_SELECTORS = {
   preview: "#bulk-preview-btn",
@@ -167,6 +168,7 @@ const parsePositiveTimeoutMs = (value) => {
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const hooks = {
   ...colocatedHooks,
+  KeyboardShortcuts,
   BulkCaptureEditor: {
     mounted() {
       this.previewSelector = this.el.dataset.previewSelector || BULK_DEFAULT_SELECTORS.preview
@@ -221,17 +223,16 @@ const hooks = {
       }
 
       this.onInput = (event) => {
-        // Real-time validation as user types
+        // Real-time validation as user types — debounced to 300ms to prevent
+        // excessive validation calls on every keystroke (Requirements 6.1, 11.5)
         clearTimeout(this.validationTimeout)
-        
-        // Only validate if content has changed significantly
+
         if (event.target.value !== this.previousValue) {
           this.previousValue = event.target.value
-          
-          // Debounce validation to avoid spam
+
           this.validationTimeout = setTimeout(() => {
             this.validateCurrentLines()
-          }, 500)
+          }, 300)
         }
       }
 
@@ -525,3 +526,16 @@ if (process.env.NODE_ENV === "development") {
   })
 }
 
+
+// Keyboard navigation detection
+// Adds .keyboard-nav-active to body when Tab is pressed, removes it on mouse click.
+// This enables enhanced focus indicators for keyboard users without affecting mouse users.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Tab") {
+    document.body.classList.add("keyboard-nav-active")
+  }
+})
+
+document.addEventListener("mousedown", () => {
+  document.body.classList.remove("keyboard-nav-active")
+})
