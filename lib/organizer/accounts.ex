@@ -6,7 +6,7 @@ defmodule Organizer.Accounts do
   import Ecto.Query, warn: false
   alias Organizer.Repo
 
-  alias Organizer.Accounts.{User, UserToken, UserNotifier}
+  alias Organizer.Accounts.{User, UserToken, UserNotifier, UserPreferences, OnboardingProgress}
 
   ## Database getters
 
@@ -274,5 +274,163 @@ defmodule Organizer.Accounts do
         {:ok, {user, tokens_to_expire}}
       end
     end)
+  end
+
+  ## User Preferences
+
+  @doc """
+  Gets or creates user preferences for the given user.
+
+  Returns the user preferences with default values if they don't exist.
+
+  ## Examples
+
+      iex> get_or_create_user_preferences(user)
+      {:ok, %UserPreferences{}}
+
+  """
+  def get_or_create_user_preferences(%User{} = user) do
+    case Repo.get_by(UserPreferences, user_id: user.id) do
+      nil ->
+        %UserPreferences{user_id: user.id}
+        |> UserPreferences.changeset(%{})
+        |> Repo.insert()
+
+      preferences ->
+        {:ok, preferences}
+    end
+  end
+
+  @doc """
+  Updates user preferences.
+
+  ## Examples
+
+      iex> update_user_preferences(preferences, %{analytics_panel_default_visible: false})
+      {:ok, %UserPreferences{}}
+
+      iex> update_user_preferences(preferences, %{preferred_layout_mode: :invalid})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_user_preferences(%UserPreferences{} = preferences, attrs) do
+    preferences
+    |> UserPreferences.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Sets a single preference field for the user.
+
+  This is a convenience function for updating individual preferences.
+
+  ## Examples
+
+      iex> set_preference(user, :analytics_panel_default_visible, false)
+      {:ok, %UserPreferences{}}
+
+  """
+  def set_preference(%User{} = user, field, value) when is_atom(field) do
+    with {:ok, preferences} <- get_or_create_user_preferences(user) do
+      update_user_preferences(preferences, %{field => value})
+    end
+  end
+
+  ## Onboarding Progress
+
+  @doc """
+  Gets or creates onboarding progress for the given user.
+
+  Returns the onboarding progress with default values if it doesn't exist.
+
+  ## Examples
+
+      iex> get_or_create_onboarding_progress(user)
+      {:ok, %OnboardingProgress{}}
+
+  """
+  def get_or_create_onboarding_progress(%User{} = user) do
+    case Repo.get_by(OnboardingProgress, user_id: user.id) do
+      nil ->
+        %OnboardingProgress{user_id: user.id}
+        |> OnboardingProgress.changeset(%{})
+        |> Repo.insert()
+
+      progress ->
+        {:ok, progress}
+    end
+  end
+
+  @doc """
+  Advances the onboarding to the next step.
+
+  ## Examples
+
+      iex> advance_onboarding_step(progress)
+      {:ok, %OnboardingProgress{}}
+
+  """
+  def advance_onboarding_step(%OnboardingProgress{} = progress) do
+    new_step = progress.current_step + 1
+    completed_steps = Enum.uniq([progress.current_step | progress.completed_steps])
+
+    progress
+    |> OnboardingProgress.changeset(%{
+      current_step: new_step,
+      completed_steps: completed_steps
+    })
+    |> Repo.update()
+  end
+
+  @doc """
+  Marks the onboarding as completed.
+
+  ## Examples
+
+      iex> complete_onboarding(progress)
+      {:ok, %OnboardingProgress{}}
+
+  """
+  def complete_onboarding(%OnboardingProgress{} = progress) do
+    progress
+    |> OnboardingProgress.changeset(%{
+      completed_at: DateTime.utc_now(),
+      completed_steps: Enum.uniq([progress.current_step | progress.completed_steps])
+    })
+    |> Repo.update()
+  end
+
+  @doc """
+  Dismisses the onboarding without completing it.
+
+  ## Examples
+
+      iex> dismiss_onboarding(progress)
+      {:ok, %OnboardingProgress{}}
+
+  """
+  def dismiss_onboarding(%OnboardingProgress{} = progress) do
+    progress
+    |> OnboardingProgress.changeset(%{dismissed: true})
+    |> Repo.update()
+  end
+
+  @doc """
+  Restarts the onboarding tutorial from the beginning.
+
+  ## Examples
+
+      iex> restart_onboarding(progress)
+      {:ok, %OnboardingProgress{}}
+
+  """
+  def restart_onboarding(%OnboardingProgress{} = progress) do
+    progress
+    |> OnboardingProgress.changeset(%{
+      current_step: 1,
+      dismissed: false,
+      completed_at: nil
+    })
+    |> Repo.update()
   end
 end
