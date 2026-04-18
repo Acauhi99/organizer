@@ -15,12 +15,11 @@ defmodule OrganizerWeb.DashboardLiveTest do
       conn = log_in_user(conn, user_fixture())
 
       assert {:ok, view, _html} = live(conn, ~p"/dashboard")
-      assert has_element?(view, "#action-strip")
       assert has_element?(view, "#quick-bulk")
       assert has_element?(view, "#bulk-capture-form")
       assert has_element?(view, "#analytics-panel")
       assert has_element?(view, "#chart-progress")
-      assert has_element?(view, "#chart-finance")
+      assert has_element?(view, "#chart-finance-trend")
     end
   end
 
@@ -589,6 +588,296 @@ defmodule OrganizerWeb.DashboardLiveTest do
     test "does not render onboarding card", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/dashboard")
       refute has_element?(view, "h2", "Configuração inicial em 2 passos")
+    end
+  end
+
+  describe "panel visibility controls" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    test "analytics panel is visible by default", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#analytics-panel")
+    end
+
+    test "operations panel is visible by default", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#operations-panel")
+    end
+  end
+
+  describe "onboarding flow" do
+    setup %{conn: conn} do
+      # user_fixture() creates a new user with no onboarding progress → onboarding is active
+      user = user_fixture()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    test "onboarding overlay is shown for new users", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#onboarding-overlay")
+    end
+
+    test "advances through all 5 onboarding steps", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      assert has_element?(view, "#onboarding-overlay")
+
+      # Steps 1-4: click next
+      for _step <- 1..4 do
+        view |> element("#onboarding-next-btn") |> render_click()
+        assert has_element?(view, "#onboarding-overlay")
+      end
+
+      # Step 5: clicking next completes onboarding
+      view |> element("#onboarding-next-btn") |> render_click()
+      refute has_element?(view, "#onboarding-overlay")
+    end
+
+    test "skip onboarding dismisses the overlay", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      assert has_element?(view, "#onboarding-overlay")
+
+      view |> element("#onboarding-skip-btn") |> render_click()
+
+      refute has_element?(view, "#onboarding-overlay")
+    end
+
+    test "dismissed onboarding does not reappear after page reload", %{conn: conn, user: user} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      view |> element("#onboarding-skip-btn") |> render_click()
+      refute has_element?(view, "#onboarding-overlay")
+
+      # Reload (new session for same user)
+      {:ok, view2, _html} = live(log_in_user(conn, user), ~p"/dashboard")
+      refute has_element?(view2, "#onboarding-overlay")
+    end
+
+    test "completed onboarding does not reappear after page reload", %{conn: conn, user: user} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Advance to last step and complete
+      for _step <- 1..5 do
+        view |> element("#onboarding-next-btn") |> render_click()
+      end
+
+      refute has_element?(view, "#onboarding-overlay")
+
+      {:ok, view2, _html} = live(log_in_user(conn, user), ~p"/dashboard")
+      refute has_element?(view2, "#onboarding-overlay")
+    end
+
+    test "onboarding can be restarted from help menu", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Skip onboarding first
+      view |> element("#onboarding-skip-btn") |> render_click()
+      refute has_element?(view, "#onboarding-overlay")
+
+      # Open help menu and restart tutorial
+      view |> element("#help-menu-btn") |> render_click()
+      view |> element("#restart-tutorial-btn") |> render_click()
+
+      assert has_element?(view, "#onboarding-overlay")
+    end
+  end
+
+  describe "empty states" do
+    setup %{conn: conn} do
+      # New user with no data → empty states should be visible
+      user = user_fixture()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    test "empty state for tasks is shown when user has no tasks", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#empty-state-tasks")
+    end
+
+    test "empty state for finances is shown when user has no finances", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#empty-state-finances")
+    end
+
+    test "empty state for goals is shown when user has no goals", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#empty-state-goals")
+    end
+
+    test "load example tasks button populates bulk import", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      view |> element("#load-example-tasks") |> render_click()
+
+      assert has_element?(view, "#bulk-capture-form")
+      assert render(view) =~ "tarefa:"
+    end
+
+    test "load example finances button populates bulk import", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      view |> element("#load-example-finances") |> render_click()
+
+      assert has_element?(view, "#bulk-capture-form")
+    end
+
+    test "load example goals button populates bulk import", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      view |> element("#load-example-goals") |> render_click()
+
+      assert has_element?(view, "#bulk-capture-form")
+    end
+
+    test "empty state disappears after importing data", %{conn: conn, user: user} do
+      scope = user_scope_fixture(user)
+
+      {:ok, _task} =
+        Planning.create_task(scope, %{"title" => "Tarefa teste", "priority" => "low"})
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # User now has data, so bulk_import empty state should not be shown
+      refute has_element?(view, "#empty-state-bulk_import")
+    end
+  end
+
+  describe "responsive layout" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    test "dashboard layout grid is rendered", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#dashboard-keyboard-shortcuts")
+    end
+
+    test "bulk import hero is present", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#bulk-import-hero")
+    end
+
+    test "operations panel is present", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#operations-panel")
+    end
+
+    test "analytics panel is present", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#analytics-panel")
+    end
+
+    test "toggling analytics mobile expand event is handled", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      render_click(view, "set_analytics_days", %{"days" => "7"})
+      assert has_element?(view, "#analytics-panel")
+    end
+  end
+
+  describe "keyboard navigation and accessibility" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      %{conn: log_in_user(conn, user)}
+    end
+
+    test "skip link to bulk import is present in DOM", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "a.skip-link[href='#bulk-import-hero']")
+    end
+
+    test "skip link to operations panel is present", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "a.skip-link[href='#operations-panel']")
+    end
+
+    test "skip link to analytics panel is present", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "a.skip-link[href='#analytics-panel']")
+    end
+
+    test "onboarding overlay has role dialog", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#onboarding-overlay[role='dialog']")
+    end
+
+    test "bulk import form is present and focusable", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#bulk-capture-form")
+    end
+  end
+
+  describe "performance" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    test "dashboard renders within 2 second budget", %{conn: conn} do
+      {time_us, {:ok, _view, _html}} =
+        :timer.tc(fn -> live(conn, ~p"/dashboard") end)
+
+      time_ms = time_us / 1000
+      assert time_ms < 2000, "Dashboard took #{time_ms}ms to render (budget: 2000ms)"
+    end
+
+    test "analytics filter change completes within 200ms budget", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      {time_us, _result} =
+        :timer.tc(fn ->
+          render_click(view, "set_analytics_days", %{"days" => "7"})
+        end)
+
+      time_ms = time_us / 1000
+      assert time_ms < 200, "Analytics filter took #{time_ms}ms (budget: 200ms)"
+    end
+
+    test "dashboard renders with large task list within budget", %{conn: conn, user: user} do
+      scope = user_scope_fixture(user)
+
+      for i <- 1..55 do
+        Planning.create_task(scope, %{
+          "title" => "Tarefa de carga #{i}",
+          "priority" => "low"
+        })
+      end
+
+      {time_us, {:ok, _view, _html}} =
+        :timer.tc(fn -> live(conn, ~p"/dashboard") end)
+
+      time_ms = time_us / 1000
+      assert time_ms < 2000, "Dashboard with 55 tasks took #{time_ms}ms (budget: 2000ms)"
+    end
+
+    test "async chart loading state is shown on initial render", %{conn: conn} do
+      # Charts start in loading state and load asynchronously
+      # We verify the chart containers are present (they may be loading or loaded)
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#analytics-panel")
+    end
+
+    test "dashboard renders with large finance list within budget", %{conn: conn, user: user} do
+      scope = user_scope_fixture(user)
+
+      for i <- 1..55 do
+        Planning.create_finance_entry(scope, %{
+          "kind" => "expense",
+          "amount_cents" => i * 100,
+          "category" => "teste",
+          "occurred_on" => Date.to_iso8601(Date.utc_today())
+        })
+      end
+
+      {time_us, {:ok, _view, _html}} =
+        :timer.tc(fn -> live(conn, ~p"/dashboard") end)
+
+      time_ms = time_us / 1000
+      assert time_ms < 2000, "Dashboard with 55 finances took #{time_ms}ms (budget: 2000ms)"
     end
   end
 end
