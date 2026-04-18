@@ -33,5 +33,17 @@ defmodule Organizer.Planning.Goal do
     |> validate_number(:target_value, greater_than: 0)
     |> validate_length(:notes, max: 500)
     |> assoc_constraint(:user)
+    |> validate_current_not_exceeds_target()
+  end
+
+  defp validate_current_not_exceeds_target(changeset) do
+    current = get_field(changeset, :current_value)
+    target = get_field(changeset, :target_value)
+
+    if is_integer(current) and is_integer(target) and current > target do
+      add_error(changeset, :current_value, "must be less than or equal to target_value")
+    else
+      changeset
+    end
   end
 end

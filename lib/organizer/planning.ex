@@ -54,9 +54,11 @@ defmodule Organizer.Planning do
             where: is_nil(t.due_on) or t.due_on <= ^Date.add(Date.utc_today(), days)
 
         # Text search on title and notes
+        safe_query = query_text |> String.trim() |> String.slice(0, 100)
+
         query =
-          if is_binary(query_text) and String.trim(query_text) != "" do
-            search_pattern = "%#{String.trim(query_text)}%"
+          if safe_query != "" do
+            search_pattern = "%#{safe_query}%"
 
             from t in query,
               where: ilike(t.title, ^search_pattern) or ilike(t.notes, ^search_pattern)
@@ -98,9 +100,11 @@ defmodule Organizer.Planning do
   def update_task(%Scope{} = scope, id, attrs) when is_map(attrs) do
     result =
       with {:ok, user_id} <- scope_user_id(scope),
-           %Task{} = task <- Repo.get_by(Task, id: id, user_id: user_id) do
+           %Task{} = task <- Repo.get_by(Task, id: id, user_id: user_id),
+           merged = merge_task_defaults(task, attrs),
+           {:ok, normalized} <- AttributeValidation.validate_task_attrs(merged) do
         task
-        |> Task.changeset(attrs)
+        |> Task.changeset(normalized)
         |> persist_changeset()
       else
         nil -> {:error, :not_found}
@@ -210,9 +214,11 @@ defmodule Organizer.Planning do
             query
           end
 
+        safe_query = query_text |> String.trim() |> String.slice(0, 100)
+
         query =
-          if is_binary(query_text) and String.trim(query_text) != "" do
-            search_pattern = "%#{String.trim(query_text)}%"
+          if safe_query != "" do
+            search_pattern = "%#{safe_query}%"
 
             from f in query,
               where: ilike(f.description, ^search_pattern) or ilike(f.category, ^search_pattern)
@@ -365,9 +371,11 @@ defmodule Organizer.Planning do
             where: is_nil(g.due_on) or g.due_on <= ^Date.add(Date.utc_today(), days)
 
         # Filter by text search
+        safe_query = query_text |> String.trim() |> String.slice(0, 100)
+
         query =
-          if is_binary(query_text) and String.trim(query_text) != "" do
-            search_pattern = "%#{String.trim(query_text)}%"
+          if safe_query != "" do
+            search_pattern = "%#{safe_query}%"
 
             from g in query,
               where: ilike(g.title, ^search_pattern) or ilike(g.notes, ^search_pattern)
@@ -478,9 +486,10 @@ defmodule Organizer.Planning do
   end
 
   def create_important_date(%Scope{} = scope, attrs) when is_map(attrs) do
-    with {:ok, user_id} <- scope_user_id(scope) do
+    with {:ok, user_id} <- scope_user_id(scope),
+         {:ok, normalized} <- AttributeValidation.validate_important_date_attrs(attrs) do
       %ImportantDate{user_id: user_id}
-      |> ImportantDate.changeset(attrs)
+      |> ImportantDate.changeset(normalized)
       |> persist_changeset()
     end
   end
@@ -497,9 +506,10 @@ defmodule Organizer.Planning do
 
   def update_important_date(%Scope{} = scope, id, attrs) when is_map(attrs) do
     with {:ok, user_id} <- scope_user_id(scope),
-         %ImportantDate{} = date <- Repo.get_by(ImportantDate, id: id, user_id: user_id) do
+         %ImportantDate{} = date <- Repo.get_by(ImportantDate, id: id, user_id: user_id),
+         {:ok, normalized} <- AttributeValidation.validate_important_date_attrs(attrs) do
       date
-      |> ImportantDate.changeset(attrs)
+      |> ImportantDate.changeset(normalized)
       |> persist_changeset()
     else
       nil -> {:error, :not_found}
@@ -526,9 +536,10 @@ defmodule Organizer.Planning do
   end
 
   def create_fixed_cost(%Scope{} = scope, attrs) when is_map(attrs) do
-    with {:ok, user_id} <- scope_user_id(scope) do
+    with {:ok, user_id} <- scope_user_id(scope),
+         {:ok, normalized} <- AttributeValidation.validate_fixed_cost_attrs(attrs) do
       %FixedCost{user_id: user_id}
-      |> FixedCost.changeset(attrs)
+      |> FixedCost.changeset(normalized)
       |> persist_changeset()
     end
   end
@@ -545,9 +556,10 @@ defmodule Organizer.Planning do
 
   def update_fixed_cost(%Scope{} = scope, id, attrs) when is_map(attrs) do
     with {:ok, user_id} <- scope_user_id(scope),
-         %FixedCost{} = cost <- Repo.get_by(FixedCost, id: id, user_id: user_id) do
+         %FixedCost{} = cost <- Repo.get_by(FixedCost, id: id, user_id: user_id),
+         {:ok, normalized} <- AttributeValidation.validate_fixed_cost_attrs(attrs) do
       cost
-      |> FixedCost.changeset(attrs)
+      |> FixedCost.changeset(normalized)
       |> persist_changeset()
     else
       nil -> {:error, :not_found}
@@ -603,6 +615,22 @@ defmodule Organizer.Planning do
          burnout_risk_assessment: Analytics.burnout_risk_assessment(tasks)
        }}
     end
+  end
+
+  defp merge_task_defaults(%Task{} = task, attrs) do
+    defaults = %{
+      "title" => task.title,
+      "notes" => task.notes,
+      "status" => Atom.to_string(task.status),
+      "priority" => Atom.to_string(task.priority),
+      "due_on" => task.due_on
+    }
+
+    Map.merge(defaults, normalize_string_keys(attrs))
+  end
+
+  defp normalize_string_keys(attrs) do
+    Enum.into(attrs, %{}, fn {k, v} -> {to_string(k), v} end)
   end
 
   defp persist_changeset(changeset) do

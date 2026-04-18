@@ -10,6 +10,7 @@ defmodule Organizer.Planning.AttributeValidation do
   @finance_payment_methods ~w(credit debit)
   @goal_horizons ~w(short medium long)
   @goal_statuses ~w(active paused done)
+  @important_date_categories ~w(personal finance work)
 
   def validate_task_attrs(attrs) when is_map(attrs) do
     attrs = normalize_keys(attrs)
@@ -64,6 +65,14 @@ defmodule Organizer.Planning.AttributeValidation do
     {status, errors} = validate_enum(attrs, :status, @goal_statuses, "active", errors)
     {target_value, errors} = validate_optional_positive_int(attrs, :target_value, errors)
     {current_value, errors} = validate_non_negative_int(attrs, :current_value, 0, errors)
+
+    errors =
+      if is_integer(current_value) and is_integer(target_value) and current_value > target_value do
+        add_error(errors, :current_value, "must be less than or equal to target_value")
+      else
+        errors
+      end
+
     {due_on, errors} = validate_optional_date(attrs, :due_on, errors)
     {notes, errors} = validate_optional_string(attrs, :notes, 500, errors)
 
@@ -75,6 +84,43 @@ defmodule Organizer.Planning.AttributeValidation do
       current_value: current_value,
       due_on: due_on,
       notes: notes
+    })
+  end
+
+  def validate_important_date_attrs(attrs) when is_map(attrs) do
+    attrs = normalize_keys(attrs)
+
+    {title, errors} = validate_required_string(attrs, :title, 2, 100, %{})
+
+    {category, errors} =
+      validate_enum(attrs, :category, @important_date_categories, "personal", errors)
+
+    {date, errors} = validate_required_date(attrs, :date, errors)
+    {notes, errors} = validate_optional_string(attrs, :notes, 300, errors)
+
+    build_result(errors, %{
+      title: title,
+      category: String.to_atom(category),
+      date: date,
+      notes: notes
+    })
+  end
+
+  def validate_fixed_cost_attrs(attrs) when is_map(attrs) do
+    attrs = normalize_keys(attrs)
+
+    {name, errors} = validate_required_string(attrs, :name, 2, 80, %{})
+    {amount_cents, errors} = validate_positive_int(attrs, :amount_cents, errors)
+    {billing_day, errors} = validate_billing_day(attrs, :billing_day, errors)
+    {starts_on, errors} = validate_optional_date(attrs, :starts_on, errors)
+    {active, errors} = validate_optional_boolean(attrs, :active, true, errors)
+
+    build_result(errors, %{
+      name: name,
+      amount_cents: amount_cents,
+      billing_day: billing_day,
+      starts_on: starts_on,
+      active: active
     })
   end
 
@@ -230,6 +276,16 @@ defmodule Organizer.Planning.AttributeValidation do
     end
   end
 
+  defp validate_required_date(attrs, field, errors) do
+    case Map.get(attrs, field) do
+      nil -> {nil, add_error(errors, field, "is required")}
+      "" -> {nil, add_error(errors, field, "is required")}
+      %Date{} = date -> {date, errors}
+      value when is_binary(value) -> parse_date(value, field, errors)
+      _ -> {nil, add_error(errors, field, "must be a valid date")}
+    end
+  end
+
   defp parse_date(value, field, errors) do
     value
     |> String.trim()
@@ -242,9 +298,17 @@ defmodule Organizer.Planning.AttributeValidation do
 
   defp validate_positive_int(attrs, field, errors) do
     case parse_int(Map.get(attrs, field)) do
-      {:ok, number} when number > 0 -> {number, errors}
-      {:ok, _number} -> {nil, add_error(errors, field, "must be greater than zero")}
-      :error -> {nil, add_error(errors, field, "must be an integer")}
+      {:ok, number} when number > 0 and number <= 1_000_000_000 ->
+        {number, errors}
+
+      {:ok, number} when number > 1_000_000_000 ->
+        {nil, add_error(errors, field, "must be less than or equal to 1000000000")}
+
+      {:ok, _number} ->
+        {nil, add_error(errors, field, "must be greater than zero")}
+
+      :error ->
+        {nil, add_error(errors, field, "must be an integer")}
     end
   end
 
@@ -279,6 +343,25 @@ defmodule Organizer.Planning.AttributeValidation do
           {:ok, _number} -> {default, add_error(errors, field, "must be zero or positive")}
           :error -> {default, add_error(errors, field, "must be an integer")}
         end
+    end
+  end
+
+  defp validate_billing_day(attrs, field, errors) do
+    case parse_int(Map.get(attrs, field)) do
+      {:ok, number} when number >= 1 and number <= 31 -> {number, errors}
+      {:ok, _number} -> {nil, add_error(errors, field, "must be between 1 and 31")}
+      :error -> {nil, add_error(errors, field, "must be an integer")}
+    end
+  end
+
+  defp validate_optional_boolean(attrs, field, default, errors) do
+    case Map.get(attrs, field) do
+      nil -> {default, errors}
+      "" -> {default, errors}
+      value when is_boolean(value) -> {value, errors}
+      "true" -> {true, errors}
+      "false" -> {false, errors}
+      _ -> {default, add_error(errors, field, "must be a boolean")}
     end
   end
 

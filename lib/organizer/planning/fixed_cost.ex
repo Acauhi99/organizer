@@ -21,7 +21,7 @@ defmodule Organizer.Planning.FixedCost do
     |> cast(attrs, [:name, :amount_cents, :billing_day, :starts_on, :active])
     |> validate_required([:name, :amount_cents, :billing_day])
     |> validate_length(:name, min: 2, max: 80)
-    |> validate_number(:amount_cents, greater_than: 0)
+    |> validate_number(:amount_cents, greater_than: 0, less_than_or_equal_to: 1_000_000_000)
     |> validate_number(:billing_day, greater_than_or_equal_to: 1, less_than_or_equal_to: 31)
     |> assoc_constraint(:user)
   end

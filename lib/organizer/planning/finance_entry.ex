@@ -38,7 +38,7 @@ defmodule Organizer.Planning.FinanceEntry do
       :occurred_on
     ])
     |> validate_required([:kind, :amount_cents, :category, :occurred_on])
-    |> validate_number(:amount_cents, greater_than: 0)
+    |> validate_number(:amount_cents, greater_than: 0, less_than_or_equal_to: 1_000_000_000)
     |> validate_length(:category, min: 2, max: 80)
     |> validate_length(:description, max: 300)
     |> validate_expense_classification()
