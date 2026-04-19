@@ -73,7 +73,7 @@ defmodule OrganizerWeb.Router do
   #   pipe_through :api
   # end
 
-  # Enable LiveDashboard and Swoosh mailbox preview in development
+  # Enable LiveDashboard in development
   if Application.compile_env(:organizer, :dev_routes) do
     # If you want to use the LiveDashboard in production, you should put
     # it behind authentication and allow only admins to access it.
@@ -86,7 +86,6 @@ defmodule OrganizerWeb.Router do
       pipe_through :browser
 
       live_dashboard "/dashboard", metrics: OrganizerWeb.Telemetry
-      forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
   end
 
@@ -97,10 +96,6 @@ defmodule OrganizerWeb.Router do
 
     get "/users/register", UserRegistrationController, :new
     post "/users/register", UserRegistrationController, :create
-    get "/users/reset-password", UserResetPasswordController, :new
-    post "/users/reset-password", UserResetPasswordController, :create
-    get "/users/reset-password/:token", UserResetPasswordController, :edit
-    put "/users/reset-password/:token", UserResetPasswordController, :update
   end
 
   scope "/", OrganizerWeb do
@@ -108,7 +103,6 @@ defmodule OrganizerWeb.Router do
 
     get "/users/settings", UserSettingsController, :edit
     put "/users/settings", UserSettingsController, :update
-    get "/users/settings/confirm-email/:token", UserSettingsController, :confirm_email
   end
 
   scope "/", OrganizerWeb do

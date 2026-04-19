@@ -5,9 +5,15 @@ defmodule OrganizerWeb.UserRegistrationController do
   alias Organizer.Accounts.User
   alias OrganizerWeb.UserAuth
 
+  import Phoenix.Component, only: [to_form: 2]
+
   def new(conn, _params) do
-    changeset = Accounts.change_user_registration(%User{})
-    render(conn, :new, changeset: changeset)
+    form =
+      %User{}
+      |> Accounts.change_user_registration()
+      |> to_form(as: :user)
+
+    render(conn, :new, form: form, invite_pending?: invite_pending?(conn))
   end
 
   def create(conn, %{"user" => user_params}) do
@@ -18,7 +24,17 @@ defmodule OrganizerWeb.UserRegistrationController do
         |> UserAuth.log_in_user(user)
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        render(conn, :new, changeset: changeset)
+        render(conn, :new,
+          form: to_form(changeset, as: :user),
+          invite_pending?: invite_pending?(conn)
+        )
+    end
+  end
+
+  defp invite_pending?(conn) do
+    case Plug.Conn.get_session(conn, :user_return_to) do
+      "/account-links/accept/" <> _token -> true
+      _ -> false
     end
   end
 end

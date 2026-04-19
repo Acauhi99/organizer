@@ -3,15 +3,28 @@
     <div class="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
       <article class="brand-hero-card public-auth-hero rounded-[2rem] p-6 sm:p-8">
         <p class="hero-eyebrow text-xs font-semibold uppercase tracking-[0.2em]">
-          Comece em minutos
+          {if @invite_pending?, do: "Convite pendente", else: "Comece em minutos"}
         </p>
         <h2 class="mt-3 text-3xl font-black leading-tight sm:text-4xl">
-          Crie sua conta e comece agora
+          {if @invite_pending?,
+            do: "Crie sua conta para aceitar o convite",
+            else: "Crie sua conta e comece agora"}
         </h2>
 
         <p class="hero-copy mt-4 max-w-xl text-sm leading-relaxed sm:text-base">
-          Configure seu acesso uma vez e use o mesmo painel para executar tarefas, medir metas e acompanhar seu financeiro.
+          <%= if @invite_pending? do %>
+            Depois do cadastro, vamos concluir automaticamente o vínculo entre as contas para liberar o espaço colaborativo de finanças.
+          <% else %>
+            Configure seu acesso uma vez e use o mesmo painel para executar tarefas, medir metas e acompanhar seu financeiro.
+          <% end %>
         </p>
+
+        <div
+          :if={@invite_pending?}
+          class="micro-surface mt-6 rounded-2xl p-4 text-sm text-base-content/80"
+        >
+          Você está a um passo de entrar em um vínculo ativo com outra pessoa.
+        </div>
 
         <div class="mt-6 flex flex-wrap gap-2">
           <span class="micro-surface rounded-full px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-base-content/78">
@@ -90,14 +103,13 @@
         <div class="public-divider mt-5"></div>
 
         <.form
-          :let={f}
-          for={@changeset}
+          for={@form}
           id="registration_form_password"
           action={~p"/users/register"}
           class="mt-6 space-y-4"
         >
           <.input
-            field={f[:email]}
+            field={@form[:email]}
             type="email"
             label="E-mail"
             autocomplete="username"
@@ -107,7 +119,7 @@
           />
 
           <.input
-            field={f[:password]}
+            field={@form[:password]}
             type="password"
             label="Senha"
             autocomplete="new-password"
@@ -115,7 +127,7 @@
           />
 
           <.input
-            field={f[:password_confirmation]}
+            field={@form[:password_confirmation]}
             type="password"
             label="Confirmar senha"
             autocomplete="new-password"

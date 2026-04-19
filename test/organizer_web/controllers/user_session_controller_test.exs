@@ -25,9 +25,19 @@ defmodule OrganizerWeb.UserSessionControllerTest do
 
       assert html =~ "Reautentique para continuar com segurança"
       refute html =~ "Cadastrar"
+      assert html =~ ~s(name="user[email]")
+      assert html =~ ~s(value="#{user.email}")
+    end
 
-      assert html =~
-               ~s(id="login_form_password_email" value="#{user.email}")
+    test "renders invite context when there is a pending account-link accept", %{conn: conn} do
+      html =
+        conn
+        |> init_test_session(user_return_to: "/account-links/accept/invite-token-123")
+        |> get(~p"/users/log-in")
+        |> html_response(200)
+
+      assert html =~ "Entre para concluir o vínculo"
+      assert html =~ "redirecionado automaticamente"
     end
   end
 

@@ -8,36 +8,10 @@ defmodule OrganizerWeb.UserSettingsController do
   import Phoenix.Component, only: [to_form: 2]
 
   plug :require_sudo_mode
-  plug :assign_email_and_password_changesets
+  plug :assign_password_form
 
   def edit(conn, _params) do
     render(conn, :edit)
-  end
-
-  def update(conn, %{"action" => "update_email"} = params) do
-    %{"user" => user_params} = params
-    user = conn.assigns.current_scope.user
-
-    case Accounts.change_user_email(user, user_params) do
-      %{valid?: true} = changeset ->
-        Accounts.deliver_user_update_email_instructions(
-          Ecto.Changeset.apply_action!(changeset, :insert),
-          user.email,
-          &url(~p"/users/settings/confirm-email/#{&1}")
-        )
-
-        conn
-        |> put_flash(
-          :info,
-          "Enviamos para o novo endereço um link para confirmar a alteração de e-mail."
-        )
-        |> redirect(to: ~p"/users/settings")
-
-      changeset ->
-        render(conn, :edit,
-          email_form: to_form(Map.put(changeset, :action, :validate), as: :user)
-        )
-    end
   end
 
   def update(conn, %{"action" => "update_password"} = params) do
@@ -56,25 +30,9 @@ defmodule OrganizerWeb.UserSettingsController do
     end
   end
 
-  def confirm_email(conn, %{"token" => token}) do
-    case Accounts.update_user_email(conn.assigns.current_scope.user, token) do
-      {:ok, _user} ->
-        conn
-        |> put_flash(:info, "E-mail alterado com sucesso.")
-        |> redirect(to: ~p"/users/settings")
-
-      {:error, _} ->
-        conn
-        |> put_flash(:error, "O link de alteração de e-mail é inválido ou expirou.")
-        |> redirect(to: ~p"/users/settings")
-    end
-  end
-
-  defp assign_email_and_password_changesets(conn, _opts) do
+  defp assign_password_form(conn, _opts) do
     user = conn.assigns.current_scope.user
 
-    conn
-    |> assign(:email_form, to_form(Accounts.change_user_email(user), as: :user))
-    |> assign(:password_form, to_form(Accounts.change_user_password(user), as: :user))
+    assign(conn, :password_form, to_form(Accounts.change_user_password(user), as: :user))
   end
 end

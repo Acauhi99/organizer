@@ -17,6 +17,17 @@ defmodule OrganizerWeb.UserRegistrationControllerTest do
 
       assert redirected_to(conn) == ~p"/dashboard"
     end
+
+    test "renders invite context when there is a pending account-link accept", %{conn: conn} do
+      html =
+        conn
+        |> init_test_session(user_return_to: "/account-links/accept/invite-token-123")
+        |> get(~p"/users/register")
+        |> html_response(200)
+
+      assert html =~ "Crie sua conta para aceitar o convite"
+      assert html =~ "vínculo ativo"
+    end
   end
 
   describe "POST /users/register" do

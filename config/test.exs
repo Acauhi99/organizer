@@ -20,12 +20,6 @@ config :organizer, OrganizerWeb.Endpoint,
   secret_key_base: "LysxKbOAzPl9S1JWYU6khDsjgRVrI37GHecnj5ipw5ax8Djfwc7PIjnofL36lsPf",
   server: false
 
-# In test we don't send emails
-config :organizer, Organizer.Mailer, adapter: Swoosh.Adapters.Test
-
-# Disable swoosh api client as it is only required for production adapters
-config :swoosh, :api_client, false
-
 # Print only warnings and errors during test
 config :logger, level: :warning
 
