@@ -1,12 +1,70 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Organizer favicon">
   <defs>
-    <linearGradient id="fav-ring" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#22d3ee" />
-      <stop offset="1" stop-color="#34d399" />
+    <linearGradient id="fav-bg" x1="4" y1="4" x2="60" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#274057" />
+      <stop offset="1" stop-color="#1d3143" />
     </linearGradient>
+    <linearGradient id="fav-accent-a" x1="16" y1="16" x2="48" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b9dfef" />
+      <stop offset="1" stop-color="#9ecfe5" />
+    </linearGradient>
+    <linearGradient id="fav-accent-b" x1="36" y1="18" x2="50" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#bce8ce" />
+      <stop offset="1" stop-color="#9adab9" />
+    </linearGradient>
+    <radialGradient
+      id="fav-vignette"
+      cx="0"
+      cy="0"
+      r="1"
+      gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(24 20) rotate(48) scale(40 34)"
+    >
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
   </defs>
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="#0f172a" />
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="none" stroke="url(#fav-ring)" stroke-width="2.5" />
-  <path d="M32 14c9.94 0 18 8.06 18 18S41.94 50 32 50 14 41.94 14 32s8.06-18 18-18Z" fill="none" stroke="url(#fav-ring)" stroke-width="5" />
-  <path d="m24 33 6 6 11-11" fill="none" stroke="#e2f6ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#fav-bg)" />
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="none" stroke="#4f6a80" stroke-width="1.5" />
+  <rect
+    x="5"
+    y="5"
+    width="54"
+    height="54"
+    rx="13.5"
+    fill="none"
+    stroke="#6b8aa1"
+    stroke-opacity="0.45"
+    stroke-width="1.2"
+  />
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#fav-vignette)" />
+
+  <rect x="14" y="14" width="36" height="36" rx="9.5" fill="#22384b" stroke="#6b8aa1" stroke-opacity="0.42" stroke-width="1.2" />
+
+  <rect x="18.2" y="33.4" width="5.9" height="11.8" rx="2.5" fill="url(#fav-accent-a)" />
+  <rect x="28.6" y="27.9" width="5.9" height="17.3" rx="2.5" fill="url(#fav-accent-a)" />
+  <rect x="39" y="21.1" width="5.9" height="24.1" rx="2.5" fill="url(#fav-accent-b)" />
+
+  <path
+    d="M17.8 41.8 L25.8 32.2 L33.4 37 L44.8 24.3"
+    fill="none"
+    stroke="#f3efe8"
+    stroke-width="2.7"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M41.2 24.6 L44.8 24.3 L44.4 27.8"
+    fill="none"
+    stroke="#f3efe8"
+    stroke-width="2.05"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <circle cx="17.8" cy="41.8" r="1.45" fill="#f3efe8" />
+  <circle cx="25.8" cy="32.2" r="1.45" fill="#f3efe8" />
+  <circle cx="33.4" cy="37" r="1.45" fill="#f3efe8" />
+  <circle cx="44.8" cy="24.3" r="1.45" fill="#f3efe8" />
 </svg>
