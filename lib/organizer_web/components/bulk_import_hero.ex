@@ -35,7 +35,10 @@ defmodule OrganizerWeb.Components.BulkImportHero do
         </p>
       </div>
 
-      <.onboarding_hints :if={@onboarding_active} current_step={@onboarding_step} />
+      <.onboarding_hints
+        :if={@onboarding_active && @onboarding_step <= 5}
+        current_step={@onboarding_step}
+      />
 
       <OrganizerWeb.DashboardLive.Components.BulkImportStudio.bulk_import_studio
         bulk_form={@bulk_form}
@@ -151,12 +154,14 @@ defmodule OrganizerWeb.Components.BulkImportHero do
   defp hint_icon(2), do: "hero-document-text"
   defp hint_icon(3), do: "hero-eye"
   defp hint_icon(4), do: "hero-wrench-screwdriver"
+  defp hint_icon(5), do: "hero-squares-2x2"
   defp hint_icon(_), do: "hero-light-bulb"
 
   defp hint_title(1), do: "Bem-vindo ao Copy/Paste Studio!"
   defp hint_title(2), do: "Digite suas linhas aqui"
   defp hint_title(3), do: "Revise antes de importar"
   defp hint_title(4), do: "Correções automáticas"
+  defp hint_title(5), do: "Painéis de operação e analytics"
   defp hint_title(_), do: "Dica"
 
   defp hint_description(1) do
@@ -173,6 +178,10 @@ defmodule OrganizerWeb.Components.BulkImportHero do
 
   defp hint_description(4) do
     "O sistema oferece sugestões inteligentes para corrigir linhas com erro. Aceite as sugestões ou edite manualmente."
+  end
+
+  defp hint_description(5) do
+    "Depois de importar, acompanhe tarefas, finanças e metas nos painéis secundários para manter o ritmo diário."
   end
 
   defp hint_description(_) do

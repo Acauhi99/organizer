@@ -340,7 +340,6 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
                       :info,
                       "Importação concluída: #{result.created.tasks} tarefas, #{result.created.finances} lançamentos e #{result.created.goals} metas."
                     )
-                    |> push_event("form:reset", %{id: "bulk-capture-form"})
                     |> load_operation_collections()
                     |> refresh_dashboard_insights()
                   else
@@ -384,15 +383,14 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
 
         case index do
           nil ->
-            {:noreply, socket}
+            {:reply, %{}, socket}
 
           index ->
             entry = BulkImport.build_bulk_preview_entry(raw_line, index)
             score = Organizer.Planning.BulkScoring.score_entry(entry)
 
-            {:noreply,
-             socket
-             |> push_event("bulk-line-validated", %{
+            {:reply,
+             %{
                index: index,
                entry: %{
                  status: entry.status,
@@ -403,7 +401,7 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
                score: score.score,
                confidence_level: score.confidence_level |> to_string(),
                feedback: score.feedback
-             })}
+             }, socket}
         end
       end
 
@@ -434,30 +432,10 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
       end
 
       @impl true
-      def handle_event("dismiss_disambiguation", _params, socket) do
-        {:noreply, socket}
-      end
-
-      @impl true
-      def handle_event(
-            "accept_correlation_suggestion",
-            %{"line_index" => _idx, "field" => _field, "value" => _value},
-            socket
-          ) do
-        {:noreply, socket}
-      end
-
-      @impl true
-      def handle_event("dismiss_correlation_suggestion", _params, socket) do
-        {:noreply, socket}
-      end
-
-      @impl true
       def handle_event("complete_field_value", %{"field" => field, "prefix" => prefix}, socket) do
         {:ok, completed} = FieldSuggester.complete(field, socket.assigns.current_scope, prefix)
 
-        {:noreply,
-         push_event(socket, "field-autocomplete-result", %{field: field, completed: completed})}
+        {:reply, %{field: field, completed: completed}, socket}
       end
 
       @impl true

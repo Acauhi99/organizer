@@ -24,7 +24,6 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/organizer"
 import topbar from "../vendor/topbar"
-import KeyboardShortcuts from "./keyboard_shortcuts"
 
 const BULK_DEFAULT_SELECTORS = {
   preview: "#bulk-preview-btn",
@@ -106,7 +105,7 @@ const FIELD_PATTERNS = [
   "pagamento", "payment_method",
 ]
 
-const computeFieldAutocomplete = ({value, start, end, pushEvent}) => {
+const computeFieldAutocomplete = ({value, start, end}) => {
   if (typeof start !== "number" || typeof end !== "number" || start !== end) {
     return null
   }
@@ -168,7 +167,6 @@ const parsePositiveTimeoutMs = (value) => {
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const hooks = {
   ...colocatedHooks,
-  KeyboardShortcuts,
   BulkCaptureEditor: {
     mounted() {
       this.previewSelector = this.el.dataset.previewSelector || BULK_DEFAULT_SELECTORS.preview
@@ -191,16 +189,18 @@ const hooks = {
             value: this.el.value,
             start: this.el.selectionStart,
             end: this.el.selectionEnd,
-            pushEvent: this.pushEventTo.bind(this),
           })
 
           if (fieldContext) {
             event.preventDefault()
-            this.pendingFieldComplete = fieldContext
-            this.pushEventTo(this.el.form || document, "complete_field_value", {
+            this.pushEvent("complete_field_value", {
               field: fieldContext.fieldName,
               prefix: fieldContext.prefix,
-            }).catch(() => {})
+            })
+              .then((reply) => {
+                this.applyFieldAutocompleteResult(fieldContext, reply?.completed)
+              })
+              .catch(() => {})
             return
           }
 
@@ -239,12 +239,9 @@ const hooks = {
       this.el.addEventListener("keydown", this.onKeyDown)
       this.el.addEventListener("input", this.onInput)
 
-      this.handleAutocompleteResult = (event) => {
-        const ctx = this.pendingFieldComplete
-        if (!ctx || event.field !== ctx.fieldName) return
-        this.pendingFieldComplete = null
-
-        const completed = event.completed
+      this.applyFieldAutocompleteResult = (context, completed) => {
+        const ctx = context
+        if (!ctx) return
         if (!completed) return
 
         const source = this.el.value
@@ -262,15 +259,10 @@ const hooks = {
         this.el.dispatchEvent(new Event("input", {bubbles: true}))
       }
 
-      this.el.addEventListener("phx:field-autocomplete-result", (e) => {
-        this.handleAutocompleteResult(e.detail)
-      })
-
-      // Confidence overlay
       this.confidenceIndicators = {}
 
-      this.handleBulkLineValidated = (event) => {
-        const {index, confidence_level} = event
+      this.handleBulkLineValidated = (payload) => {
+        const {index, confidence_level} = payload
         if (confidence_level === "ignored") {
           delete this.confidenceIndicators[index]
         } else {
@@ -278,10 +270,6 @@ const hooks = {
         }
         this.renderConfidenceOverlay()
       }
-
-      window.addEventListener("phx:bulk-line-validated", (e) => {
-        this.handleBulkLineValidated(e.detail)
-      })
     },
 
     destroyed() {
@@ -294,20 +282,36 @@ const hooks = {
     },
 
     validateCurrentLines() {
-      // Send validation for individual lines as user types
+      // Só envia linhas alteradas desde a última validação
       const lines = this.el.value.split(/\r?\n/)
-      
+      if (!this._lastValidatedLines) {
+        this._lastValidatedLines = []
+      }
+
       lines.forEach((line, index) => {
-        if (line.trim().length > 0) {
-          // Emit validation event to LiveView
-          this.pushEventTo(this.el.form || document, "validate_bulk_line", {
-            line: line,
-            index: index + 1,
-          }).catch(() => {
-            // Silently ignore validation errors (network issues, etc)
-          })
+        const prev = this._lastValidatedLines[index] || ""
+        if (line !== prev) {
+          if (line.trim().length > 0) {
+            this.pushEvent("validate_bulk_line", {
+              line: line,
+              index: index + 1,
+            })
+              .then((reply) => {
+                if (reply) {
+                  this.handleBulkLineValidated(reply)
+                }
+              })
+              .catch(() => {})
+          } else {
+            this.handleBulkLineValidated({
+              index: index + 1,
+              confidence_level: "ignored",
+            })
+          }
         }
       })
+      // Atualiza snapshot
+      this._lastValidatedLines = lines.slice()
     },
 
     renderConfidenceOverlay() {
@@ -348,49 +352,6 @@ const hooks = {
       }
     },
 
-    renderCorrelationChip(suggestion, lineIndex) {
-      // Remove any existing chip for this line first
-      const existingChip = document.getElementById(`bulk-correlation-chip-${lineIndex}`)
-      if (existingChip) existingChip.remove()
-
-      // Don't show if dismissed in this session
-      const dismissKey = `${lineIndex}:${suggestion.field}=${suggestion.value}`
-      if (this.dismissedCorrelations && this.dismissedCorrelations.has(dismissKey)) return
-
-      const chip = document.createElement("div")
-      chip.id = `bulk-correlation-chip-${lineIndex}`
-      chip.style.cssText = "position:absolute;left:0;font-size:0.65rem;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:6px;padding:2px 8px;cursor:pointer;color:#a5b4fc;z-index:10;"
-
-      const lineHeight = 20
-      chip.style.top = `${lineIndex * lineHeight + lineHeight + 2}px`
-      chip.textContent = `+ ${suggestion.field}=${suggestion.value}`
-      chip.title = "Clique para inserir campo correlacionado"
-
-      chip.addEventListener("click", () => {
-        this.pushEventTo(this.el.form || document, "accept_correlation_suggestion", {
-          line_index: lineIndex,
-          field: suggestion.field,
-          value: suggestion.value,
-        }).catch(() => {})
-        chip.remove()
-      })
-
-      chip.addEventListener("contextmenu", (e) => {
-        e.preventDefault()
-        if (!this.dismissedCorrelations) this.dismissedCorrelations = new Set()
-        this.dismissedCorrelations.add(dismissKey)
-        this.pushEventTo(this.el.form || document, "dismiss_correlation_suggestion", {
-          line_index: lineIndex,
-        }).catch(() => {})
-        chip.remove()
-      })
-
-      if (this.el.parentElement) {
-        this.el.parentElement.style.position = "relative"
-        this.el.parentElement.appendChild(chip)
-      }
-    },
-
     applyTypeAutocomplete() {
       const completion = computeTypeAutocomplete({
         value: this.el.value,
@@ -414,6 +375,15 @@ const hooks = {
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
+  metadata: {
+    keydown: (event) => ({
+      key: event.key,
+      altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      shiftKey: event.shiftKey,
+    }),
+  },
   hooks,
 })
 
@@ -457,20 +427,33 @@ const scheduleFlashAutoDismiss = () => {
   })
 }
 
-window.addEventListener("phx:form:reset", (event) => {
-  const formId = event?.detail?.id
+window.addEventListener("phx:scroll-to-element", (event) => {
+  const selector = event?.detail?.selector
+  const focusSelector = event?.detail?.focus
 
-  if (!formId) {
+  if (typeof selector !== "string" || selector.length === 0) {
     return
   }
 
-  const form = document.getElementById(formId)
+  const target = document.querySelector(selector)
 
-  if (!form) {
+  if (!target) {
     return
   }
 
-  form.reset()
+  target.scrollIntoView({behavior: "smooth", block: "start"})
+
+  if (typeof focusSelector !== "string" || focusSelector.length === 0) {
+    return
+  }
+
+  window.setTimeout(() => {
+    const focusTarget = document.querySelector(focusSelector)
+
+    if (focusTarget instanceof HTMLElement) {
+      focusTarget.focus({preventScroll: true})
+    }
+  }, 180)
 })
 
 scheduleFlashAutoDismiss()

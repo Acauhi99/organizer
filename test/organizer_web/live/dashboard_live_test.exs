@@ -15,6 +15,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       conn = log_in_user(conn, user_fixture())
 
       assert {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#account-link-panel")
       assert has_element?(view, "#quick-bulk")
       assert has_element?(view, "#bulk-capture-form")
       assert has_element?(view, "#analytics-panel")
@@ -53,7 +54,6 @@ defmodule OrganizerWeb.DashboardLiveTest do
       |> form("#bulk-capture-form", %{"bulk" => %{"payload" => payload}})
       |> render_submit()
 
-      assert_push_event(view, "form:reset", %{id: "bulk-capture-form"})
       assert has_element?(view, "#bulk-capture-result")
 
       {:ok, tasks} = Planning.list_tasks(scope, %{})
@@ -620,18 +620,18 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert has_element?(view, "#onboarding-overlay")
     end
 
-    test "advances through all 5 onboarding steps", %{conn: conn} do
+    test "advances through all 6 onboarding steps", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/dashboard")
 
       assert has_element?(view, "#onboarding-overlay")
 
-      # Steps 1-4: click next
-      for _step <- 1..4 do
+      # Steps 1-5: click next
+      for _step <- 1..5 do
         view |> element("#onboarding-next-btn") |> render_click()
         assert has_element?(view, "#onboarding-overlay")
       end
 
-      # Step 5: clicking next completes onboarding
+      # Step 6: clicking next completes onboarding
       view |> element("#onboarding-next-btn") |> render_click()
       refute has_element?(view, "#onboarding-overlay")
     end
@@ -661,7 +661,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       {:ok, view, _html} = live(conn, ~p"/dashboard")
 
       # Advance to last step and complete
-      for _step <- 1..5 do
+      for _step <- 1..6 do
         view |> element("#onboarding-next-btn") |> render_click()
       end
 
@@ -708,10 +708,21 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert has_element?(view, "#empty-state-goals")
     end
 
+    test "empty state for account links is shown when user has no links", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#account-link-empty-state")
+      assert has_element?(view, "#account-link-create-btn")
+    end
+
     test "load example tasks button populates bulk import", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/dashboard")
 
       view |> element("#load-example-tasks") |> render_click()
+
+      assert_push_event(view, "scroll-to-element", %{
+        selector: "#bulk-import-hero",
+        focus: "#bulk-payload-input"
+      })
 
       assert has_element?(view, "#bulk-capture-form")
       assert render(view) =~ "tarefa:"
@@ -722,6 +733,11 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       view |> element("#load-example-finances") |> render_click()
 
+      assert_push_event(view, "scroll-to-element", %{
+        selector: "#bulk-import-hero",
+        focus: "#bulk-payload-input"
+      })
+
       assert has_element?(view, "#bulk-capture-form")
     end
 
@@ -729,6 +745,11 @@ defmodule OrganizerWeb.DashboardLiveTest do
       {:ok, view, _html} = live(conn, ~p"/dashboard")
 
       view |> element("#load-example-goals") |> render_click()
+
+      assert_push_event(view, "scroll-to-element", %{
+        selector: "#bulk-import-hero",
+        focus: "#bulk-payload-input"
+      })
 
       assert has_element?(view, "#bulk-capture-form")
     end
@@ -807,6 +828,33 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
     test "bulk import form is present and focusable", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/dashboard")
+      assert has_element?(view, "#bulk-capture-form")
+    end
+
+    test "Alt+B shortcut triggers focus scroll event", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      render_hook(view, "global_shortcut", %{"key" => "b", "altKey" => true})
+
+      assert_push_event(view, "scroll-to-element", %{
+        selector: "#bulk-import-hero",
+        focus: "#bulk-payload-input"
+      })
+    end
+
+    test "? shortcut opens help menu", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      render_hook(view, "global_shortcut", %{"key" => "?"})
+
+      assert has_element?(view, "#help-menu-dropdown:not(.hidden)")
+    end
+
+    test "global shortcut ignores payload without key", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      render_hook(view, "global_shortcut", %{"altKey" => true})
+
       assert has_element?(view, "#bulk-capture-form")
     end
   end

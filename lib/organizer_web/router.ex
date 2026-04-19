@@ -24,6 +24,7 @@ defmodule OrganizerWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/account-links/accept/:token", AccountLinkController, :accept
   end
 
   scope "/", OrganizerWeb do
@@ -31,6 +32,10 @@ defmodule OrganizerWeb.Router do
 
     live_session :authenticated, on_mount: {OrganizerWeb.UserAuth, :authenticated} do
       live "/dashboard", DashboardLive
+      live "/account-links", AccountLinkLive, :index
+      live "/account-links/invite", AccountLinkLive, :new_invite
+      live "/account-links/:link_id", SharedFinanceLive, :show
+      live "/account-links/:link_id/settlement", SettlementLive, :show
     end
   end
 

@@ -5,7 +5,7 @@ defmodule Organizer.Planning.FinanceEntry do
   alias Organizer.Accounts.User
 
   @kinds [:income, :expense]
-  @expense_profiles [:fixed, :variable]
+  @expense_profiles [:fixed, :variable, :recurring_fixed, :recurring_variable]
   @payment_methods [:credit, :debit]
 
   schema "finance_entries" do
@@ -16,6 +16,7 @@ defmodule Organizer.Planning.FinanceEntry do
     field :category, :string
     field :description, :string
     field :occurred_on, :date
+    field :shared_with_link_id, :integer
 
     belongs_to :user, User
 
@@ -30,19 +31,27 @@ defmodule Organizer.Planning.FinanceEntry do
     entry
     |> cast(attrs, [
       :kind,
-      :expense_profile,
       :payment_method,
       :amount_cents,
       :category,
       :description,
-      :occurred_on
+      :occurred_on,
+      :shared_with_link_id
     ])
+    |> cast_expense_profile(attrs)
     |> validate_required([:kind, :amount_cents, :category, :occurred_on])
     |> validate_number(:amount_cents, greater_than: 0, less_than_or_equal_to: 1_000_000_000)
     |> validate_length(:category, min: 2, max: 80)
     |> validate_length(:description, max: 300)
     |> validate_expense_classification()
     |> assoc_constraint(:user)
+  end
+
+  defp cast_expense_profile(changeset, attrs) do
+    case get_field(changeset, :kind) do
+      :income -> changeset
+      _ -> cast(changeset, attrs, [:expense_profile])
+    end
   end
 
   defp validate_expense_classification(changeset) do

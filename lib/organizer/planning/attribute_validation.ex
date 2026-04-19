@@ -6,7 +6,7 @@ defmodule Organizer.Planning.AttributeValidation do
   @task_statuses ~w(todo in_progress done)
   @task_priorities ~w(low medium high)
   @finance_kinds ~w(income expense)
-  @finance_expense_profiles ~w(fixed variable)
+  @finance_expense_profiles ~w(fixed variable recurring_fixed recurring_variable)
   @finance_payment_methods ~w(credit debit)
   @goal_horizons ~w(short medium long)
   @goal_statuses ~w(active paused done)

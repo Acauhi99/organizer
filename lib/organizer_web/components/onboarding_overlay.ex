@@ -4,7 +4,7 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
 
   attr :active, :boolean, required: true
   attr :current_step, :integer, required: true
-  attr :total_steps, :integer, default: 5
+  attr :total_steps, :integer, default: 6
   attr :can_skip, :boolean, default: true
 
   def onboarding_overlay(assigns) do
@@ -164,9 +164,19 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
     }
   end
 
+  defp step_content(6) do
+    %{
+      title: "Conecte outra conta",
+      description:
+        "Crie um vínculo com outra pessoa para compartilhar lançamentos e acompanhar acertos de forma transparente. Você encontra essa área logo abaixo do cabeçalho.",
+      example: nil
+    }
+  end
+
   defp spotlight_target(1), do: "#bulk-import-hero"
   defp spotlight_target(2), do: "#bulk-payload-input"
   defp spotlight_target(3), do: "#bulk-preview-btn"
   defp spotlight_target(4), do: "#bulk-import-hero"
-  defp spotlight_target(5), do: "#panel-visibility-controls"
+  defp spotlight_target(5), do: "#operations-panel"
+  defp spotlight_target(6), do: "#account-link-panel"
 end

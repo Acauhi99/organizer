@@ -2,9 +2,11 @@ defmodule OrganizerWeb.DashboardLive do
   use OrganizerWeb, :live_view
 
   alias Organizer.Planning
+  alias Organizer.SharedFinance
   alias OrganizerWeb.DashboardLive.{Filters, BulkImport, Insights}
 
   alias OrganizerWeb.DashboardLive.Components.{
+    AccountLinkPanel,
     DashboardHeader,
     AnalyticsPanel,
     OperationsPanel
@@ -15,8 +17,6 @@ defmodule OrganizerWeb.DashboardLive do
   @bulk_template_keys ["mixed", "tasks", "finance", "goals"]
   @ops_tabs ["tasks", "finances", "goals"]
   @max_bulk_payload_bytes 50_000
-
-  use OrganizerWeb.DashboardLive.BulkEventHandlers
 
   @impl true
   def mount(_params, _session, socket) do
@@ -41,6 +41,8 @@ defmodule OrganizerWeb.DashboardLive do
         {:ok, redirect(socket, to: ~p"/users/log-in")}
     end
   end
+
+  use OrganizerWeb.DashboardLive.BulkEventHandlers
 
   @impl true
   def handle_event("filter_tasks", %{"filters" => filters}, socket) do
@@ -142,7 +144,7 @@ defmodule OrganizerWeb.DashboardLive do
   @impl true
   def handle_event("next_onboarding_step", _params, socket) do
     current_step = socket.assigns.onboarding_step
-    new_step = min(current_step + 1, 5)
+    new_step = min(current_step + 1, 6)
 
     case Organizer.Accounts.get_or_create_onboarding_progress(socket.assigns.current_scope.user) do
       {:ok, progress} ->
@@ -283,15 +285,38 @@ defmodule OrganizerWeb.DashboardLive do
 
   @impl true
   def handle_event("show_keyboard_shortcuts", _params, socket) do
-    # For now, just close the help menu and show a flash with shortcuts info
-    # In the future, this could open a modal with detailed shortcuts
     {:noreply,
      socket
-     |> assign(:help_menu_open, false)
-     |> put_flash(
-       :info,
-       "Atalhos: Alt+B (Focar Bulk), Alt+O (Toggle Operações), Alt+A (Toggle Analytics), Alt+F (Modo Foco), Esc (Sair), ? (Ajuda)"
-     )}
+     |> put_flash(:info, "Atalhos: Alt+B (focar editor), ? (ajuda)")}
+  end
+
+  @impl true
+  def handle_event("global_shortcut", params, socket) when is_map(params) do
+    normalized_key =
+      case Map.get(params, "key") do
+        key when is_binary(key) -> String.downcase(key)
+        _ -> ""
+      end
+
+    alt_pressed? = Map.get(params, "altKey") in [true, "true"]
+
+    cond do
+      alt_pressed? and normalized_key == "b" ->
+        {:noreply,
+         push_event(socket, "scroll-to-element", %{
+           selector: "#bulk-import-hero",
+           focus: "#bulk-payload-input"
+         })}
+
+      normalized_key == "?" ->
+        {:noreply,
+         socket
+         |> assign(:help_menu_open, true)
+         |> put_flash(:info, "Atalhos: Alt+B (focar editor), ? (ajuda)")}
+
+      true ->
+        {:noreply, socket}
+    end
   end
 
   @impl true
@@ -307,7 +332,11 @@ defmodule OrganizerWeb.DashboardLive do
     {:noreply,
      socket
      |> assign(:bulk_payload_text, String.trim(example_text))
-     |> assign(:bulk_form, to_form(%{"payload" => String.trim(example_text)}, as: :bulk))}
+     |> assign(:bulk_form, to_form(%{"payload" => String.trim(example_text)}, as: :bulk))
+     |> push_event("scroll-to-element", %{
+       selector: "#bulk-import-hero",
+       focus: "#bulk-payload-input"
+     })}
   end
 
   @impl true
@@ -493,6 +522,7 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp initialize_dashboard_state(socket, scope) do
     top_categories = FieldSuggester.suggest_values("category", scope)
+    {:ok, account_links} = SharedFinance.list_account_links(scope)
 
     {:ok, user_preferences} = Organizer.Accounts.get_or_create_user_preferences(scope.user)
     {:ok, onboarding_progress} = Organizer.Accounts.get_or_create_onboarding_progress(scope.user)
@@ -519,6 +549,7 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:bulk_import_block_size, 3)
     |> assign(:bulk_import_block_index, 0)
     |> assign(:bulk_top_categories, top_categories)
+    |> assign(:account_links, account_links)
     |> assign(:ops_tab, "tasks")
     |> assign(:task_filters, Filters.default_task_filters())
     |> assign(:finance_filters, Filters.default_finance_filters())
@@ -620,20 +651,25 @@ defmodule OrganizerWeb.DashboardLive do
       <OrganizerWeb.Components.OnboardingOverlay.onboarding_overlay
         active={@onboarding_active}
         current_step={@onboarding_step}
-        total_steps={5}
+        total_steps={6}
         can_skip={true}
       />
 
       <div
         id="dashboard-keyboard-shortcuts"
         class="flex flex-col gap-4 lg:gap-6"
-        phx-hook="KeyboardShortcuts"
+        phx-window-keydown="global_shortcut"
       >
         <DashboardHeader.dashboard_header
           workload_capacity_snapshot={@workload_capacity_snapshot}
           finance_summary={@finance_summary}
-          onboarding_completed={!@onboarding_active && @onboarding_step >= 5}
+          onboarding_completed={!@onboarding_active && @onboarding_step >= 6}
           help_menu_open={@help_menu_open}
+        />
+
+        <AccountLinkPanel.account_link_panel
+          account_links={@account_links}
+          current_user_id={@current_scope.user.id}
         />
 
         <OrganizerWeb.Components.BulkImportHero.bulk_import_hero

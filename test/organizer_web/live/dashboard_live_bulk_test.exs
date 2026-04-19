@@ -34,7 +34,7 @@ defmodule OrganizerWeb.DashboardLiveBulkTest do
         "index" => 0
       })
 
-      assert_push_event(view, "bulk-line-validated", payload)
+      assert_reply(view, payload)
       assert payload.index == 0
       assert payload.confidence_level in ["high", "medium", "low", "error", "ignored"]
       assert is_binary(payload.feedback)
@@ -47,7 +47,7 @@ defmodule OrganizerWeb.DashboardLiveBulkTest do
         "index" => 1
       })
 
-      assert_push_event(view, "bulk-line-validated", payload)
+      assert_reply(view, payload)
       assert payload.index == 1
       assert payload.confidence_level in ["high", "medium", "low", "error", "ignored"]
     end
@@ -58,7 +58,7 @@ defmodule OrganizerWeb.DashboardLiveBulkTest do
         "index" => 3
       })
 
-      assert_push_event(view, "bulk-line-validated", payload)
+      assert_reply(view, payload)
       assert payload.index == 3
       assert payload.confidence_level in ["error", "low"]
     end
@@ -69,15 +69,25 @@ defmodule OrganizerWeb.DashboardLiveBulkTest do
         "index" => "2"
       })
 
-      assert_push_event(view, "bulk-line-validated", payload)
+      assert_reply(view, payload)
       assert payload.index == 2
     end
 
     test "sends ignored level for blank line", %{view: view} do
       render_hook(view, "validate_bulk_line", %{"line" => "", "index" => 0})
 
-      assert_push_event(view, "bulk-line-validated", payload)
+      assert_reply(view, payload)
+      assert payload.index == 0
       assert payload.confidence_level == "ignored"
+    end
+
+    test "replies with completed field value for textarea autocomplete", %{view: view} do
+      render_hook(view, "complete_field_value", %{
+        "field" => "prioridade",
+        "prefix" => "a"
+      })
+
+      assert_reply(view, %{field: "prioridade", completed: "alta"})
     end
   end
 
