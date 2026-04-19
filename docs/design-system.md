@@ -2,7 +2,9 @@
 
 ## Direção visual
 
-- Tema base dark, com foco em legibilidade e contraste.
+- Tema base claro off-white (sem dark mode como baseline neste ciclo de produto).
+- Evitar branco puro em grandes areas para nao gerar efeito de "flashbang".
+- Paleta principal com tons pasteis, saturacao moderada e contraste confortavel.
 - Tipografia principal:
   - `Space Grotesk` para conteúdo/títulos
   - `IBM Plex Mono` para labels/ações

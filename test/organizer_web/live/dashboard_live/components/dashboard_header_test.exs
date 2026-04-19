@@ -51,8 +51,8 @@ defmodule OrganizerWeb.DashboardLive.Components.DashboardHeaderTest do
       assigns = put_in(@valid_assigns, [:finance_summary, :balance_cents], 5000)
       html = render_component(&DashboardHeader.dashboard_header/1, assigns)
 
-      assert html =~ "text-emerald-300"
-      assert html =~ "bg-emerald-500/12"
+      assert html =~ "text-success"
+      assert html =~ "bg-success/12"
       assert html =~ "positivo"
     end
 
@@ -60,8 +60,8 @@ defmodule OrganizerWeb.DashboardLive.Components.DashboardHeaderTest do
       assigns = put_in(@valid_assigns, [:finance_summary, :balance_cents], -5000)
       html = render_component(&DashboardHeader.dashboard_header/1, assigns)
 
-      assert html =~ "text-rose-300"
-      assert html =~ "bg-rose-500/12"
+      assert html =~ "text-error"
+      assert html =~ "bg-error/12"
       assert html =~ "negativo"
     end
 
@@ -69,8 +69,8 @@ defmodule OrganizerWeb.DashboardLive.Components.DashboardHeaderTest do
       assigns = put_in(@valid_assigns, [:finance_summary, :balance_cents], 0)
       html = render_component(&DashboardHeader.dashboard_header/1, assigns)
 
-      assert html =~ "text-cyan-300"
-      assert html =~ "bg-cyan-500/12"
+      assert html =~ "text-info"
+      assert html =~ "bg-info/12"
       assert html =~ "neutro"
     end
   end

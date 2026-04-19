@@ -26,18 +26,18 @@ defmodule OrganizerWeb.DashboardLive.Formatters do
   end
 
   @spec balance_value_class(integer() | any()) :: String.t()
-  def balance_value_class(cents) when is_integer(cents) and cents < 0, do: "text-rose-300"
-  def balance_value_class(cents) when is_integer(cents) and cents > 0, do: "text-emerald-300"
-  def balance_value_class(_cents), do: "text-cyan-300"
+  def balance_value_class(cents) when is_integer(cents) and cents < 0, do: "text-error"
+  def balance_value_class(cents) when is_integer(cents) and cents > 0, do: "text-success"
+  def balance_value_class(_cents), do: "text-info"
 
   @spec balance_badge_class(integer() | any()) :: String.t()
   def balance_badge_class(cents) when is_integer(cents) and cents < 0,
-    do: "border-rose-300/35 bg-rose-500/12 text-rose-200"
+    do: "border-error/40 bg-error/12 text-error-content"
 
   def balance_badge_class(cents) when is_integer(cents) and cents > 0,
-    do: "border-emerald-300/35 bg-emerald-500/12 text-emerald-200"
+    do: "border-success/40 bg-success/12 text-success-content"
 
-  def balance_badge_class(_cents), do: "border-cyan-300/35 bg-cyan-500/12 text-cyan-200"
+  def balance_badge_class(_cents), do: "border-info/40 bg-info/12 text-info-content"
 
   @spec balance_label(integer() | any()) :: String.t()
   def balance_label(cents) when is_integer(cents) and cents < 0, do: "negativo"
@@ -45,8 +45,8 @@ defmodule OrganizerWeb.DashboardLive.Formatters do
   def balance_label(_cents), do: "neutro"
 
   @spec capacity_gap_class(integer() | any()) :: String.t()
-  def capacity_gap_class(gap) when is_integer(gap) and gap > 0, do: "text-rose-300"
-  def capacity_gap_class(gap) when is_integer(gap) and gap < 0, do: "text-emerald-300"
+  def capacity_gap_class(gap) when is_integer(gap) and gap > 0, do: "text-error"
+  def capacity_gap_class(gap) when is_integer(gap) and gap < 0, do: "text-success"
   def capacity_gap_class(_gap), do: "text-base-content"
 
   @spec capacity_gap_label(integer() | any()) :: String.t()
@@ -64,9 +64,9 @@ defmodule OrganizerWeb.DashboardLive.Formatters do
   def burnout_level_label(_), do: "Baixo"
 
   @spec risk_badge_class(atom() | any()) :: String.t()
-  def risk_badge_class(:high), do: "border border-rose-300/30 bg-rose-500/15 text-rose-100"
-  def risk_badge_class(:medium), do: "border border-amber-300/30 bg-amber-500/15 text-amber-100"
-  def risk_badge_class(_), do: "border border-emerald-300/30 bg-emerald-500/15 text-emerald-100"
+  def risk_badge_class(:high), do: "border border-error/35 bg-error/14 text-error-content"
+  def risk_badge_class(:medium), do: "border border-warning/35 bg-warning/14 text-warning-content"
+  def risk_badge_class(_), do: "border border-success/35 bg-success/14 text-success-content"
 
   @spec finance_entry_meta_line(map()) :: String.t()
   def finance_entry_meta_line(entry) do

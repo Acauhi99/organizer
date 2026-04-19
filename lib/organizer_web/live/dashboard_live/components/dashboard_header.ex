@@ -26,7 +26,7 @@ defmodule OrganizerWeb.DashboardLive.Components.DashboardHeader do
         <article class="micro-surface rounded-xl p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs uppercase tracking-wide text-base-content/65">Burndown (14d)</p>
-            <.icon name="hero-chart-bar" class="size-4 text-cyan-300/90" />
+            <.icon name="hero-chart-bar" class="size-4 text-info/90" />
           </div>
           <p class="mt-1 text-xl font-semibold text-base-content">
             {@workload_capacity_snapshot.completed}/{@workload_capacity_snapshot.total}
@@ -39,7 +39,7 @@ defmodule OrganizerWeb.DashboardLive.Components.DashboardHeader do
           </p>
           <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-base-content/15">
             <div
-              class="h-full rounded-full bg-cyan-300"
+              class="h-full rounded-full bg-info"
               style={"width: #{metric_bar_width(completion_rate(@workload_capacity_snapshot.completed, @workload_capacity_snapshot.total))}%;"}
             >
             </div>
@@ -49,9 +49,9 @@ defmodule OrganizerWeb.DashboardLive.Components.DashboardHeader do
         <article class="micro-surface rounded-xl p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs uppercase tracking-wide text-base-content/65">Receitas (30d)</p>
-            <.icon name="hero-arrow-trending-up" class="size-4 text-emerald-300/90" />
+            <.icon name="hero-arrow-trending-up" class="size-4 text-success/90" />
           </div>
-          <p class="mt-1 text-xl font-semibold text-emerald-300">
+          <p class="mt-1 text-xl font-semibold text-success">
             {format_money(@finance_summary.income_cents)}
           </p>
           <p class="text-xs text-base-content/65">Entradas no período</p>
@@ -60,9 +60,9 @@ defmodule OrganizerWeb.DashboardLive.Components.DashboardHeader do
         <article class="micro-surface rounded-xl p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs uppercase tracking-wide text-base-content/65">Despesas (30d)</p>
-            <.icon name="hero-arrow-trending-down" class="size-4 text-rose-300/90" />
+            <.icon name="hero-arrow-trending-down" class="size-4 text-error/90" />
           </div>
-          <p class="mt-1 text-xl font-semibold text-rose-300">
+          <p class="mt-1 text-xl font-semibold text-error">
             {format_money(@finance_summary.expense_cents)}
           </p>
           <p class="text-xs text-base-content/65">Saídas no período</p>
@@ -113,7 +113,7 @@ defmodule OrganizerWeb.DashboardLive.Components.DashboardHeader do
       <div
         id="help-menu-dropdown"
         class={[
-          "absolute top-[calc(100%+0.5rem)] right-0 z-50 w-56 border border-base-content/20 rounded-xl p-2 bg-base-100/95 shadow-[0_10px_40px_rgba(3,12,26,0.4)] backdrop-blur-[12px]",
+          "absolute top-[calc(100%+0.5rem)] right-0 z-50 w-56 border border-base-content/20 rounded-xl p-2 bg-base-100/95 shadow-[0_10px_34px_rgba(106,121,142,0.26)] backdrop-blur-[12px]",
           !@open && "hidden"
         ]}
         role="menu"

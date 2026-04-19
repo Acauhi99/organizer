@@ -49,7 +49,7 @@ defmodule OrganizerWeb.Layouts do
             Organizer
           </p>
           <p class="text-sm text-base-content/80">
-            Tarefas, metas e financeiro em um painel claro e sem fricção.
+            Copy/paste para lançar rápido, vínculo por link para compartilhar com contexto.
           </p>
         </div>
 

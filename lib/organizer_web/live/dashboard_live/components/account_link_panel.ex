@@ -25,7 +25,7 @@ defmodule OrganizerWeb.DashboardLive.Components.AccountLinkPanel do
           "inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.08em]",
           Enum.empty?(@account_links) && "border-warning/35 bg-warning/12 text-warning",
           not Enum.empty?(@account_links) &&
-            "border-emerald-400/35 bg-emerald-400/12 text-emerald-200"
+            "border-success/40 bg-success/12 text-success-content"
         ]}>
           <.icon
             name={if(Enum.empty?(@account_links), do: "hero-link-slash", else: "hero-link")}

@@ -13,7 +13,7 @@ defmodule OrganizerWeb.UserSessionControllerTest do
       response = html_response(conn, 200)
       assert response =~ "Entrar"
       assert response =~ ~p"/users/register"
-      assert response =~ "Acesse seu painel para revisar tarefas da semana"
+      assert response =~ "chat copy/paste e vínculos por convite"
     end
 
     test "renders login page with email filled in (sudo mode)", %{conn: conn, user: user} do

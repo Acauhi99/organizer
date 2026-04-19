@@ -2,7 +2,7 @@
    https://tailwindcss.com/docs/configuration */
 
 @import "tailwindcss" source(none);
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap");
 @source "../css";
 @source "../js";
 @source "../../lib/organizer_web";
@@ -20,39 +20,39 @@
 
 /* daisyUI theme plugin. You can update this file by fetching the latest version with:
   curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui-theme.js
-  We pin a single dark theme for visual consistency. Build your own at:
+  We pin a single off-white soft light theme for visual consistency. Build your own at:
   https://daisyui.com/theme-generator/ */
 @plugin "../vendor/daisyui-theme" {
-  name: "dark";
+  name: "organizer_softlight";
   default: true;
-  prefersdark: true;
-  color-scheme: "dark";
-  --color-base-100: oklch(30.33% 0.016 252.42);
-  --color-base-200: oklch(25.26% 0.014 253.1);
-  --color-base-300: oklch(20.15% 0.012 254.09);
-  --color-base-content: oklch(97.807% 0.029 256.847);
-  --color-primary: oklch(66% 0.154 212.4);
-  --color-primary-content: oklch(17% 0.028 240.1);
-  --color-secondary: oklch(66% 0.145 171.2);
-  --color-secondary-content: oklch(17% 0.03 199.3);
-  --color-accent: oklch(75% 0.141 83.9);
-  --color-accent-content: oklch(23% 0.042 80.7);
-  --color-neutral: oklch(37% 0.044 257.287);
-  --color-neutral-content: oklch(98% 0.003 247.858);
-  --color-info: oklch(58% 0.158 241.966);
-  --color-info-content: oklch(97% 0.013 236.62);
-  --color-success: oklch(60% 0.118 184.704);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(97.6% 0.012 92.1);
+  --color-base-200: oklch(95.4% 0.012 91.2);
+  --color-base-300: oklch(92.6% 0.014 89.9);
+  --color-base-content: oklch(30.8% 0.028 246.1);
+  --color-primary: oklch(72.5% 0.071 220.4);
+  --color-primary-content: oklch(29.4% 0.024 245.7);
+  --color-secondary: oklch(76.8% 0.063 166.3);
+  --color-secondary-content: oklch(29.6% 0.023 167.2);
+  --color-accent: oklch(82.1% 0.07 96.5);
+  --color-accent-content: oklch(33.2% 0.024 91.3);
+  --color-neutral: oklch(88.7% 0.017 247.8);
+  --color-neutral-content: oklch(31.2% 0.025 245.6);
+  --color-info: oklch(71.8% 0.078 226.4);
+  --color-info-content: oklch(30.8% 0.026 233.2);
+  --color-success: oklch(74.6% 0.082 166.8);
+  --color-success-content: oklch(31.2% 0.021 171.1);
+  --color-warning: oklch(81.4% 0.096 88.1);
+  --color-warning-content: oklch(35.8% 0.022 85.4);
+  --color-error: oklch(70.4% 0.121 24.2);
+  --color-error-content: oklch(32.5% 0.024 23.5);
+  --radius-selector: 0.45rem;
+  --radius-field: 0.52rem;
+  --radius-box: 0.85rem;
   --size-selector: 0.21875rem;
   --size-field: 0.21875rem;
-  --border: 1.5px;
+  --border: 1px;
   --depth: 1;
   --noise: 0;
 }
@@ -62,8 +62,7 @@
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
 
-/* Use the data attribute for dark mode  */
-@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+/* Theme variants can be added here in the future when needed */
 
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
@@ -71,12 +70,16 @@
 /* This file is for your main application CSS */
 
 body {
-  font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
-  color-scheme: dark;
+  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light;
   background:
-    radial-gradient(120% 120% at 80% -10%, rgba(34, 211, 238, 0.12), transparent 55%),
-    radial-gradient(90% 100% at -10% 100%, rgba(52, 211, 153, 0.1), transparent 50%),
-    linear-gradient(180deg, rgba(8, 16, 28, 0.95), rgba(11, 18, 32, 1));
+    radial-gradient(120% 120% at 82% -12%, rgba(168, 214, 236, 0.34), transparent 58%),
+    radial-gradient(95% 100% at -8% 102%, rgba(189, 230, 203, 0.36), transparent 56%),
+    linear-gradient(180deg, #f7f3ed 0%, #f3f0ea 44%, #efece6 100%);
 }
 
 h1,
@@ -85,14 +88,46 @@ h3,
 h4,
 h5,
 h6 {
+  font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
   letter-spacing: -0.02em;
+  line-height: 1.18;
 }
 
 .menu a,
-.btn,
+.btn {
+  font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  letter-spacing: 0.01em;
+}
+
 label,
+.label {
+  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+}
+
+.text-xs {
+  font-size: 0.79rem;
+  line-height: 1.42;
+}
+
 .text-xs.uppercase {
+  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+}
+
+code,
+pre,
+kbd,
+samp,
+.font-mono {
   font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+p,
+li {
+  text-wrap: pretty;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -115,25 +150,25 @@ label,
 
 .surface-card {
   border: 1px solid color-mix(in oklab, var(--color-base-content) 14%, transparent);
-  background: color-mix(in oklab, var(--color-base-100) 88%, transparent);
-  box-shadow: 0 18px 45px rgba(3, 10, 24, 0.35);
+  background: color-mix(in oklab, var(--color-base-100) 94%, transparent);
+  box-shadow: 0 16px 38px rgba(92, 106, 126, 0.16);
   backdrop-filter: blur(7px);
 }
 
 .micro-surface {
   border: 1px solid color-mix(in oklab, var(--color-base-content) 18%, transparent);
-  background: color-mix(in oklab, var(--color-base-100) 82%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 91%, transparent);
 }
 
 .brand-hero-card {
   position: relative;
   overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--color-info) 36%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-info) 28%, transparent);
   background:
-    radial-gradient(120% 120% at 10% 85%, rgba(52, 211, 153, 0.2), transparent 60%),
-    radial-gradient(120% 120% at 95% 10%, rgba(34, 211, 238, 0.22), transparent 58%),
-    linear-gradient(145deg, rgba(15, 37, 58, 0.95), rgba(13, 24, 39, 0.96));
-  box-shadow: 0 26px 60px rgba(1, 10, 24, 0.45);
+    radial-gradient(125% 110% at 8% 85%, rgba(171, 226, 201, 0.42), transparent 62%),
+    radial-gradient(120% 120% at 96% 6%, rgba(168, 214, 236, 0.38), transparent 60%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(247, 243, 236, 0.92));
+  box-shadow: 0 22px 48px rgba(89, 104, 126, 0.18);
   color: color-mix(in oklab, var(--color-base-content) 94%, transparent);
 }
 
@@ -143,7 +178,12 @@ label,
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(120deg, rgba(255, 255, 255, 0.05), transparent 35%, rgba(255, 255, 255, 0.03));
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.42),
+    transparent 35%,
+    rgba(255, 255, 255, 0.2)
+  );
 }
 
 .hero-eyebrow {
@@ -164,17 +204,17 @@ label,
 
 .btn.btn-primary,
 .btn-primary {
-  border-color: color-mix(in oklab, var(--color-info) 50%, transparent);
-  background: linear-gradient(135deg, #22d3ee, #34d399);
-  color: #03232d;
-  box-shadow: 0 10px 24px rgba(14, 165, 233, 0.3);
+  border-color: color-mix(in oklab, var(--color-info) 42%, transparent);
+  background: linear-gradient(135deg, #b9dfef, #bce8ce);
+  color: #213649;
+  box-shadow: 0 8px 20px rgba(118, 145, 171, 0.24);
 }
 
 .btn.btn-primary:hover,
 .btn-primary:hover {
-  border-color: color-mix(in oklab, var(--color-success) 55%, transparent);
-  background: linear-gradient(135deg, #3ddcf5, #4ce0ad);
-  color: #031a21;
+  border-color: color-mix(in oklab, var(--color-success) 46%, transparent);
+  background: linear-gradient(135deg, #b0d9eb, #b5e2c6);
+  color: #1d3142;
 }
 
 .btn.btn-soft {
@@ -216,7 +256,7 @@ button,
 }
 
 .site-nav {
-  box-shadow: 0 8px 30px rgba(3, 12, 26, 0.3);
+  box-shadow: 0 8px 24px rgba(101, 114, 134, 0.2);
 }
 
 .nav-menu {
@@ -224,12 +264,12 @@ button,
 }
 
 .brand-mark {
-  filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.35));
+  filter: drop-shadow(0 0 9px rgba(140, 196, 221, 0.5));
 }
 
 .brand-wordmark {
   color: color-mix(in oklab, var(--color-base-content) 90%, var(--color-info));
-  text-shadow: 0 0 16px rgba(34, 211, 238, 0.16);
+  text-shadow: 0 0 8px rgba(166, 207, 225, 0.3);
 }
 
 .identity-pill {
@@ -280,7 +320,7 @@ summary:focus-visible {
   }
 
   .surface-card {
-    box-shadow: 0 14px 32px rgba(3, 10, 24, 0.34);
+    box-shadow: 0 14px 30px rgba(104, 118, 137, 0.2);
   }
 }
 
@@ -292,46 +332,6 @@ summary:focus-visible {
 .ui-btn.btn-sm {
   border-radius: 0.72rem;
 }
-
-.dashboard-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.dashboard-shell .btn-ghost {
-  border: 1px solid color-mix(in oklab, var(--color-base-content) 14%, transparent);
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--color-base-100) 72%, transparent);
-  transition: border-color 150ms ease-out, background-color 150ms ease-out;
-}
-
-.dashboard-shell .btn-ghost:hover {
-  border-color: color-mix(in oklab, var(--color-info) 40%, transparent);
-  background: color-mix(in oklab, var(--color-info) 16%, var(--color-base-100));
-}
-
-.analytics-filters-grid {
-  display: grid;
-  gap: 0.65rem;
-  width: 100%;
-}
-
-
-
-@media (min-width: 640px) {
-  .analytics-filters-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    max-width: 34rem;
-  }
-}
-
-.analytics-filter-field {
-  display: grid;
-  gap: 0.28rem;
-}
-
-
 
 .contex-plot svg {
   width: 100%;
@@ -540,8 +540,8 @@ summary:focus-visible {
 .bulk-studio-shell {
   border-color: color-mix(in oklab, var(--color-info) 34%, var(--color-base-content));
   background:
-    radial-gradient(120% 80% at 0% 0%, rgba(34, 211, 238, 0.08), transparent 52%),
-    radial-gradient(120% 80% at 100% 100%, rgba(52, 211, 153, 0.08), transparent 52%),
+    radial-gradient(120% 80% at 0% 0%, rgba(168, 214, 236, 0.16), transparent 52%),
+    radial-gradient(120% 80% at 100% 100%, rgba(189, 230, 203, 0.16), transparent 52%),
     color-mix(in oklab, var(--color-base-100) 90%, transparent);
 }
 
@@ -575,8 +575,8 @@ summary:focus-visible {
   height: 55%;
   border-radius: 999px;
   background:
-    radial-gradient(circle at 25% 50%, rgba(34, 211, 238, 0.16), transparent 52%),
-    radial-gradient(circle at 70% 40%, rgba(52, 211, 153, 0.14), transparent 55%);
+    radial-gradient(circle at 25% 50%, rgba(168, 214, 236, 0.24), transparent 52%),
+    radial-gradient(circle at 70% 40%, rgba(189, 230, 203, 0.22), transparent 55%);
   filter: blur(28px);
   opacity: 0.8;
 }
@@ -642,7 +642,7 @@ summary:focus-visible {
   width: 0.42rem;
   height: 0.42rem;
   border-radius: 999px;
-  background: linear-gradient(160deg, #22d3ee, #34d399);
+  background: linear-gradient(160deg, #b9dfef, #bce8ce);
   will-change: transform, opacity;
 }
 
@@ -674,7 +674,7 @@ summary:focus-visible {
 .public-shell-header-card {
   border-color: color-mix(in oklab, var(--color-info) 24%, var(--color-base-content));
   background:
-    radial-gradient(130% 100% at 5% 0%, rgba(34, 211, 238, 0.08), transparent 45%),
+    radial-gradient(130% 100% at 5% 0%, rgba(168, 214, 236, 0.18), transparent 45%),
     color-mix(in oklab, var(--color-base-100) 88%, transparent);
 }
 
@@ -685,7 +685,7 @@ summary:focus-visible {
   right: 0;
   bottom: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.4), transparent);
+  background: linear-gradient(90deg, transparent, rgba(168, 214, 236, 0.58), transparent);
   opacity: 0.4;
 }
 
@@ -695,6 +695,62 @@ summary:focus-visible {
 
 .public-guest-link {
   border-color: color-mix(in oklab, var(--color-base-content) 16%, transparent);
+}
+
+.collab-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.collab-shell::before {
+  content: "";
+  position: absolute;
+  inset: -14% -8% auto;
+  z-index: -1;
+  height: 52%;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 22% 44%, rgba(168, 214, 236, 0.24), transparent 54%),
+    radial-gradient(circle at 72% 42%, rgba(189, 230, 203, 0.22), transparent 56%);
+  filter: blur(28px);
+  opacity: 0.76;
+}
+
+.collab-hero {
+  border-color: color-mix(in oklab, var(--color-info) 26%, var(--color-base-content));
+  background:
+    radial-gradient(130% 100% at 5% 0%, rgba(168, 214, 236, 0.2), transparent 44%),
+    radial-gradient(130% 100% at 95% 100%, rgba(189, 230, 203, 0.16), transparent 48%),
+    color-mix(in oklab, var(--color-base-100) 90%, transparent);
+}
+
+.collab-stat {
+  transition: transform 150ms ease-out, border-color 200ms ease-out, background-color 200ms ease-out;
+}
+
+.collab-stat:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--color-info) 36%, transparent);
+  background: color-mix(in oklab, var(--color-info) 12%, var(--color-base-100));
+}
+
+.shared-entry-row {
+  transition: transform 150ms ease-out, border-color 200ms ease-out, background-color 200ms ease-out;
+}
+
+.shared-entry-row:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--color-info) 36%, transparent);
+  background: color-mix(in oklab, var(--color-info) 12%, var(--color-base-100));
+}
+
+.trend-list-item {
+  transition: border-color 150ms ease-out, background-color 150ms ease-out;
+}
+
+.trend-list-item:hover {
+  border-color: color-mix(in oklab, var(--color-info) 34%, transparent);
+  background: color-mix(in oklab, var(--color-info) 10%, var(--color-base-100));
 }
 
 @keyframes public-float {
@@ -788,7 +844,8 @@ summary:focus-visible {
 
 @media (max-width: 640px) {
   .public-home::before,
-  .public-auth-shell::before {
+  .public-auth-shell::before,
+  .collab-shell::before {
     inset: -10% -16% auto;
     height: 46%;
   }
@@ -805,24 +862,18 @@ summary:focus-visible {
     height: 1.45rem;
   }
 }
-
-
-
-/* Bulk Import Hero Classes */
-
-/* Bulk Import Hero Container */
 .bulk-import-hero {
   position: relative;
   border: 2px solid color-mix(in oklab, var(--color-info) 45%, transparent);
   border-radius: 1.5rem;
   padding: 2rem;
   background:
-    radial-gradient(140% 100% at 10% 0%, rgba(34, 211, 238, 0.12), transparent 58%),
-    radial-gradient(140% 100% at 90% 100%, rgba(52, 211, 153, 0.12), transparent 58%),
+    radial-gradient(140% 100% at 10% 0%, rgba(168, 214, 236, 0.2), transparent 58%),
+    radial-gradient(140% 100% at 90% 100%, rgba(189, 230, 203, 0.2), transparent 58%),
     color-mix(in oklab, var(--color-base-100) 92%, transparent);
   box-shadow:
     0 0 0 1px color-mix(in oklab, var(--color-info) 20%, transparent),
-    0 24px 60px rgba(3, 12, 26, 0.4),
+    0 22px 52px rgba(106, 121, 142, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(10px);
 }
@@ -836,20 +887,14 @@ summary:focus-visible {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 40%, rgba(255, 255, 255, 0.03));
 }
 
-
-
-
-
-
-
 .onboarding-spotlight {
   position: absolute;
   border: 3px solid color-mix(in oklab, var(--color-info) 80%, transparent);
   border-radius: 1rem;
   box-shadow:
-    0 0 0 9999px rgba(8, 16, 28, 0.85),
-    0 0 40px rgba(34, 211, 238, 0.5),
-    inset 0 0 20px rgba(34, 211, 238, 0.3);
+    0 0 0 9999px rgba(113, 104, 88, 0.44),
+    0 0 36px rgba(157, 202, 223, 0.5),
+    inset 0 0 18px rgba(171, 216, 232, 0.28);
   pointer-events: none;
   transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1), opacity 280ms cubic-bezier(0.4, 0, 0.2, 1);
   animation: pulse-spotlight 2s ease-in-out infinite;
@@ -859,21 +904,17 @@ summary:focus-visible {
 @keyframes pulse-spotlight {
   0%, 100% {
     box-shadow:
-      0 0 0 9999px rgba(8, 16, 28, 0.85),
-      0 0 40px rgba(34, 211, 238, 0.5),
-      inset 0 0 20px rgba(34, 211, 238, 0.3);
+      0 0 0 9999px rgba(113, 104, 88, 0.44),
+      0 0 36px rgba(157, 202, 223, 0.5),
+      inset 0 0 18px rgba(171, 216, 232, 0.28);
   }
   50% {
     box-shadow:
-      0 0 0 9999px rgba(8, 16, 28, 0.85),
-      0 0 60px rgba(34, 211, 238, 0.7),
-      inset 0 0 30px rgba(34, 211, 238, 0.5);
+      0 0 0 9999px rgba(113, 104, 88, 0.44),
+      0 0 56px rgba(157, 202, 223, 0.62),
+      inset 0 0 26px rgba(171, 216, 232, 0.38);
   }
 }
-
-
-
-
 
 /* Onboarding Arrows (visual indicators) */
 .onboarding-arrow {
@@ -921,37 +962,6 @@ summary:focus-visible {
   animation: arrow-pulse-right 1.5s ease-in-out infinite;
 }
 
-.onboarding-arrow-left {
-  left: -2.5rem;
-  top: 50%;
-  animation: arrow-pulse-right 1.5s ease-in-out infinite;
-}
-
-/* Panel Visibility and Empty State Classes */
-
-/* Panel Collapse Animation */
-/* Uses GPU-accelerated opacity + transform instead of max-height */
-.panel-collapsible {
-  transition: opacity 250ms cubic-bezier(0.4, 0, 0.2, 1), transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
-  transform-origin: top;
-  will-change: opacity, transform;
-}
-
-.panel-collapsible[data-collapsed="true"] {
-  opacity: 0;
-  transform: scaleY(0.95);
-  pointer-events: none;
-}
-
-.panel-collapsible[data-collapsed="false"] {
-  opacity: 1;
-  transform: scaleY(1);
-}
-
-
-
-
-
 .skeleton-bar::after {
   content: "";
   position: absolute;
@@ -975,54 +985,7 @@ summary:focus-visible {
   }
 }
 
-
-
-
-
-/* Responsive Utilities and Accessibility Classes */
-
-/* Mobile Accordion */
 @media (max-width: 767px) {
-  .panel-accordion-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    border: 0;
-    border-radius: 0;
-    padding: 1rem;
-    background: color-mix(in oklab, var(--color-base-100) 80%, transparent);
-    color: color-mix(in oklab, var(--color-base-content) 92%, transparent);
-    cursor: pointer;
-    transition: background-color 150ms ease-out;
-    /* Touch-friendly tap target */
-    min-height: 44px;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .panel-accordion-header:hover {
-    background: color-mix(in oklab, var(--color-info) 15%, var(--color-base-100));
-  }
-
-  .panel-accordion-header:active {
-    background: color-mix(in oklab, var(--color-info) 20%, var(--color-base-100));
-  }
-
-  .panel-accordion-content {
-    overflow: hidden;
-    opacity: 0;
-    transform: scaleY(0.95);
-    transform-origin: top;
-    transition: opacity 250ms cubic-bezier(0.4, 0, 0.2, 1), transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
-    will-change: opacity, transform;
-  }
-
-  .panel-accordion-content[data-expanded="true"] {
-    opacity: 1;
-    transform: scaleY(1);
-  }
-
-  /* Touch-friendly buttons on mobile */
   .btn {
     min-height: 44px;
     padding: 0.65rem 1rem;
@@ -1034,14 +997,12 @@ summary:focus-visible {
   }
 }
 
-/* Keyboard Navigation Focus Styles */
 .keyboard-nav-active *:focus-visible {
   outline: 3px solid color-mix(in oklab, var(--color-info) 70%, transparent);
   outline-offset: 3px;
   box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-info) 20%, transparent);
 }
 
-/* Skip Links */
 .skip-link {
   position: absolute;
   top: -100%;
@@ -1054,7 +1015,7 @@ summary:focus-visible {
   color: color-mix(in oklab, var(--color-base-content) 98%, transparent);
   font-weight: 700;
   text-decoration: none;
-  box-shadow: 0 10px 30px rgba(3, 12, 26, 0.5);
+  box-shadow: 0 10px 26px rgba(108, 124, 145, 0.28);
   transition: top 200ms ease;
 }
 

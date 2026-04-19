@@ -37,20 +37,20 @@ defmodule OrganizerWeb.DashboardLive.FormattersTest do
   # ---------------------------------------------------------------------------
 
   describe "balance_value_class/1" do
-    test "returns rose class for negative cents" do
-      assert Formatters.balance_value_class(-100) == "text-rose-300"
+    test "returns error class for negative cents" do
+      assert Formatters.balance_value_class(-100) == "text-error"
     end
 
-    test "returns emerald class for positive cents" do
-      assert Formatters.balance_value_class(100) == "text-emerald-300"
+    test "returns success class for positive cents" do
+      assert Formatters.balance_value_class(100) == "text-success"
     end
 
-    test "returns cyan class for zero" do
-      assert Formatters.balance_value_class(0) == "text-cyan-300"
+    test "returns info class for zero" do
+      assert Formatters.balance_value_class(0) == "text-info"
     end
 
-    test "returns cyan class for non-integer" do
-      assert Formatters.balance_value_class(nil) == "text-cyan-300"
+    test "returns info class for non-integer" do
+      assert Formatters.balance_value_class(nil) == "text-info"
     end
   end
 
@@ -59,24 +59,24 @@ defmodule OrganizerWeb.DashboardLive.FormattersTest do
   # ---------------------------------------------------------------------------
 
   describe "balance_badge_class/1" do
-    test "returns rose badge class for negative cents" do
+    test "returns error badge class for negative cents" do
       assert Formatters.balance_badge_class(-100) ==
-               "border-rose-300/35 bg-rose-500/12 text-rose-200"
+               "border-error/40 bg-error/12 text-error-content"
     end
 
-    test "returns emerald badge class for positive cents" do
+    test "returns success badge class for positive cents" do
       assert Formatters.balance_badge_class(100) ==
-               "border-emerald-300/35 bg-emerald-500/12 text-emerald-200"
+               "border-success/40 bg-success/12 text-success-content"
     end
 
-    test "returns cyan badge class for zero" do
+    test "returns info badge class for zero" do
       assert Formatters.balance_badge_class(0) ==
-               "border-cyan-300/35 bg-cyan-500/12 text-cyan-200"
+               "border-info/40 bg-info/12 text-info-content"
     end
 
-    test "returns cyan badge class for non-integer" do
+    test "returns info badge class for non-integer" do
       assert Formatters.balance_badge_class("invalid") ==
-               "border-cyan-300/35 bg-cyan-500/12 text-cyan-200"
+               "border-info/40 bg-info/12 text-info-content"
     end
   end
 
@@ -192,9 +192,9 @@ defmodule OrganizerWeb.DashboardLive.FormattersTest do
       result = Formatters.balance_value_class(n)
 
       cond do
-        n < 0 -> assert result == "text-rose-300"
-        n > 0 -> assert result == "text-emerald-300"
-        true -> assert result == "text-cyan-300"
+        n < 0 -> assert result == "text-error"
+        n > 0 -> assert result == "text-success"
+        true -> assert result == "text-info"
       end
     end
   end
@@ -205,9 +205,9 @@ defmodule OrganizerWeb.DashboardLive.FormattersTest do
       result = Formatters.balance_badge_class(n)
 
       cond do
-        n < 0 -> assert result == "border-rose-300/35 bg-rose-500/12 text-rose-200"
-        n > 0 -> assert result == "border-emerald-300/35 bg-emerald-500/12 text-emerald-200"
-        true -> assert result == "border-cyan-300/35 bg-cyan-500/12 text-cyan-200"
+        n < 0 -> assert result == "border-error/40 bg-error/12 text-error-content"
+        n > 0 -> assert result == "border-success/40 bg-success/12 text-success-content"
+        true -> assert result == "border-info/40 bg-info/12 text-info-content"
       end
     end
   end

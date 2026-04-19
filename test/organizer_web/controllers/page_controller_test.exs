@@ -5,6 +5,6 @@ defmodule OrganizerWeb.PageControllerTest do
     conn = get(conn, ~p"/")
 
     assert html_response(conn, 200) =~
-             "Organize tarefas, metas e dinheiro sem trocar de app"
+             "Cole dados no chat copy/paste"
   end
 end
