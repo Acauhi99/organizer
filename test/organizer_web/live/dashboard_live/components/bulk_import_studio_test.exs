@@ -116,5 +116,13 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudioTest do
       assert html =~ "tarefa: test"
       assert html =~ "invalid line"
     end
+
+    test "renders copy markdown button in format reference" do
+      html = render_component(&BulkImportStudio.bulk_import_studio/1, base_assigns())
+
+      assert html =~ "bulk-copy-markdown-btn"
+      assert html =~ "Copiar template Markdown"
+      assert html =~ "Ver formatos e opções completas por tipo"
+    end
   end
 end

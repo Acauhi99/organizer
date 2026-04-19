@@ -24,7 +24,7 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
     ~H"""
     <section
       id="quick-bulk"
-      class="surface-card order-5 rounded-2xl p-4 scroll-mt-20"
+      class="surface-card bulk-studio-shell order-5 rounded-2xl p-4 scroll-mt-20"
     >
       <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/70">
         Importação rápida por texto
@@ -98,36 +98,151 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
         </div>
       </div>
 
-      <details class="border border-base-content/20 rounded-[0.8rem] bg-base-100/76 px-[0.72rem] py-[0.55rem] mt-3">
-        <summary>Ver formatos e exemplos</summary>
-        <div class="bulk-code-list mt-2 space-y-3">
-          <div>
-            <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50 mb-1">
-              Formato mínimo (recomendado)
+      <details
+        id="bulk-format-reference"
+        class="border border-base-content/20 rounded-[0.8rem] bg-base-100/76 px-[0.72rem] py-[0.55rem] mt-3"
+      >
+        <summary class="cursor-pointer text-base text-base-content/92">
+          Ver formatos e opções completas por tipo
+        </summary>
+
+        <div class="bulk-code-list mt-3 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-sm text-base-content/78">
+              Precisa enviar as regras para um chat de IA? Copie o template em Markdown.
             </p>
-            <p class="font-mono text-[0.74rem] leading-[1.5] text-base-content/93">
-              tarefa: reunião amanhã
-            </p>
-            <p class="font-mono text-[0.74rem] leading-[1.5] text-base-content/93">
-              financeiro: almoço 35
-            </p>
-            <p class="font-mono text-[0.74rem] leading-[1.5] text-base-content/93">
-              meta: aprender Elixir
-            </p>
+            <button
+              id="bulk-copy-markdown-btn"
+              type="button"
+              phx-click="copy_bulk_markdown_reference"
+              class="btn btn-soft btn-sm"
+            >
+              <.icon name="hero-document-duplicate" class="size-4" /> Copiar template Markdown
+            </button>
           </div>
-          <div>
-            <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50 mb-1">
-              Formato completo (controle total)
+
+          <article class="micro-surface rounded-lg p-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-base-content/62">
+              Regras gerais
             </p>
-            <p class="font-mono text-[0.74rem] leading-[1.5] text-base-content/93">
-              tarefa: Revisar orçamento | data=2026-04-20 | prioridade=alta
+            <ul class="mt-2 space-y-1 text-sm text-base-content/82">
+              <li>
+                Uma linha = um item, no padrão <code class="font-mono text-[0.84rem]">tipo: conteúdo</code>.
+              </li>
+              <li>
+                Campos opcionais usam <code class="font-mono text-[0.84rem]">| campo=valor</code>.
+              </li>
+              <li>
+                Linhas vazias e linhas iniciadas com <code class="font-mono text-[0.84rem]">#</code>
+                são ignoradas.
+              </li>
+              <li>
+                Datas aceitas: <code class="font-mono text-[0.84rem]">2026-04-20</code>, <code class="font-mono text-[0.84rem]">20/04/2026</code>, <code class="font-mono text-[0.84rem]">hoje</code>, <code class="font-mono text-[0.84rem]">amanhã</code>, <code class="font-mono text-[0.84rem]">ontem</code>.
+              </li>
+            </ul>
+          </article>
+
+          <article class="micro-surface rounded-lg p-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-base-content/62">
+              Prefixos de tipo aceitos
             </p>
-            <p class="font-mono text-[0.74rem] leading-[1.5] text-base-content/93">
-              financeiro: tipo=despesa | natureza=fixa | pagamento=credito | valor=125,90 | categoria=moradia | data=2026-04-05
-            </p>
-            <p class="font-mono text-[0.74rem] leading-[1.5] text-base-content/93">
-              meta: Reserva de emergência | horizonte=medio | alvo=300000
-            </p>
+            <div class="mt-2 flex flex-wrap gap-1.5 text-sm">
+              <span class="rounded-full border border-base-content/20 px-2 py-0.5 font-mono">
+                tarefa | task | t
+              </span>
+              <span class="rounded-full border border-base-content/20 px-2 py-0.5 font-mono">
+                financeiro | finance | lancamento | lanc | fin | f
+              </span>
+              <span class="rounded-full border border-base-content/20 px-2 py-0.5 font-mono">
+                meta | goal | g
+              </span>
+              <span class="rounded-full border border-base-content/20 px-2 py-0.5 font-mono">
+                receita | despesa
+              </span>
+            </div>
+          </article>
+
+          <div class="grid gap-3 xl:grid-cols-3">
+            <article class="micro-surface rounded-lg p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-base-content/62">
+                Tarefa
+              </p>
+              <ul class="mt-2 space-y-1 text-sm text-base-content/82">
+                <li>Título é obrigatório no conteúdo.</li>
+                <li>
+                  Campos: <code class="font-mono text-[0.84rem]">data/date/due/vencimento</code>, <code class="font-mono text-[0.84rem]">prioridade/priority/prio</code>, <code class="font-mono text-[0.84rem]">status</code>, <code class="font-mono text-[0.84rem]">nota/notas/notes</code>.
+                </li>
+                <li>
+                  Prioridade: <code class="font-mono text-[0.84rem]">baixa|low|b</code>, <code class="font-mono text-[0.84rem]">media|médio|medium|normal|m</code>, <code class="font-mono text-[0.84rem]">alta|high|urgente|h</code>.
+                </li>
+                <li>
+                  Status: <code class="font-mono text-[0.84rem]">todo|pendente</code>, <code class="font-mono text-[0.84rem]">in_progress|andamento|em_andamento</code>, <code class="font-mono text-[0.84rem]">done|concluida</code>.
+                </li>
+                <li>
+                  Defaults: <code class="font-mono text-[0.84rem]">status=todo</code>
+                  e <code class="font-mono text-[0.84rem]">prioridade=medium</code>.
+                </li>
+              </ul>
+              <div class="mt-2 rounded-md border border-base-content/14 bg-base-100/65 p-2 font-mono text-[0.82rem] leading-[1.5] text-base-content/90">
+                tarefa: Revisar orçamento amanhã alta<br />tarefa: Planejar viagem | data=2026-04-20 | prioridade=baixa | status=todo
+              </div>
+            </article>
+
+            <article class="micro-surface rounded-lg p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-base-content/62">
+                Financeiro
+              </p>
+              <ul class="mt-2 space-y-1 text-sm text-base-content/82">
+                <li>
+                  Campos: <code class="font-mono text-[0.84rem]">tipo/kind</code>, <code class="font-mono text-[0.84rem]">natureza/perfil/recorrencia/expense_profile</code>, <code class="font-mono text-[0.84rem]">pagamento/meio/metodo/payment_method</code>, <code class="font-mono text-[0.84rem]">valor/amount/centavos</code>, <code class="font-mono text-[0.84rem]">categoria/category</code>, <code class="font-mono text-[0.84rem]">data/date/quando</code>, <code class="font-mono text-[0.84rem]">descricao/description</code>.
+                </li>
+                <li>
+                  Tipo: <code class="font-mono text-[0.84rem]">despesa|expense</code>
+                  ou <code class="font-mono text-[0.84rem]">receita|income</code>.
+                </li>
+                <li>
+                  Natureza: <code class="font-mono text-[0.84rem]">fixa|fixo|recorrente|mensal</code>
+                  ou <code class="font-mono text-[0.84rem]">variavel|variável|avulsa|pontual</code>.
+                </li>
+                <li>
+                  Pagamento: <code class="font-mono text-[0.84rem]">credito|cartao</code>
+                  ou <code class="font-mono text-[0.84rem]">debito|pix|dinheiro</code>.
+                </li>
+                <li>
+                  Valor aceita exemplos como <code class="font-mono text-[0.84rem]">35</code>, <code class="font-mono text-[0.84rem]">125,90</code>, <code class="font-mono text-[0.84rem]">R$ 89,50</code>, <code class="font-mono text-[0.84rem]">1k</code>.
+                </li>
+                <li>
+                  Defaults: se faltar data usa hoje; em despesa sem natureza/pagamento assume <code class="font-mono text-[0.84rem]">variável + débito</code>.
+                </li>
+              </ul>
+              <div class="mt-2 rounded-md border border-base-content/14 bg-base-100/65 p-2 font-mono text-[0.82rem] leading-[1.5] text-base-content/90">
+                financeiro: almoço 35<br />financeiro: tipo=despesa | natureza=fixa | pagamento=credito | valor=125,90 | categoria=moradia | data=2026-04-05
+              </div>
+            </article>
+
+            <article class="micro-surface rounded-lg p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-base-content/62">
+                Meta
+              </p>
+              <ul class="mt-2 space-y-1 text-sm text-base-content/82">
+                <li>Título é obrigatório no conteúdo.</li>
+                <li>
+                  Campos: <code class="font-mono text-[0.84rem]">horizonte/horizon</code>, <code class="font-mono text-[0.84rem]">status</code>, <code class="font-mono text-[0.84rem]">alvo/target/target_value</code>, <code class="font-mono text-[0.84rem]">atual/current/current_value</code>, <code class="font-mono text-[0.84rem]">data/date/due/prazo</code>, <code class="font-mono text-[0.84rem]">nota/notas/notes</code>.
+                </li>
+                <li>
+                  Horizonte: <code class="font-mono text-[0.84rem]">curto|short</code>, <code class="font-mono text-[0.84rem]">medio|médio|medium</code>, <code class="font-mono text-[0.84rem]">longo|long</code>.
+                </li>
+                <li>
+                  Status: <code class="font-mono text-[0.84rem]">ativa|active</code>, <code class="font-mono text-[0.84rem]">pausada|paused</code>, <code class="font-mono text-[0.84rem]">concluida|done</code>.
+                </li>
+                <li>
+                  Defaults: <code class="font-mono text-[0.84rem]">horizon=medium</code>, <code class="font-mono text-[0.84rem]">status=active</code>, <code class="font-mono text-[0.84rem]">current_value=0</code>.
+                </li>
+              </ul>
+              <div class="mt-2 rounded-md border border-base-content/14 bg-base-100/65 p-2 font-mono text-[0.82rem] leading-[1.5] text-base-content/90">
+                meta: Reserva de emergência<br />meta: Reserva de emergência | horizonte=medio | alvo=300000 | atual=50000 | prazo=2026-12-31
+              </div>
+            </article>
           </div>
         </div>
       </details>
@@ -142,7 +257,7 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
             id={"bulk-history-entry-#{entry.id}"}
             class={[
               "border border-base-content/20 bg-base-100/74",
-              entry.favorite && "border-cyan-300/40",
+              entry.favorite && "border-info/40",
               !entry.favorite && "border-base-content/12"
             ]}
           >
@@ -435,13 +550,13 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
           </article>
           <article class="micro-surface rounded-lg p-3">
             <p class="text-xs uppercase tracking-wide text-base-content/65">Válidas</p>
-            <p class="mt-1 text-lg font-semibold text-emerald-300">
+            <p class="mt-1 text-lg font-semibold text-success">
               {@bulk_preview.valid_total}
             </p>
           </article>
           <article class="micro-surface rounded-lg p-3">
             <p class="text-xs uppercase tracking-wide text-base-content/65">Com erro</p>
-            <p class="mt-1 text-lg font-semibold text-amber-200">
+            <p class="mt-1 text-lg font-semibold text-warning-content">
               {@bulk_preview.invalid_total}
             </p>
           </article>
@@ -460,11 +575,11 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
         >
           <%= cond do %>
             <% @bulk_preview.scoring.errors == 0 and @bulk_preview.scoring.low_confidence == 0 and @bulk_preview.scoring.medium_confidence == 0 and @bulk_preview.valid_total > 0 -> %>
-              <p class="text-xs font-medium text-emerald-300">
+              <p class="text-xs font-medium text-success">
                 <.icon name="hero-check-circle" class="w-3.5 h-3.5 inline-block mr-1" />Pronto para importar — todas as linhas com alta confiança.
               </p>
             <% @bulk_preview.scoring.medium_confidence > 0 or @bulk_preview.scoring.low_confidence > 0 -> %>
-              <p class="text-xs text-amber-200">
+              <p class="text-xs text-warning-content">
                 <.icon name="hero-exclamation-triangle" class="w-3.5 h-3.5 inline-block mr-1" />
                 {@bulk_preview.scoring.medium_confidence + @bulk_preview.scoring.low_confidence} linha(s) com confiança reduzida — revise antes de importar.
               </p>
@@ -503,7 +618,7 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
             >
               <span
                 :for={field <- Map.get(entry, :inferred_fields, [])}
-                class="rounded px-1.5 py-0.5 text-[0.6rem] font-medium uppercase tracking-wide border border-violet-400/30 bg-violet-500/10 text-violet-300"
+                class="rounded px-1.5 py-0.5 text-[0.6rem] font-medium uppercase tracking-wide border border-accent/38 bg-accent/14 text-accent-content"
               >
                 {field} inferido
               </span>
@@ -566,12 +681,12 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
 
         <div
           :if={@bulk_result.errors != []}
-          class="rounded-xl border border-amber-300/30 bg-amber-500/10 p-3"
+          class="rounded-xl border border-warning/38 bg-warning/12 p-3"
         >
-          <p class="text-xs font-semibold uppercase tracking-wide text-amber-100">
+          <p class="text-xs font-semibold uppercase tracking-wide text-warning-content">
             Linhas com erro
           </p>
-          <ul class="mt-2 space-y-1 text-xs text-amber-100/85">
+          <ul class="mt-2 space-y-1 text-xs text-warning-content/90">
             <li :for={error <- @bulk_result.errors}>{error}</li>
           </ul>
         </div>
@@ -615,10 +730,10 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
   defp bulk_preview_fixable_count(_entries), do: 0
 
   defp bulk_preview_status_badge_class(:valid),
-    do: "border border-emerald-300/30 bg-emerald-500/15 text-emerald-100"
+    do: "border border-success/35 bg-success/14 text-success-content"
 
   defp bulk_preview_status_badge_class(:invalid),
-    do: "border border-amber-300/30 bg-amber-500/15 text-amber-100"
+    do: "border border-warning/35 bg-warning/14 text-warning-content"
 
   defp bulk_preview_status_badge_class(:ignored),
     do: "border border-base-content/20 bg-base-100/60 text-base-content/70"

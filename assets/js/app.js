@@ -167,6 +167,67 @@ const parsePositiveTimeoutMs = (value) => {
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const hooks = {
   ...colocatedHooks,
+  OnboardingOverlay: {
+    mounted() {
+      this.spotlight = this.el.querySelector(".onboarding-spotlight")
+      this.rafId = null
+
+      this.syncSpotlight = () => {
+        if (!(this.spotlight instanceof HTMLElement)) {
+          return
+        }
+
+        const selector = this.spotlight.dataset.target
+        const target = typeof selector === "string" ? document.querySelector(selector) : null
+
+        if (!(target instanceof HTMLElement)) {
+          this.spotlight.style.opacity = "0"
+          return
+        }
+
+        const overlayRect = this.el.getBoundingClientRect()
+        const targetRect = target.getBoundingClientRect()
+        const padding = 8
+
+        this.spotlight.style.opacity = "1"
+        this.spotlight.style.left = `${targetRect.left - overlayRect.left - padding}px`
+        this.spotlight.style.top = `${targetRect.top - overlayRect.top - padding}px`
+        this.spotlight.style.width = `${targetRect.width + padding * 2}px`
+        this.spotlight.style.height = `${targetRect.height + padding * 2}px`
+      }
+
+      this.scheduleSync = () => {
+        if (this.rafId !== null) {
+          return
+        }
+
+        this.rafId = window.requestAnimationFrame(() => {
+          this.rafId = null
+          this.syncSpotlight()
+        })
+      }
+
+      this.onResize = () => this.scheduleSync()
+      this.onScroll = () => this.scheduleSync()
+
+      window.addEventListener("resize", this.onResize, {passive: true})
+      window.addEventListener("scroll", this.onScroll, {passive: true})
+      this.scheduleSync()
+    },
+
+    updated() {
+      this.scheduleSync?.()
+    },
+
+    destroyed() {
+      if (this.rafId !== null) {
+        window.cancelAnimationFrame(this.rafId)
+      }
+
+      window.removeEventListener("resize", this.onResize)
+      window.removeEventListener("scroll", this.onScroll)
+    },
+  },
   BulkCaptureEditor: {
     mounted() {
       this.previewSelector = this.el.dataset.previewSelector || BULK_DEFAULT_SELECTORS.preview
@@ -456,6 +517,54 @@ window.addEventListener("phx:scroll-to-element", (event) => {
   }, 180)
 })
 
+const copyTextUsingExecCommand = (text) => {
+  const textarea = document.createElement("textarea")
+  textarea.value = text
+  textarea.setAttribute("readonly", "")
+  textarea.style.position = "fixed"
+  textarea.style.opacity = "0"
+  textarea.style.pointerEvents = "none"
+
+  document.body.appendChild(textarea)
+  textarea.select()
+  textarea.setSelectionRange(0, textarea.value.length)
+
+  let copied = false
+
+  try {
+    copied = document.execCommand("copy")
+  } catch (_) {
+    copied = false
+  }
+
+  document.body.removeChild(textarea)
+  return copied
+}
+
+const copyTextToClipboard = async (text) => {
+  if (typeof text !== "string" || text.length === 0) {
+    return false
+  }
+
+  if (navigator?.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch (_) {}
+  }
+
+  return copyTextUsingExecCommand(text)
+}
+
+window.addEventListener("phx:copy-to-clipboard", async (event) => {
+  const text = event?.detail?.text
+  const copied = await copyTextToClipboard(text)
+
+  if (!copied) {
+    console.warn("Clipboard copy failed for phx:copy-to-clipboard event")
+  }
+})
+
 scheduleFlashAutoDismiss()
 
 window.addEventListener("phx:page-loading-stop", () => {
@@ -467,6 +576,7 @@ const flashObserver = new MutationObserver(() => {
 })
 
 flashObserver.observe(document.body, {childList: true, subtree: true})
+window.addEventListener("pagehide", () => flashObserver.disconnect(), {once: true})
 
 // expose liveSocket on window for web console debug logs and latency simulation:
 // >> liveSocket.enableDebug()

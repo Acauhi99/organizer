@@ -184,6 +184,19 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
     end
   end
 
+  describe "bulk_reference_markdown_template/0" do
+    test "returns a markdown guide with all supported types" do
+      markdown = BulkImport.bulk_reference_markdown_template()
+
+      assert is_binary(markdown)
+      assert String.contains?(markdown, "# Organizer - Guia de Importacao Copy/Paste (Markdown)")
+      assert String.contains?(markdown, "## Tarefa")
+      assert String.contains?(markdown, "## Financeiro")
+      assert String.contains?(markdown, "## Meta")
+      assert String.contains?(markdown, "`tipo: conteudo`")
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # apply_bulk_fix_for_line/2
   # ---------------------------------------------------------------------------

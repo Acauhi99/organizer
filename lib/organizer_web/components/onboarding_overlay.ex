@@ -13,14 +13,15 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
       :if={@active}
       id="onboarding-overlay"
       class="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      phx-hook="OnboardingOverlay"
       role="dialog"
       aria-labelledby="onboarding-title"
       aria-describedby="onboarding-description"
       aria-modal="true"
     >
-      <div class="absolute inset-0 bg-[rgba(8,16,28,0.85)] backdrop-blur-[4px]"></div>
+      <div class="absolute inset-0 bg-[rgba(113,104,88,0.44)] backdrop-blur-[4px]"></div>
       <div class="onboarding-spotlight" data-target={spotlight_target(@current_step)}></div>
-      <div class="relative z-[10000] max-w-[32rem] w-full border border-info/40 rounded-[1.25rem] p-7 bg-base-100/95 shadow-[0_30px_80px_rgba(3,12,26,0.6)] backdrop-blur-[12px]">
+      <div class="relative z-[10000] max-w-[32rem] w-full border border-info/40 rounded-[1.25rem] p-7 bg-base-100/95 shadow-[0_26px_64px_rgba(106,121,142,0.3)] backdrop-blur-[12px]">
         <.onboarding_step
           step={@current_step}
           total={@total_steps}
@@ -65,7 +66,7 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
             "w-2 h-2 rounded-full transition-all duration-200",
             if(step_num == @step,
               do:
-                "w-6 bg-gradient-to-r from-cyan-400 to-emerald-400 shadow-[0_0_12px_rgba(34,211,238,0.6)]",
+                "w-6 bg-gradient-to-r from-info to-success shadow-[0_0_12px_rgba(124,170,196,0.42)]",
               else: "bg-base-content/30"
             )
           ]}

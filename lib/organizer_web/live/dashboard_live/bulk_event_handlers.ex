@@ -40,6 +40,16 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
       end
 
       @impl true
+      def handle_event("copy_bulk_markdown_reference", _params, socket) do
+        markdown = BulkImport.bulk_reference_markdown_template()
+
+        {:noreply,
+         socket
+         |> push_event("copy-to-clipboard", %{text: markdown})
+         |> put_flash(:info, "Template Markdown copiado para facilitar o uso em chat de IA.")}
+      end
+
+      @impl true
       def handle_event("load_bulk_history_payload", %{"id" => id}, socket) do
         case BulkImport.find_bulk_history_entry(socket.assigns.bulk_recent_payloads, id) do
           nil ->

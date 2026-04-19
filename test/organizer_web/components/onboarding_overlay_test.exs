@@ -239,8 +239,8 @@ defmodule OrganizerWeb.Components.OnboardingOverlayTest do
         />
         """)
 
-      # The active dot should have the gradient classes
-      assert html =~ "from-cyan-400"
+      # The active dot should use semantic gradient classes
+      assert html =~ "from-info"
     end
 
     test "includes ARIA attributes for accessibility" do

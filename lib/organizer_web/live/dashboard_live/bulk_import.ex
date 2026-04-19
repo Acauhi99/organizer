@@ -235,6 +235,123 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
 
   def bulk_template_payload(_), do: ""
 
+  @spec bulk_reference_markdown_template() :: String.t()
+  def bulk_reference_markdown_template do
+    today = Date.to_iso8601(Date.utc_today())
+    tomorrow = Date.to_iso8601(Date.add(Date.utc_today(), 1))
+
+    """
+    # Organizer - Guia de Importacao Copy/Paste (Markdown)
+
+    Use este guia para montar linhas de importacao no formato:
+
+    `tipo: conteudo`
+
+    ## Regras gerais
+
+    - Uma linha = um item.
+    - Campos opcionais: `| campo=valor`.
+    - Linhas vazias e linhas iniciadas com `#` sao ignoradas.
+    - Datas aceitas: `YYYY-MM-DD`, `DD/MM/YYYY`, `hoje`, `amanha`, `ontem`.
+
+    ## Prefixos aceitos
+
+    - Tarefa: `tarefa`, `task`, `t`
+    - Financeiro: `financeiro`, `finance`, `lancamento`, `lanc`, `fin`, `f`, `receita`, `despesa`
+    - Meta: `meta`, `goal`, `g`
+
+    ## Tarefa
+
+    Campos:
+    - `data`, `date`, `due`, `vencimento`
+    - `prioridade`, `priority`, `prio`
+    - `status`
+    - `nota`, `notas`, `notes`
+
+    Prioridade:
+    - baixa: `baixa`, `low`, `b`
+    - media: `media`, `medio`, `medium`, `normal`, `m`
+    - alta: `alta`, `high`, `urgente`, `h`
+
+    Status:
+    - `todo` (`pendente`)
+    - `in_progress` (`andamento`, `em_andamento`)
+    - `done` (`concluida`)
+
+    Defaults:
+    - `status=todo`
+    - `prioridade=medium`
+
+    Exemplos:
+    - `tarefa: Revisar planejamento amanha alta`
+    - `tarefa: Revisar planejamento | data=#{tomorrow} | prioridade=alta | status=todo`
+
+    ## Financeiro
+
+    Campos:
+    - `tipo`, `kind` (income/expense)
+    - `natureza`, `perfil`, `recorrencia`, `expense_profile`
+    - `pagamento`, `meio`, `metodo`, `payment_method`
+    - `valor`, `amount`, `centavos`, `amount_cents`
+    - `categoria`, `category`
+    - `data`, `date`, `quando`, `occurred_on`
+    - `descricao`, `description`, `desc`
+
+    Tipo:
+    - receita: `receita`, `income`
+    - despesa: `despesa`, `expense`
+
+    Natureza (despesa):
+    - fixa: `fixa`, `fixo`, `recorrente`, `mensal`
+    - variavel: `variavel`, `avulsa`, `pontual`
+
+    Pagamento (despesa):
+    - credito: `credito`, `cartao`
+    - debito: `debito`, `pix`, `dinheiro`
+
+    Valor:
+    - aceita `35`, `125,90`, `R$ 89,50`, `1k`
+
+    Defaults:
+    - sem data: usa `#{today}`
+    - despesa sem natureza/pagamento: `natureza=variable`, `pagamento=debit`
+
+    Exemplos:
+    - `financeiro: almoco 35`
+    - `financeiro: tipo=despesa | natureza=fixa | pagamento=credito | valor=125,90 | categoria=moradia | data=#{today}`
+
+    ## Meta
+
+    Campos:
+    - `horizonte`, `horizon`
+    - `status`
+    - `alvo`, `target`, `target_value`
+    - `atual`, `current`, `current_value`
+    - `data`, `date`, `due`, `prazo`
+    - `nota`, `notas`, `notes`
+
+    Horizonte:
+    - `short` (`curto`)
+    - `medium` (`medio`)
+    - `long` (`longo`)
+
+    Status:
+    - `active` (`ativa`)
+    - `paused` (`pausada`)
+    - `done` (`concluida`)
+
+    Defaults:
+    - `horizon=medium`
+    - `status=active`
+    - `current_value=0`
+
+    Exemplos:
+    - `meta: Reserva de emergencia`
+    - `meta: Reserva de emergencia | horizonte=medio | alvo=300000 | atual=50000 | prazo=2026-12-31`
+    """
+    |> String.trim()
+  end
+
   @spec remember_bulk_payload(Phoenix.LiveView.Socket.t(), String.t()) ::
           Phoenix.LiveView.Socket.t()
   def remember_bulk_payload(socket, payload) when is_binary(payload) do
