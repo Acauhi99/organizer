@@ -4,43 +4,46 @@ defmodule OrganizerWeb.SharedFinanceLive do
   alias Organizer.SharedFinance
 
   @impl true
-  def mount(%{"link_id" => link_id_str} = _params, _session, socket) do
+  def mount(%{"link_id" => link_id_param}, _session, socket) do
     scope = socket.assigns.current_scope
-    link_id = String.to_integer(link_id_str)
 
-    case SharedFinance.get_account_link(scope, link_id) do
-      {:error, :not_found} ->
+    with {:ok, link_id} <- parse_int(link_id_param),
+         {:ok, link} <- SharedFinance.get_account_link(scope, link_id) do
+      if connected?(socket) do
+        Phoenix.PubSub.subscribe(Organizer.PubSub, "account_link:#{link_id}")
+      end
+
+      {:ok, views} = SharedFinance.list_shared_entries(scope, link_id)
+      {:ok, metrics} = SharedFinance.get_link_metrics(scope, link_id, Date.utc_today())
+      {:ok, trend} = SharedFinance.get_recurring_variable_trend(scope, link_id)
+
+      socket =
+        socket
+        |> assign(:link, link)
+        |> assign(:link_id, link_id)
+        |> assign(:metrics, metrics)
+        |> assign(:trend, trend)
+        |> assign(:shared_entries_count, length(views))
+        |> assign(:page_title, "Finanças Compartilhadas")
+        |> stream_configure(:shared_entries, dom_id: &"shared-entry-view-#{&1.entry.id}")
+        |> stream(:shared_entries, views)
+
+      {:ok, socket}
+    else
+      _ ->
         {:ok,
          socket
          |> put_flash(:error, "Vínculo não encontrado.")
          |> push_navigate(to: ~p"/account-links")}
-
-      {:ok, link} ->
-        if connected?(socket) do
-          Phoenix.PubSub.subscribe(Organizer.PubSub, "account_link:#{link_id}")
-        end
-
-        {:ok, views} = SharedFinance.list_shared_entries(scope, link_id)
-        {:ok, metrics} = SharedFinance.get_link_metrics(scope, link_id, Date.utc_today())
-        {:ok, trend} = SharedFinance.get_recurring_variable_trend(scope, link_id)
-
-        socket =
-          socket
-          |> assign(:link, link)
-          |> assign(:link_id, link_id)
-          |> assign(:metrics, metrics)
-          |> assign(:trend, trend)
-          |> assign(:page_title, "Finanças Compartilhadas")
-          |> stream_configure(:shared_entries, dom_id: &"shared-entry-view-#{&1.entry.id}")
-          |> stream(:shared_entries, views)
-
-        {:ok, socket}
     end
   end
 
   @impl true
-  def handle_params(%{"link_id" => link_id_str}, _uri, socket) do
-    {:noreply, assign(socket, :link_id, String.to_integer(link_id_str))}
+  def handle_params(%{"link_id" => link_id_param}, _uri, socket) do
+    case parse_int(link_id_param) do
+      {:ok, link_id} -> {:noreply, assign(socket, :link_id, link_id)}
+      :error -> {:noreply, socket}
+    end
   end
 
   @impl true
@@ -48,180 +51,203 @@ defmodule OrganizerWeb.SharedFinanceLive do
     scope = socket.assigns.current_scope
     link_id = socket.assigns.link_id
 
-    case SharedFinance.share_finance_entry(scope, String.to_integer(entry_id), link_id) do
-      {:ok, _entry} ->
-        {:ok, views} = SharedFinance.list_shared_entries(scope, link_id)
-        {:ok, metrics} = SharedFinance.get_link_metrics(scope, link_id, Date.utc_today())
-
-        {:noreply,
-         socket
-         |> assign(:metrics, metrics)
-         |> stream(:shared_entries, views, reset: true)}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Não foi possível compartilhar o lançamento.")}
+    with {:ok, parsed_entry_id} <- parse_int(entry_id),
+         {:ok, _entry} <- SharedFinance.share_finance_entry(scope, parsed_entry_id, link_id) do
+      {:noreply, reload_shared_data(socket)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Não foi possível compartilhar o lançamento.")}
     end
   end
 
   @impl true
   def handle_event("unshare_entry", %{"entry_id" => entry_id}, socket) do
     scope = socket.assigns.current_scope
-    link_id = socket.assigns.link_id
 
-    case SharedFinance.unshare_finance_entry(scope, String.to_integer(entry_id)) do
-      {:ok, _entry} ->
-        {:ok, views} = SharedFinance.list_shared_entries(scope, link_id)
-        {:ok, metrics} = SharedFinance.get_link_metrics(scope, link_id, Date.utc_today())
-
-        {:noreply,
-         socket
-         |> assign(:metrics, metrics)
-         |> stream(:shared_entries, views, reset: true)}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Não foi possível remover o compartilhamento.")}
+    with {:ok, parsed_entry_id} <- parse_int(entry_id),
+         {:ok, _entry} <- SharedFinance.unshare_finance_entry(scope, parsed_entry_id) do
+      {:noreply, reload_shared_data(socket)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Não foi possível remover o compartilhamento.")}
     end
   end
 
   @impl true
   def handle_info({:shared_entry_updated, _entry}, socket) do
-    scope = socket.assigns.current_scope
-    link_id = socket.assigns.link_id
-
-    {:ok, views} = SharedFinance.list_shared_entries(scope, link_id)
-    {:ok, metrics} = SharedFinance.get_link_metrics(scope, link_id, Date.utc_today())
-
-    {:noreply,
-     socket
-     |> assign(:metrics, metrics)
-     |> stream(:shared_entries, views, reset: true)}
+    {:noreply, reload_shared_data(socket)}
   end
 
   @impl true
   def handle_info({:shared_entry_removed, _entry}, socket) do
-    scope = socket.assigns.current_scope
-    link_id = socket.assigns.link_id
-
-    {:ok, views} = SharedFinance.list_shared_entries(scope, link_id)
-    {:ok, metrics} = SharedFinance.get_link_metrics(scope, link_id, Date.utc_today())
-
-    {:noreply,
-     socket
-     |> assign(:metrics, metrics)
-     |> stream(:shared_entries, views, reset: true)}
+    {:noreply, reload_shared_data(socket)}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="max-w-4xl mx-auto p-6 space-y-6">
-        <div class="flex items-center justify-between">
-          <h1 class="text-2xl font-semibold text-base-content">Finanças Compartilhadas</h1>
-          <.link navigate={~p"/account-links"} class="btn btn-outline btn-sm">
-            ← Vínculos
-          </.link>
-        </div>
+    <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
+      <section class="collab-shell mx-auto max-w-6xl space-y-6">
+        <header class="surface-card collab-hero rounded-3xl p-6 sm:p-8">
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
+                Finanças compartilhadas
+              </p>
+              <h1 class="text-3xl font-black tracking-[-0.02em] text-base-content">
+                Visão conjunta do vínculo
+              </h1>
+              <p class="max-w-2xl text-sm leading-6 text-base-content/78">
+                Monitore total compartilhado, proporção entre contas e tendência recorrente sem sair do fluxo colaborativo.
+              </p>
+            </div>
+            <.link navigate={~p"/account-links"} class="btn btn-outline btn-sm sm:btn-md">
+              <.icon name="hero-arrow-left" class="size-4" /> Voltar para vínculos
+            </.link>
+          </div>
+        </header>
 
-        <%!-- Metrics panel --%>
-        <div id="link-metrics-panel" class="surface-card p-5 space-y-3">
-          <h2 class="text-lg font-semibold text-base-content">Resumo do mês</h2>
-
-          <div class="grid grid-cols-3 gap-4">
-            <div class="micro-surface p-3 rounded-lg text-center">
-              <p class="text-xs text-base-content/60 uppercase tracking-wide mb-1">
-                Total compartilhado
-              </p>
-              <p class="text-xl font-mono font-semibold text-base-content">
-                {format_cents(@metrics.total_cents)}
-              </p>
-            </div>
-            <div class="micro-surface p-3 rounded-lg text-center">
-              <p class="text-xs text-base-content/60 uppercase tracking-wide mb-1">Você arcou</p>
-              <p class="text-xl font-mono font-semibold text-cyan-400">
-                {format_cents(@metrics.paid_a_cents)}
-              </p>
-            </div>
-            <div class="micro-surface p-3 rounded-lg text-center">
-              <p class="text-xs text-base-content/60 uppercase tracking-wide mb-1">Parceiro arcou</p>
-              <p class="text-xl font-mono font-semibold text-emerald-400">
-                {format_cents(@metrics.paid_b_cents)}
-              </p>
-            </div>
+        <section id="link-metrics-panel" class="surface-card rounded-3xl p-5 sm:p-6">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+              Resumo do período
+            </h2>
+            <span class="text-xs text-base-content/62">{Date.utc_today() |> Date.to_iso8601()}</span>
           </div>
 
-          <%= if @metrics.imbalance_detected do %>
+          <div class="collab-stats-grid mt-4 grid gap-3 sm:grid-cols-3">
+            <article class="collab-stat micro-surface rounded-2xl p-4 text-center">
+              <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
+                Total compartilhado
+              </p>
+              <p class="mt-1 text-xl font-mono font-semibold text-base-content">
+                {format_cents(@metrics.total_cents)}
+              </p>
+            </article>
+
+            <article class="collab-stat micro-surface rounded-2xl p-4 text-center">
+              <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">Você arcou</p>
+              <p class="mt-1 text-xl font-mono font-semibold text-info">
+                {format_cents(@metrics.paid_a_cents)}
+              </p>
+            </article>
+
+            <article class="collab-stat micro-surface rounded-2xl p-4 text-center">
+              <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">Parceiro arcou</p>
+              <p class="mt-1 text-xl font-mono font-semibold text-success">
+                {format_cents(@metrics.paid_b_cents)}
+              </p>
+            </article>
+          </div>
+
+          <div
+            :if={@metrics.imbalance_detected}
+            id="imbalance-indicator"
+            class="mt-4 flex items-center gap-2 rounded-xl border border-warning/35 bg-warning/14 px-3 py-2"
+          >
+            <.icon name="hero-exclamation-triangle" class="size-4 text-warning" />
+            <span class="text-sm text-warning-content">
+              Desequilíbrio detectado. A divisão atual difere mais de 5% do esperado.
+            </span>
+          </div>
+        </section>
+
+        <section class="surface-card rounded-3xl p-5 sm:p-6">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+              Lançamentos compartilhados
+            </h2>
+            <span class="text-xs text-base-content/62">{@shared_entries_count} item(ns)</span>
+          </div>
+
+          <div id="shared-entries-list" phx-update="stream" class="mt-4 space-y-2">
             <div
-              id="imbalance-indicator"
-              class="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30"
+              :if={@shared_entries_count == 0}
+              id="shared-entries-empty-state"
+              class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/72"
             >
-              <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning" />
-              <span class="text-sm text-warning font-medium">
-                Desequilíbrio detectado — a divisão atual difere mais de 5% do esperado.
-              </span>
+              Ainda não há lançamentos compartilhados neste vínculo.
             </div>
-          <% end %>
-        </div>
 
-        <%!-- Shared entries list --%>
-        <div class="surface-card p-5">
-          <h2 class="text-lg font-semibold text-base-content mb-4">Lançamentos compartilhados</h2>
-
-          <div id="shared-entries-list" phx-update="stream" class="space-y-2">
             <div
               :for={{id, view} <- @streams.shared_entries}
               id={id}
-              class="micro-surface flex items-center justify-between p-3 rounded-lg"
+              class="shared-entry-row micro-surface flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-base-content truncate">
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-medium text-base-content/92">
                   {view.entry.description || view.entry.category}
                 </p>
-                <p class="text-xs text-base-content/60 font-mono">
-                  {format_cents(view.entry.amount_cents)} · Você: {format_pct(view.split_ratio_mine)} ({format_cents(
+                <p class="mt-1 text-xs font-mono text-base-content/62">
+                  {format_cents(view.entry.amount_cents)} • Você: {format_pct(view.split_ratio_mine)} ({format_cents(
                     view.amount_mine_cents
-                  )}) / Parceiro: {format_pct(view.split_ratio_theirs)} ({format_cents(
+                  )}) • Parceiro: {format_pct(view.split_ratio_theirs)} ({format_cents(
                     view.amount_theirs_cents
                   )})
                 </p>
               </div>
+
               <button
                 id={"unshare-entry-#{view.entry.id}"}
+                type="button"
                 phx-click="unshare_entry"
                 phx-value-entry_id={view.entry.id}
-                class="btn btn-outline btn-xs btn-error ml-3 shrink-0"
+                class="btn btn-outline btn-xs btn-error shrink-0"
               >
                 Remover
               </button>
             </div>
           </div>
-        </div>
+        </section>
 
-        <%!-- Recurring variable trend --%>
-        <div id="recurring-variable-trend" class="surface-card p-5">
-          <h2 class="text-lg font-semibold text-base-content mb-4">
-            Tendência — recorrentes variáveis (6 meses)
+        <section id="recurring-variable-trend" class="surface-card rounded-3xl p-5 sm:p-6">
+          <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+            Tendência de recorrentes variáveis (6 meses)
           </h2>
 
           <%= if @trend == [] do %>
-            <p class="text-sm text-base-content/50">Nenhum dado disponível.</p>
+            <p class="mt-3 text-sm text-base-content/58">Nenhum dado disponível neste período.</p>
           <% else %>
-            <ul class="space-y-2">
+            <ul class="mt-3 space-y-2">
               <%= for mt <- @trend do %>
-                <li class="flex items-center justify-between micro-surface p-2 rounded-lg">
-                  <span class="text-sm text-base-content/70 font-mono">{mt.month}/{mt.year}</span>
-                  <span class="text-sm font-semibold text-base-content font-mono">
+                <li class="trend-list-item micro-surface flex items-center justify-between rounded-xl p-3">
+                  <span class="text-sm font-mono text-base-content/72">{mt.month}/{mt.year}</span>
+                  <span class="text-sm font-semibold font-mono text-base-content/92">
                     {format_cents(mt.total_cents)}
                   </span>
                 </li>
               <% end %>
             </ul>
           <% end %>
-        </div>
-      </div>
+        </section>
+      </section>
     </Layouts.app>
     """
   end
+
+  defp reload_shared_data(socket) do
+    scope = socket.assigns.current_scope
+    link_id = socket.assigns.link_id
+
+    {:ok, views} = SharedFinance.list_shared_entries(scope, link_id)
+    {:ok, metrics} = SharedFinance.get_link_metrics(scope, link_id, Date.utc_today())
+    {:ok, trend} = SharedFinance.get_recurring_variable_trend(scope, link_id)
+
+    socket
+    |> assign(:metrics, metrics)
+    |> assign(:trend, trend)
+    |> assign(:shared_entries_count, length(views))
+    |> stream(:shared_entries, views, reset: true)
+  end
+
+  defp parse_int(value) when is_integer(value), do: {:ok, value}
+
+  defp parse_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_int(_), do: :error
 
   defp format_cents(cents) when is_integer(cents) do
     "R$ #{:erlang.float_to_binary(cents / 100, decimals: 2)}"

@@ -4,43 +4,44 @@ defmodule OrganizerWeb.SettlementLive do
   alias Organizer.SharedFinance
 
   @impl true
-  def mount(%{"link_id" => link_id_str} = _params, _session, socket) do
+  def mount(%{"link_id" => link_id_param}, _session, socket) do
     scope = socket.assigns.current_scope
-    link_id = String.to_integer(link_id_str)
 
-    case SharedFinance.get_account_link(scope, link_id) do
-      {:error, :not_found} ->
+    with {:ok, link_id} <- parse_int(link_id_param),
+         {:ok, link} <- SharedFinance.get_account_link(scope, link_id),
+         {:ok, cycle} <-
+           SharedFinance.get_or_create_settlement_cycle(scope, link_id, Date.utc_today()),
+         {:ok, records} <- SharedFinance.list_settlement_records(scope, cycle.id) do
+      if connected?(socket) do
+        Phoenix.PubSub.subscribe(Organizer.PubSub, "account_link:#{link_id}")
+      end
+
+      socket =
+        socket
+        |> assign(:link, link)
+        |> assign(:link_id, link_id)
+        |> assign(:cycle, cycle)
+        |> assign(:settlement_records_count, length(records))
+        |> assign(:record_form, record_form())
+        |> assign(:page_title, "Acerto de Contas")
+        |> stream(:settlement_records, records)
+
+      {:ok, socket}
+    else
+      _ ->
         {:ok,
          socket
          |> put_flash(:error, "Vínculo não encontrado.")
          |> push_navigate(to: ~p"/account-links")}
-
-      {:ok, link} ->
-        {:ok, cycle} =
-          SharedFinance.get_or_create_settlement_cycle(scope, link_id, Date.utc_today())
-
-        {:ok, records} = SharedFinance.list_settlement_records(scope, cycle.id)
-
-        if connected?(socket) do
-          Phoenix.PubSub.subscribe(Organizer.PubSub, "account_link:#{link_id}")
-        end
-
-        socket =
-          socket
-          |> assign(:link, link)
-          |> assign(:link_id, link_id)
-          |> assign(:cycle, cycle)
-          |> assign(:record_form, to_form(%{}, as: :record))
-          |> assign(:page_title, "Acerto de Contas")
-          |> stream(:settlement_records, records)
-
-        {:ok, socket}
     end
   end
 
   @impl true
-  def handle_params(%{"link_id" => link_id_str}, _uri, socket) do
-    {:noreply, assign(socket, :link_id, String.to_integer(link_id_str))}
+  def handle_params(%{"link_id" => link_id_param}, _uri, socket) do
+    case parse_int(link_id_param) do
+      {:ok, link_id} -> {:noreply, assign(socket, :link_id, link_id)}
+      :error -> {:noreply, socket}
+    end
   end
 
   @impl true
@@ -48,41 +49,40 @@ defmodule OrganizerWeb.SettlementLive do
     scope = socket.assigns.current_scope
     cycle = socket.assigns.cycle
 
-    amount_cents =
-      case Map.get(attrs, "amount_cents") do
-        nil -> 0
-        "" -> 0
-        val -> String.to_integer(val)
-      end
-
-    method =
-      case Map.get(attrs, "method") do
-        nil -> :pix
-        "" -> :pix
-        val -> String.to_existing_atom(val)
-      end
-
-    transferred_at =
-      case Map.get(attrs, "transferred_at") do
-        nil -> DateTime.utc_now() |> DateTime.truncate(:second)
-        "" -> DateTime.utc_now() |> DateTime.truncate(:second)
-        date_str -> Date.from_iso8601!(date_str) |> DateTime.new!(~T[00:00:00], "Etc/UTC")
-      end
-
-    record_attrs = %{
-      amount_cents: amount_cents,
-      method: method,
-      transferred_at: transferred_at
-    }
-
-    case SharedFinance.create_settlement_record(scope, cycle.id, record_attrs) do
-      {:ok, _record} ->
-        {:ok, records} = SharedFinance.list_settlement_records(scope, cycle.id)
-
+    with {:ok, amount_cents} <- parse_amount_cents(Map.get(attrs, "amount_cents")),
+         {:ok, method} <- parse_method(Map.get(attrs, "method")),
+         {:ok, transferred_at} <- parse_transferred_at(Map.get(attrs, "transferred_at")),
+         {:ok, _record} <-
+           SharedFinance.create_settlement_record(scope, cycle.id, %{
+             amount_cents: amount_cents,
+             method: method,
+             transferred_at: transferred_at
+           }),
+         {:ok, records} <- SharedFinance.list_settlement_records(scope, cycle.id) do
+      {:noreply,
+       socket
+       |> assign(:settlement_records_count, length(records))
+       |> stream(:settlement_records, records, reset: true)
+       |> assign(:record_form, record_form())
+       |> put_flash(:info, "Transferência registrada.")}
+    else
+      {:error, :invalid_amount} ->
         {:noreply,
          socket
-         |> stream(:settlement_records, records, reset: true)
-         |> assign(:record_form, to_form(%{}, as: :record))}
+         |> assign(:record_form, record_form(attrs))
+         |> put_flash(:error, "Valor deve ser um inteiro maior que zero (centavos).")}
+
+      {:error, :invalid_method} ->
+        {:noreply,
+         socket
+         |> assign(:record_form, record_form(attrs))
+         |> put_flash(:error, "Método inválido. Use PIX ou TED.")}
+
+      {:error, :invalid_date} ->
+        {:noreply,
+         socket
+         |> assign(:record_form, record_form(attrs))
+         |> put_flash(:error, "Data inválida. Use um valor no formato AAAA-MM-DD.")}
 
       {:error, {:validation, _}} ->
         {:noreply, put_flash(socket, :error, "Valor deve ser maior que zero.")}
@@ -113,12 +113,34 @@ defmodule OrganizerWeb.SettlementLive do
   end
 
   @impl true
+  def handle_event("settle", _params, socket) do
+    cycle = socket.assigns.cycle
+
+    cond do
+      cycle.status == :settled ->
+        {:noreply, put_flash(socket, :info, "Este ciclo já está quitado.")}
+
+      not (cycle.confirmed_by_a and cycle.confirmed_by_b) ->
+        {:noreply,
+         put_flash(socket, :info, "A quitação fica disponível após confirmação bilateral.")}
+
+      true ->
+        # A própria confirmação bilateral efetiva a quitação no domínio.
+        {:noreply, put_flash(socket, :info, "Ciclo quitado e sincronizado com sucesso.")}
+    end
+  end
+
+  @impl true
   def handle_info({:settlement_record_created, _record}, socket) do
     scope = socket.assigns.current_scope
     cycle = socket.assigns.cycle
 
     {:ok, records} = SharedFinance.list_settlement_records(scope, cycle.id)
-    {:noreply, stream(socket, :settlement_records, records, reset: true)}
+
+    {:noreply,
+     socket
+     |> assign(:settlement_records_count, length(records))
+     |> stream(:settlement_records, records, reset: true)}
   end
 
   @impl true
@@ -129,22 +151,33 @@ defmodule OrganizerWeb.SettlementLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="max-w-3xl mx-auto p-6 space-y-6">
-        <div class="flex items-center justify-between">
-          <h1 class="text-2xl font-semibold text-base-content">Acerto de Contas</h1>
-          <.link navigate={~p"/account-links/#{@link_id}"} class="btn btn-outline btn-sm">
-            ← Finanças
-          </.link>
-        </div>
+    <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
+      <section class="collab-shell mx-auto max-w-6xl space-y-6">
+        <header class="surface-card collab-hero rounded-3xl p-6 sm:p-8">
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
+                Acerto colaborativo
+              </p>
+              <h1 class="text-3xl font-black tracking-[-0.02em] text-base-content">
+                Acerto de contas do vínculo
+              </h1>
+              <p class="max-w-2xl text-sm leading-6 text-base-content/78">
+                Registre transferências, valide saldo bilateral e finalize o ciclo com transparência.
+              </p>
+            </div>
+            <.link navigate={~p"/account-links/#{@link_id}"} class="btn btn-outline btn-sm sm:btn-md">
+              <.icon name="hero-arrow-left" class="size-4" /> Voltar para finanças
+            </.link>
+          </div>
+        </header>
 
-        <%!-- Balance display --%>
-        <div id="settlement-balance" class="surface-card p-5 space-y-3">
-          <div class="flex items-center justify-between">
+        <section id="settlement-balance" class="surface-card rounded-3xl p-5 sm:p-6">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <%= cond do %>
                 <% @cycle.balance_cents > 0 and not is_nil(@cycle.debtor_id) -> %>
-                  <p class="text-base-content font-medium">
+                  <p class="text-sm text-base-content/82">
                     {debtor_label(@cycle, @link)} deve
                     <span class="font-mono font-semibold text-warning">
                       {format_cents(@cycle.balance_cents)}
@@ -152,93 +185,105 @@ defmodule OrganizerWeb.SettlementLive do
                     a {creditor_label(@cycle, @link)}
                   </p>
                 <% @cycle.balance_cents == 0 -> %>
-                  <p class="text-emerald-400 font-medium">Saldo zerado</p>
+                  <p class="text-sm font-semibold text-success">Saldo zerado</p>
                 <% true -> %>
-                  <p class="text-base-content/70 font-medium">
+                  <p class="text-sm text-base-content/72">
                     Saldo: {format_cents(@cycle.balance_cents)}
                   </p>
               <% end %>
             </div>
+
             <span class={[
-              "badge badge-sm font-mono",
-              if(@cycle.status == :settled, do: "badge-success", else: "badge-warning")
+              "settlement-status-pill inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em]",
+              if(@cycle.status == :settled,
+                do: "border-success/40 bg-success/14 text-success-content",
+                else: "border-warning/35 bg-warning/14 text-warning-content"
+              )
             ]}>
               {if @cycle.status == :settled, do: "Quitado", else: "Aberto"}
             </span>
           </div>
-        </div>
+        </section>
 
-        <%!-- Settlement records list --%>
-        <div class="surface-card p-5">
-          <h2 class="text-lg font-semibold text-base-content mb-4">Transferências registradas</h2>
-          <div id="settlement-records-list" phx-update="stream" class="space-y-2">
+        <section class="surface-card rounded-3xl p-5 sm:p-6">
+          <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+            Transferências registradas
+          </h2>
+          <div id="settlement-records-list" phx-update="stream" class="mt-4 space-y-2">
+            <div
+              :if={@settlement_records_count == 0}
+              id="settlement-empty-state"
+              class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/72"
+            >
+              Nenhuma transferência registrada neste ciclo.
+            </div>
+
             <div
               :for={{id, record} <- @streams.settlement_records}
               id={id}
-              class="micro-surface flex items-center justify-between p-3 rounded-lg"
+              class="shared-entry-row micro-surface flex items-center justify-between rounded-2xl p-4"
             >
               <div>
-                <p class="text-sm font-medium text-base-content font-mono">
+                <p class="text-sm font-medium font-mono text-base-content/92">
                   {format_cents(record.amount_cents)}
                 </p>
-                <p class="text-xs text-base-content/60">
-                  {String.upcase(to_string(record.method))} · {format_date(record.transferred_at)}
+                <p class="text-xs text-base-content/62">
+                  {String.upcase(to_string(record.method))} • {format_date(record.transferred_at)}
                 </p>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        <%!-- New record form --%>
-        <div class="surface-card p-5">
-          <h2 class="text-lg font-semibold text-base-content mb-4">Registrar transferência</h2>
+        <section class="surface-card rounded-3xl p-5 sm:p-6">
+          <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+            Registrar transferência
+          </h2>
           <.form
             for={@record_form}
             id="new-record-form"
             phx-submit="create_record"
-            class="space-y-4"
+            class="mt-4 space-y-4"
           >
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label class="block text-xs font-medium text-base-content/70 uppercase tracking-wide mb-1">
-                  Valor (centavos)
-                </label>
-                <.input
-                  field={@record_form[:amount_cents]}
-                  type="number"
-                  placeholder="Ex: 5000"
-                  min="1"
-                />
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-base-content/70 uppercase tracking-wide mb-1">
-                  Método
-                </label>
-                <.input
-                  field={@record_form[:method]}
-                  type="select"
-                  options={[{"PIX", "pix"}, {"TED", "ted"}]}
-                />
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-base-content/70 uppercase tracking-wide mb-1">
-                  Data da transferência
-                </label>
-                <.input field={@record_form[:transferred_at]} type="date" />
-              </div>
-            </div>
-            <button type="submit" class="btn btn-primary w-full sm:w-auto">
-              Registrar transferência
-            </button>
-          </.form>
-        </div>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <.input
+                field={@record_form[:amount_cents]}
+                type="number"
+                label="Valor (centavos)"
+                placeholder="Ex: 5000"
+                min="1"
+              />
 
-        <%!-- Confirmation and settlement actions --%>
-        <div class="surface-card p-5 space-y-3">
-          <h2 class="text-lg font-semibold text-base-content">Confirmação</h2>
-          <div class="flex flex-col sm:flex-row gap-3">
+              <.input
+                field={@record_form[:method]}
+                type="select"
+                label="Método"
+                prompt="Selecione"
+                options={[{"PIX", "pix"}, {"TED", "ted"}]}
+              />
+
+              <.input
+                field={@record_form[:transferred_at]}
+                type="date"
+                label="Data da transferência"
+              />
+            </div>
+
+            <.button type="submit" variant="primary" class="w-full sm:w-auto">
+              Registrar transferência
+            </.button>
+          </.form>
+        </section>
+
+        <section class="surface-card rounded-3xl p-5 sm:p-6">
+          <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+            Confirmação e quitação
+          </h2>
+
+          <div class="mt-4 flex flex-col gap-3 sm:flex-row">
             <button
               id="confirm-settlement-btn"
+              type="button"
               phx-click="confirm_settlement"
               class="btn btn-outline btn-primary"
             >
@@ -247,6 +292,7 @@ defmodule OrganizerWeb.SettlementLive do
 
             <button
               id="settle-btn"
+              type="button"
               phx-click="settle"
               class={[
                 "btn btn-success",
@@ -263,11 +309,62 @@ defmodule OrganizerWeb.SettlementLive do
               <% end %>
             </button>
           </div>
-        </div>
-      </div>
+        </section>
+      </section>
     </Layouts.app>
     """
   end
+
+  defp record_form(params \\ %{}) do
+    to_form(params, as: :record)
+  end
+
+  defp parse_int(value) when is_integer(value), do: {:ok, value}
+
+  defp parse_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_int(_), do: :error
+
+  defp parse_amount_cents(nil), do: {:error, :invalid_amount}
+  defp parse_amount_cents(""), do: {:error, :invalid_amount}
+
+  defp parse_amount_cents(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> {:ok, int}
+      _ -> {:error, :invalid_amount}
+    end
+  end
+
+  defp parse_amount_cents(value) when is_integer(value) and value > 0, do: {:ok, value}
+  defp parse_amount_cents(_), do: {:error, :invalid_amount}
+
+  defp parse_method(nil), do: {:ok, :pix}
+  defp parse_method(""), do: {:ok, :pix}
+  defp parse_method("pix"), do: {:ok, :pix}
+  defp parse_method("ted"), do: {:ok, :ted}
+  defp parse_method(:pix), do: {:ok, :pix}
+  defp parse_method(:ted), do: {:ok, :ted}
+  defp parse_method(_), do: {:error, :invalid_method}
+
+  defp parse_transferred_at(nil), do: {:ok, DateTime.utc_now() |> DateTime.truncate(:second)}
+  defp parse_transferred_at(""), do: {:ok, DateTime.utc_now() |> DateTime.truncate(:second)}
+
+  defp parse_transferred_at(value) when is_binary(value) do
+    with {:ok, date} <- Date.from_iso8601(value),
+         {:ok, datetime} <- DateTime.new(date, ~T[00:00:00], "Etc/UTC") do
+      {:ok, datetime}
+    else
+      _ -> {:error, :invalid_date}
+    end
+  end
+
+  defp parse_transferred_at(%DateTime{} = value), do: {:ok, value}
+  defp parse_transferred_at(_), do: {:error, :invalid_date}
 
   defp format_cents(cents) when is_integer(cents) do
     "R$ #{:erlang.float_to_binary(cents / 100, decimals: 2)}"
