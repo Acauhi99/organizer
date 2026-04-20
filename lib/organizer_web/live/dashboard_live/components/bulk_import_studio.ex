@@ -19,6 +19,10 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
   attr :bulk_import_block_size, :integer, required: true
   attr :bulk_import_block_index, :integer, required: true
   attr :bulk_top_categories, :list, required: true
+  attr :bulk_share_finances, :boolean, default: false
+  attr :bulk_share_link_id, :integer, default: nil
+  attr :account_links, :list, default: []
+  attr :current_user_id, :integer, default: 0
 
   def bulk_import_studio(assigns) do
     ~H"""
@@ -298,6 +302,60 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
         phx-submit="submit_bulk_capture"
         class="mt-3"
       >
+        <section
+          id="bulk-sharing-controls"
+          class="border border-base-content/20 bg-base-100/74 mb-3 rounded-lg px-3 py-2"
+        >
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-base-content/85">
+                Compartilhamento no vínculo
+              </p>
+              <p class="text-xs text-base-content/75">
+                Marque para publicar os lançamentos financeiros deste envio na visão conjunta.
+              </p>
+            </div>
+
+            <label
+              for="bulk-share-finances"
+              class="inline-flex items-center gap-2 text-xs font-medium text-base-content/90"
+            >
+              <input type="hidden" name="bulk[share_finances]" value="false" />
+              <input
+                id="bulk-share-finances"
+                type="checkbox"
+                name="bulk[share_finances]"
+                value="true"
+                checked={@bulk_share_finances}
+                disabled={Enum.empty?(@account_links)}
+                class="toggle toggle-primary toggle-sm"
+              /> Compartilhar lançamentos financeiros
+            </label>
+          </div>
+
+          <div class="mt-3 grid gap-2 sm:grid-cols-[160px_1fr] sm:items-center">
+            <label for="bulk-share-link-id" class="text-xs font-medium text-base-content/70">
+              Vínculo destino
+            </label>
+
+            <select
+              id="bulk-share-link-id"
+              name="bulk[share_link_id]"
+              class="select select-bordered select-sm w-full"
+              disabled={Enum.empty?(@account_links)}
+            >
+              <option :if={Enum.empty?(@account_links)} value="">Sem vínculo ativo</option>
+              <option
+                :for={link <- @account_links}
+                value={link.id}
+                selected={to_string(link.id) == to_string(@bulk_share_link_id)}
+              >
+                {bulk_share_link_label(link, @current_user_id)}
+              </option>
+            </select>
+          </div>
+        </section>
+
         <div class="border border-base-content/20 bg-base-100/74 mb-3 flex items-center justify-between gap-3 rounded-lg px-3 py-2">
           <div>
             <p class="text-xs font-semibold uppercase tracking-wide text-base-content/85">
@@ -855,5 +913,21 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
     else
       nil
     end
+  end
+
+  defp bulk_share_link_label(link, current_user_id) do
+    partner_email =
+      cond do
+        current_user_id == link.user_a_id and is_map(link.user_b) ->
+          Map.get(link.user_b, :email, "conta vinculada")
+
+        current_user_id == link.user_b_id and is_map(link.user_a) ->
+          Map.get(link.user_a, :email, "conta vinculada")
+
+        true ->
+          "conta vinculada"
+      end
+
+    "Vínculo ##{link.id} • #{partner_email}"
   end
 end

@@ -523,6 +523,7 @@ defmodule OrganizerWeb.DashboardLive do
   defp initialize_dashboard_state(socket, scope) do
     top_categories = FieldSuggester.suggest_values("category", scope)
     {:ok, account_links} = SharedFinance.list_account_links(scope)
+    default_bulk_share_link_id = account_links |> List.first() |> then(&(&1 && &1.id))
 
     {:ok, user_preferences} = Organizer.Accounts.get_or_create_user_preferences(scope.user)
     {:ok, onboarding_progress} = Organizer.Accounts.get_or_create_onboarding_progress(scope.user)
@@ -549,6 +550,8 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:bulk_import_block_size, 3)
     |> assign(:bulk_import_block_index, 0)
     |> assign(:bulk_top_categories, top_categories)
+    |> assign(:bulk_share_finances, false)
+    |> assign(:bulk_share_link_id, default_bulk_share_link_id)
     |> assign(:account_links, account_links)
     |> assign(:ops_tab, "tasks")
     |> assign(:task_filters, Filters.default_task_filters())
@@ -684,6 +687,10 @@ defmodule OrganizerWeb.DashboardLive do
           bulk_import_block_size={@bulk_import_block_size}
           bulk_import_block_index={@bulk_import_block_index}
           bulk_top_categories={@bulk_top_categories}
+          bulk_share_finances={@bulk_share_finances}
+          bulk_share_link_id={@bulk_share_link_id}
+          account_links={@account_links}
+          current_user_id={@current_scope.user.id}
           onboarding_active={@onboarding_active}
           onboarding_step={@onboarding_step}
           has_any_imports={@has_any_imports}

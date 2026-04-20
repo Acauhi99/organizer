@@ -157,6 +157,16 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
 
           created_total = result.created.tasks + result.created.finances + result.created.goals
 
+          share_result =
+            maybe_share_imported_finances(
+              socket.assigns.current_scope,
+              result.last_bulk_import,
+              %{
+                share_finances?: socket.assigns.bulk_share_finances,
+                share_link_id: socket.assigns.bulk_share_link_id
+              }
+            )
+
           socket =
             socket
             |> BulkImport.remember_bulk_payload(socket.assigns.bulk_payload_text)
@@ -182,7 +192,8 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
               socket
               |> put_flash(
                 :info,
-                "Bloco importado: #{result.created.tasks} tarefas, #{result.created.finances} lançamentos e #{result.created.goals} metas."
+                "Bloco importado: #{result.created.tasks} tarefas, #{result.created.finances} lançamentos e #{result.created.goals} metas." <>
+                  bulk_share_success_suffix(share_result)
               )
               |> load_operation_collections()
               |> refresh_dashboard_insights()
@@ -191,8 +202,16 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
             end
 
           socket =
-            if result.errors != [] do
-              put_flash(socket, :error, "Alguns itens do bloco não puderam ser importados.")
+            if result.errors != [] or share_result.errors > 0 do
+              put_flash(
+                socket,
+                :error,
+                build_bulk_error_message(
+                  result.errors != [],
+                  share_result.errors,
+                  "Alguns itens do bloco não puderam ser importados."
+                )
+              )
             else
               socket
             end
@@ -274,6 +293,13 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
             %{"bulk" => %{"payload" => payload}} = params,
             socket
           ) do
+        share_preferences = parse_bulk_share_preferences(socket, params)
+
+        socket =
+          socket
+          |> assign(:bulk_share_finances, share_preferences.share_finances?)
+          |> assign(:bulk_share_link_id, share_preferences.share_link_id)
+
         if byte_size(payload) > @max_bulk_payload_bytes do
           {:noreply,
            put_flash(
@@ -330,6 +356,13 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
                 result =
                   BulkImport.import_bulk_payload(payload, socket.assigns.current_scope, preview)
 
+                share_result =
+                  maybe_share_imported_finances(
+                    socket.assigns.current_scope,
+                    result.last_bulk_import,
+                    share_preferences
+                  )
+
                 created_total =
                   result.created.tasks + result.created.finances + result.created.goals
 
@@ -348,7 +381,8 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
                     socket
                     |> put_flash(
                       :info,
-                      "Importação concluída: #{result.created.tasks} tarefas, #{result.created.finances} lançamentos e #{result.created.goals} metas."
+                      "Importação concluída: #{result.created.tasks} tarefas, #{result.created.finances} lançamentos e #{result.created.goals} metas." <>
+                        bulk_share_success_suffix(share_result)
                     )
                     |> load_operation_collections()
                     |> refresh_dashboard_insights()
@@ -357,11 +391,15 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
                   end
 
                 socket =
-                  if result.errors != [] do
+                  if result.errors != [] or share_result.errors > 0 do
                     put_flash(
                       socket,
                       :error,
-                      "Algumas linhas não puderam ser processadas. Revise os detalhes na seção de importação."
+                      build_bulk_error_message(
+                        result.errors != [],
+                        share_result.errors,
+                        "Algumas linhas não puderam ser processadas. Revise os detalhes na seção de importação."
+                      )
                     )
                   else
                     socket
@@ -489,6 +527,81 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
             {:noreply, socket}
         end
       end
+
+      defp parse_bulk_share_preferences(socket, params) do
+        bulk_params = Map.get(params, "bulk", %{})
+        link_ids = Enum.map(socket.assigns.account_links, & &1.id)
+        fallback_link_id = socket.assigns.bulk_share_link_id || List.first(link_ids)
+        raw_link_id = Map.get(bulk_params, "share_link_id")
+        parsed_link_id = parse_optional_integer(raw_link_id)
+
+        link_id =
+          cond do
+            parsed_link_id in link_ids -> parsed_link_id
+            fallback_link_id in link_ids -> fallback_link_id
+            true -> nil
+          end
+
+        share_finances? =
+          truthy_param?(Map.get(bulk_params, "share_finances")) and is_integer(link_id)
+
+        %{share_finances?: share_finances?, share_link_id: link_id}
+      end
+
+      defp maybe_share_imported_finances(
+             scope,
+             %{finances: finance_ids},
+             %{share_finances?: true, share_link_id: link_id}
+           )
+           when is_list(finance_ids) and is_integer(link_id) do
+        Enum.reduce(finance_ids, %{shared_count: 0, errors: 0}, fn finance_id, acc ->
+          case Organizer.SharedFinance.share_finance_entry(scope, finance_id, link_id) do
+            {:ok, _entry} ->
+              %{acc | shared_count: acc.shared_count + 1}
+
+            _ ->
+              %{acc | errors: acc.errors + 1}
+          end
+        end)
+      end
+
+      defp maybe_share_imported_finances(_scope, _last_bulk_import, _share_preferences) do
+        %{shared_count: 0, errors: 0}
+      end
+
+      defp bulk_share_success_suffix(%{shared_count: count}) when count > 0 do
+        " #{count} lançamento(s) financeiro(s) compartilhado(s) neste vínculo."
+      end
+
+      defp bulk_share_success_suffix(_share_result), do: ""
+
+      defp build_bulk_error_message(has_import_errors, share_errors, import_error_message) do
+        []
+        |> maybe_add_error_message(has_import_errors, import_error_message)
+        |> maybe_add_error_message(
+          share_errors > 0,
+          "#{share_errors} lançamento(s) financeiro(s) não puderam ser compartilhado(s)."
+        )
+        |> Enum.join(" ")
+      end
+
+      defp maybe_add_error_message(messages, true, message), do: messages ++ [message]
+      defp maybe_add_error_message(messages, false, _message), do: messages
+
+      defp parse_optional_integer(value) when is_integer(value), do: value
+
+      defp parse_optional_integer(value) when is_binary(value) do
+        case Integer.parse(String.trim(value)) do
+          {int, ""} -> int
+          _ -> nil
+        end
+      end
+
+      defp parse_optional_integer(_), do: nil
+
+      defp truthy_param?(values) when is_list(values), do: Enum.any?(values, &truthy_param?/1)
+      defp truthy_param?(value) when value in [true, "true", "on", "1", 1], do: true
+      defp truthy_param?(_), do: false
     end
   end
 end

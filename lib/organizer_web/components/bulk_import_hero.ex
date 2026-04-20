@@ -13,6 +13,10 @@ defmodule OrganizerWeb.Components.BulkImportHero do
   attr :bulk_import_block_size, :integer, required: true
   attr :bulk_import_block_index, :integer, required: true
   attr :bulk_top_categories, :list, required: true
+  attr :bulk_share_finances, :boolean, default: false
+  attr :bulk_share_link_id, :integer, default: nil
+  attr :account_links, :list, default: []
+  attr :current_user_id, :integer, default: 0
   attr :onboarding_active, :boolean, required: true
   attr :onboarding_step, :integer, default: 1
   attr :has_any_imports, :boolean, required: true
@@ -52,6 +56,10 @@ defmodule OrganizerWeb.Components.BulkImportHero do
         bulk_import_block_size={@bulk_import_block_size}
         bulk_import_block_index={@bulk_import_block_index}
         bulk_top_categories={@bulk_top_categories}
+        bulk_share_finances={@bulk_share_finances}
+        bulk_share_link_id={@bulk_share_link_id}
+        account_links={@account_links}
+        current_user_id={@current_user_id}
       />
     </section>
     """
