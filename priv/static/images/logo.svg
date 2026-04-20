@@ -1,89 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Organizer logo">
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Logo ícone de setas em loop</title>
   <defs>
-    <linearGradient id="org-bg-legacy" x1="6" y1="6" x2="90" y2="90" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#274057" />
-      <stop offset="1" stop-color="#1d3143" />
+    <linearGradient id="g" x1="100" y1="58" x2="100" y2="142" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#b9dfef"/>
+      <stop offset="100%" stop-color="#bce8ce"/>
     </linearGradient>
-    <linearGradient id="org-accent-a-legacy" x1="24" y1="22" x2="72" y2="70" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#b9dfef" />
-      <stop offset="1" stop-color="#9ecfe5" />
+    <linearGradient id="bg" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f7f3ed"/>
+      <stop offset="100%" stop-color="#efece6"/>
     </linearGradient>
-    <linearGradient id="org-accent-b-legacy" x1="58" y1="30" x2="72" y2="68" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#bce8ce" />
-      <stop offset="1" stop-color="#9adab9" />
-    </linearGradient>
-    <radialGradient
-      id="org-vignette-legacy"
-      cx="0"
-      cy="0"
-      r="1"
-      gradientUnits="userSpaceOnUse"
-      gradientTransform="translate(34 28) rotate(48) scale(56 48)"
-    >
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16" />
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
-    </radialGradient>
   </defs>
 
-  <rect x="3" y="3" width="90" height="90" rx="24" fill="url(#org-bg-legacy)" />
-  <rect
-    x="3"
-    y="3"
-    width="90"
-    height="90"
-    rx="24"
-    fill="none"
-    stroke="#4f6a80"
-    stroke-width="2"
-  />
-  <rect
-    x="7"
-    y="7"
-    width="82"
-    height="82"
-    rx="20"
-    fill="none"
-    stroke="#6b8aa1"
-    stroke-opacity="0.45"
-    stroke-width="1.5"
-  />
-  <rect x="3" y="3" width="90" height="90" rx="24" fill="url(#org-vignette-legacy)" />
+  <rect width="200" height="200" rx="42" fill="url(#bg)"/>
+  <rect width="200" height="200" rx="42" fill="none" stroke="#c6dde8" stroke-width="1.5"/>
 
-  <rect
-    x="22"
-    y="22"
-    width="52"
-    height="52"
-    rx="14"
-    fill="#22384b"
-    stroke="#6b8aa1"
-    stroke-opacity="0.42"
-    stroke-width="1.6"
-  />
+  <path d="M 44 120 L 44 77 Q 44 64 57 64 L 122 64"
+        fill="none" stroke="url(#g)" stroke-width="12" stroke-linecap="butt" stroke-linejoin="round"/>
+  <polygon points="122,50 150,64 122,78" fill="url(#g)"/>
 
-  <rect x="28.5" y="49.5" width="8.5" height="17" rx="3.6" fill="url(#org-accent-a-legacy)" />
-  <rect x="43.75" y="41.5" width="8.5" height="25" rx="3.6" fill="url(#org-accent-a-legacy)" />
-  <rect x="59" y="31.5" width="8.5" height="35" rx="3.6" fill="url(#org-accent-b-legacy)" />
-
-  <path
-    d="M27.5 61.5 L39.2 47.7 L50.3 54.6 L67.5 36"
-    fill="none"
-    stroke="#f3efe8"
-    stroke-width="4.2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
-  <path
-    d="M62.4 36.4 L67.5 36 L67 41.2"
-    fill="none"
-    stroke="#f3efe8"
-    stroke-width="3.1"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
-
-  <circle cx="27.5" cy="61.5" r="2.4" fill="#f3efe8" />
-  <circle cx="39.2" cy="47.7" r="2.4" fill="#f3efe8" />
-  <circle cx="50.3" cy="54.6" r="2.4" fill="#f3efe8" />
-  <circle cx="67.5" cy="36" r="2.4" fill="#f3efe8" />
+  <path d="M 156 80 L 156 123 Q 156 136 143 136 L 78 136"
+        fill="none" stroke="url(#g)" stroke-width="12" stroke-linecap="butt" stroke-linejoin="round"/>
+  <polygon points="78,122 50,136 78,150" fill="url(#g)"/>
 </svg>
