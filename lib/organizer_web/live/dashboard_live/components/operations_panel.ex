@@ -219,12 +219,12 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                   </div>
                 </div>
 
-                <div :if={checklist_items != []} class="mt-3 space-y-1.5">
+                <div :if={checklist_items != []} class="mt-3 space-y-2">
                   <form
                     :for={item <- checklist_items}
                     id={"task-checklist-item-form-#{task.id}-#{item.id}"}
                     phx-submit="save_task_checklist_item_label"
-                    class="flex items-center gap-1.5 rounded-md border border-base-content/12 bg-base-100/72 px-2 py-1.5"
+                    class="flex items-center gap-2 rounded-lg border border-base-content/16 bg-base-100/55 px-2.5 py-2"
                   >
                     <input type="hidden" name="task_id" value={task.id} />
                     <input type="hidden" name="item_id" value={item.id} />
@@ -236,11 +236,11 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                       phx-value-item_id={item.id}
                       phx-value-checked={if(item.checked, do: "false", else: "true")}
                       class={[
-                        "h-5 w-5 shrink-0 rounded border transition",
+                        "h-5 w-5 shrink-0 flex items-center justify-center rounded border transition",
                         item.checked &&
-                          "border-success/40 bg-success/20 text-success-content hover:bg-success/25",
+                          "border-success/50 bg-success/20 text-success-content hover:border-success/60 hover:bg-success/28",
                         !item.checked &&
-                          "border-base-content/25 bg-base-100 text-base-content/70 hover:bg-base-200/70"
+                          "border-base-content/28 bg-transparent text-base-content/50 hover:border-base-content/40 hover:bg-base-content/6"
                       ]}
                       aria-label={
                         if item.checked,
@@ -248,10 +248,11 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                           else: "Marcar item da checklist"
                       }
                     >
-                      <.icon
-                        name={if(item.checked, do: "hero-check", else: "hero-plus")}
-                        class="size-3.5"
-                      />
+                      <%= if item.checked do %>
+                        <.icon name="hero-check" class="size-3.5" />
+                      <% else %>
+                        <span class="inline-block h-3 w-3 border border-current rounded-full"></span>
+                      <% end %>
                     </button>
 
                     <input
@@ -261,15 +262,15 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                       value={item.label}
                       maxlength="140"
                       class={[
-                        "input input-sm input-ghost w-full border border-transparent px-2 py-1 text-sm",
-                        item.checked && "line-through text-base-content/55"
+                        "flex-1 input input-sm bg-base-100/80 border border-base-content/14 px-2.5 py-1.5 text-sm transition focus:border-info/50 focus:outline-none focus:ring-1 focus:ring-info/20",
+                        item.checked && "line-through text-base-content/45"
                       ]}
                     />
 
                     <button
                       id={"task-checklist-save-#{task.id}-#{item.id}"}
                       type="submit"
-                      class="btn btn-ghost btn-xs"
+                      class="btn btn-ghost btn-xs px-2 hover:bg-info/10 hover:text-info/90"
                     >
                       Salvar
                     </button>
@@ -279,7 +280,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                       phx-click="delete_task_checklist_item"
                       phx-value-task_id={task.id}
                       phx-value-item_id={item.id}
-                      class="btn btn-ghost btn-xs text-error"
+                      class="btn btn-ghost btn-xs px-2 text-error/75 hover:bg-error/10 hover:text-error/90"
                     >
                       Excluir
                     </button>
@@ -289,7 +290,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                 <form
                   id={"task-checklist-add-form-#{task.id}"}
                   phx-submit="add_task_checklist_item"
-                  class="mt-2 flex items-center gap-2"
+                  class="mt-3 flex items-center gap-2 rounded-lg bg-base-100/30 p-2"
                 >
                   <input type="hidden" name="task_id" value={task.id} />
                   <input
@@ -297,13 +298,13 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                     name="checklist_item[label]"
                     type="text"
                     maxlength="140"
-                    placeholder="Adicionar item da checklist..."
-                    class="input input-bordered input-sm w-full"
+                    placeholder="Novo item..."
+                    class="flex-1 input input-sm bg-base-100 border border-base-content/12 px-2.5 py-1.5 text-sm transition focus:border-info/50 focus:outline-none focus:ring-1 focus:ring-info/20"
                   />
                   <button
                     id={"task-checklist-add-btn-#{task.id}"}
                     type="submit"
-                    class="btn btn-soft btn-xs shrink-0"
+                    class="btn btn-soft btn-xs shrink-0 border-base-content/16 hover:border-info/40 hover:bg-info/12"
                   >
                     Adicionar
                   </button>
