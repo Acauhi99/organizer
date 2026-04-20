@@ -10,25 +10,37 @@ defmodule OrganizerWeb.DashboardLive.FormattersTest do
 
   describe "format_money/1" do
     test "formats positive cents" do
-      assert Formatters.format_money(1000) == "10.00"
+      assert Formatters.format_money(1000) == "R$ 10,00"
     end
 
     test "formats negative cents" do
-      assert Formatters.format_money(-500) == "-5.00"
+      assert Formatters.format_money(-500) == "R$ -5,00"
     end
 
     test "formats zero" do
-      assert Formatters.format_money(0) == "0.00"
+      assert Formatters.format_money(0) == "R$ 0,00"
     end
 
     test "formats small cents (less than 100)" do
-      assert Formatters.format_money(5) == "0.05"
+      assert Formatters.format_money(5) == "R$ 0,05"
     end
 
-    test "raises for non-integer input" do
-      assert_raise FunctionClauseError, fn ->
-        Formatters.format_money("not an integer")
-      end
+    test "returns zero value fallback for non-integer input" do
+      assert Formatters.format_money("not an integer") == "R$ 0,00"
+    end
+  end
+
+  describe "format_percent/1" do
+    test "formats percent with comma decimal separator" do
+      assert Formatters.format_percent(33.34) == "33,3"
+    end
+
+    test "formats integer percent values with one decimal" do
+      assert Formatters.format_percent(50) == "50,0"
+    end
+
+    test "returns fallback for invalid values" do
+      assert Formatters.format_percent(nil) == "0,0"
     end
   end
 
@@ -163,21 +175,13 @@ defmodule OrganizerWeb.DashboardLive.FormattersTest do
   # Feature: dashboard-live-refactor, Property 3
   # ---------------------------------------------------------------------------
 
-  property "format_money always returns a properly formatted decimal string" do
+  property "format_money always returns a properly formatted currency string" do
     # Feature: dashboard-live-refactor, Property 3
     check all(cents <- StreamData.integer()) do
       result = Formatters.format_money(cents)
 
       assert is_binary(result)
-
-      # Must contain exactly one decimal point
-      parts = String.split(result, ".")
-      assert length(parts) == 2
-
-      # Must have exactly two digits after the decimal point
-      [_integer_part, decimal_part] = parts
-      assert String.length(decimal_part) == 2
-      assert decimal_part =~ ~r/^\d{2}$/
+      assert result =~ ~r/^R\$ -?\d{1,3}(\.\d{3})*,\d{2}$/
     end
   end
 

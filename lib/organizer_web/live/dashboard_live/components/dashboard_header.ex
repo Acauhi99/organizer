@@ -32,9 +32,11 @@ defmodule OrganizerWeb.DashboardLive.Components.DashboardHeader do
             {@workload_capacity_snapshot.completed}/{@workload_capacity_snapshot.total}
           </p>
           <p class="text-xs text-base-content/65">
-            {completion_rate(
-              @workload_capacity_snapshot.completed,
-              @workload_capacity_snapshot.total
+            {format_percent(
+              completion_rate(
+                @workload_capacity_snapshot.completed,
+                @workload_capacity_snapshot.total
+              )
             )}% concluído
           </p>
           <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-base-content/15">

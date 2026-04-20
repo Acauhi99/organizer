@@ -16,13 +16,19 @@ defmodule Organizer.SharedFinance.LinkMetricsCalculator do
     paid_a_cents = Enum.sum(Enum.map(shared_entries, & &1.amount_mine_cents))
     paid_b_cents = total_cents - paid_a_cents
 
-    effective_pct_a =
-      if total_cents == 0, do: 0.0, else: paid_a_cents / total_cents * 100.0
+    {effective_pct_a, effective_pct_b} =
+      if total_cents == 0 do
+        {0.0, 0.0}
+      else
+        effective_a = paid_a_cents / total_cents * 100.0
+        {effective_a, 100.0 - effective_a}
+      end
 
-    effective_pct_b = 100.0 - effective_pct_a
     expected_pct_a = split_ratio_a * 100.0
     expected_pct_b = split_ratio_b * 100.0
-    imbalance_detected = abs(effective_pct_a - expected_pct_a) > @imbalance_threshold
+
+    imbalance_detected =
+      total_cents > 0 and abs(effective_pct_a - expected_pct_a) > @imbalance_threshold
 
     today = Date.utc_today()
 

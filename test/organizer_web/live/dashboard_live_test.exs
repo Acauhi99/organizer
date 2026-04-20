@@ -16,6 +16,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       assert {:ok, view, _html} = live(conn, ~p"/dashboard")
       assert has_element?(view, "#account-link-panel")
+      assert has_element?(view, "#quick-finance-form")
       assert has_element?(view, "#quick-bulk")
       assert has_element?(view, "#bulk-capture-form")
       assert has_element?(view, "#analytics-panel")
@@ -38,6 +39,47 @@ defmodule OrganizerWeb.DashboardLiveTest do
       {:ok, view, _html} = live(conn, ~p"/dashboard")
 
       assert has_element?(view, "#bulk-capture-form")
+    end
+
+    test "creates expense through quick finance form", %{conn: conn, scope: scope} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      today = Date.to_iso8601(Date.utc_today())
+
+      view
+      |> form("#quick-finance-form", %{
+        "quick_finance" => %{
+          "kind" => "expense",
+          "amount_cents" => "12345",
+          "category" => "Alimentação",
+          "description" => "mercado",
+          "occurred_on" => today,
+          "expense_profile" => "variable",
+          "payment_method" => "debit"
+        }
+      })
+      |> render_submit()
+
+      {:ok, finances} = Planning.list_finance_entries(scope, %{})
+
+      assert Enum.any?(finances, fn entry ->
+               entry.kind == :expense and
+                 entry.amount_cents == 12_345 and
+                 entry.category == "Alimentação" and
+                 entry.payment_method == :debit
+             end)
+    end
+
+    test "applies quick preset for income", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      view
+      |> element("#quick-preset-income-salary")
+      |> render_click()
+
+      assert has_element?(
+               view,
+               "#quick-finance-form select[name='quick_finance[kind]'] option[value='income'][selected]"
+             )
     end
 
     test "imports mixed items through copy/paste mode", %{conn: conn, scope: scope} do
@@ -714,44 +756,11 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert has_element?(view, "#account-link-create-btn")
     end
 
-    test "load example tasks button populates bulk import", %{conn: conn} do
+    test "quick finance form is available for empty state users", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/dashboard")
 
-      view |> element("#load-example-tasks") |> render_click()
-
-      assert_push_event(view, "scroll-to-element", %{
-        selector: "#bulk-import-hero",
-        focus: "#bulk-payload-input"
-      })
-
-      assert has_element?(view, "#bulk-capture-form")
-      assert render(view) =~ "tarefa:"
-    end
-
-    test "load example finances button populates bulk import", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      view |> element("#load-example-finances") |> render_click()
-
-      assert_push_event(view, "scroll-to-element", %{
-        selector: "#bulk-import-hero",
-        focus: "#bulk-payload-input"
-      })
-
-      assert has_element?(view, "#bulk-capture-form")
-    end
-
-    test "load example goals button populates bulk import", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      view |> element("#load-example-goals") |> render_click()
-
-      assert_push_event(view, "scroll-to-element", %{
-        selector: "#bulk-import-hero",
-        focus: "#bulk-payload-input"
-      })
-
-      assert has_element?(view, "#bulk-capture-form")
+      assert has_element?(view, "#quick-finance-hero")
+      assert has_element?(view, "#quick-finance-form")
     end
 
     test "empty state disappears after importing data", %{conn: conn, user: user} do
@@ -762,8 +771,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/dashboard")
 
-      # User now has data, so bulk_import empty state should not be shown
-      refute has_element?(view, "#empty-state-bulk_import")
+      assert has_element?(view, "#tasks [id^='tasks-']")
     end
   end
 
@@ -837,8 +845,8 @@ defmodule OrganizerWeb.DashboardLiveTest do
       render_hook(view, "global_shortcut", %{"key" => "b", "altKey" => true})
 
       assert_push_event(view, "scroll-to-element", %{
-        selector: "#bulk-import-hero",
-        focus: "#bulk-payload-input"
+        selector: "#quick-finance-hero",
+        focus: "#quick-finance-amount"
       })
     end
 

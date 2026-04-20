@@ -12,6 +12,8 @@ defmodule OrganizerWeb.DashboardLive do
     OperationsPanel
   }
 
+  alias OrganizerWeb.Components.QuickFinanceHero
+
   @analytics_days_filters ["7", "15", "30", "90", "365"]
   @analytics_capacity_filters ["5", "10", "15", "20", "30"]
   @bulk_template_keys ["mixed", "tasks", "finance", "goals"]
@@ -43,6 +45,60 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   use OrganizerWeb.DashboardLive.BulkEventHandlers
+
+  @impl true
+  def handle_event("quick_finance_validate", %{"quick_finance" => attrs}, socket) do
+    normalized = normalize_quick_finance_attrs(attrs)
+
+    {:noreply,
+     socket
+     |> assign(:quick_finance_kind, normalized["kind"])
+     |> assign(:quick_finance_form, to_form(normalized, as: :quick_finance))}
+  end
+
+  @impl true
+  def handle_event("quick_finance_preset", %{"preset" => preset}, socket) do
+    preset_attrs = quick_finance_preset_attrs(preset)
+    normalized = normalize_quick_finance_attrs(preset_attrs)
+
+    {:noreply,
+     socket
+     |> assign(:quick_finance_kind, normalized["kind"])
+     |> assign(:quick_finance_form, to_form(normalized, as: :quick_finance))}
+  end
+
+  @impl true
+  def handle_event("create_quick_finance", %{"quick_finance" => attrs}, socket) do
+    normalized = normalize_quick_finance_attrs(attrs)
+
+    case Planning.create_finance_entry(socket.assigns.current_scope, normalized) do
+      {:ok, _entry} ->
+        kind = normalized["kind"]
+        reset_form = quick_finance_defaults(kind)
+
+        {:noreply,
+         socket
+         |> assign(:quick_finance_kind, kind)
+         |> assign(:quick_finance_form, to_form(reset_form, as: :quick_finance))
+         |> put_flash(:info, "Lançamento registrado.")
+         |> load_operation_collections()
+         |> refresh_dashboard_insights()}
+
+      {:error, {:validation, _details}} ->
+        {:noreply,
+         socket
+         |> assign(:quick_finance_kind, normalized["kind"])
+         |> assign(:quick_finance_form, to_form(normalized, as: :quick_finance))
+         |> put_flash(:error, "Verifique os campos para registrar o lançamento.")}
+
+      _ ->
+        {:noreply,
+         socket
+         |> assign(:quick_finance_kind, normalized["kind"])
+         |> assign(:quick_finance_form, to_form(normalized, as: :quick_finance))
+         |> put_flash(:error, "Não foi possível registrar o lançamento.")}
+    end
+  end
 
   @impl true
   def handle_event("filter_tasks", %{"filters" => filters}, socket) do
@@ -287,7 +343,7 @@ defmodule OrganizerWeb.DashboardLive do
   def handle_event("show_keyboard_shortcuts", _params, socket) do
     {:noreply,
      socket
-     |> put_flash(:info, "Atalhos: Alt+B (focar editor), ? (ajuda)")}
+     |> put_flash(:info, "Atalhos: Alt+B (lançamento rápido), ? (ajuda)")}
   end
 
   @impl true
@@ -304,15 +360,15 @@ defmodule OrganizerWeb.DashboardLive do
       alt_pressed? and normalized_key == "b" ->
         {:noreply,
          push_event(socket, "scroll-to-element", %{
-           selector: "#bulk-import-hero",
-           focus: "#bulk-payload-input"
+           selector: "#quick-finance-hero",
+           focus: "#quick-finance-amount"
          })}
 
       normalized_key == "?" ->
         {:noreply,
          socket
          |> assign(:help_menu_open, true)
-         |> put_flash(:info, "Atalhos: Alt+B (focar editor), ? (ajuda)")}
+         |> put_flash(:info, "Atalhos: Alt+B (lançamento rápido), ? (ajuda)")}
 
       true ->
         {:noreply, socket}
@@ -539,6 +595,8 @@ defmodule OrganizerWeb.DashboardLive do
 
     socket
     |> assign(:current_scope, scope)
+    |> assign(:quick_finance_kind, "expense")
+    |> assign(:quick_finance_form, to_form(quick_finance_defaults(), as: :quick_finance))
     |> assign(:bulk_form, to_form(%{"payload" => ""}, as: :bulk))
     |> assign(:bulk_payload_text, "")
     |> assign(:bulk_result, nil)
@@ -601,6 +659,110 @@ defmodule OrganizerWeb.DashboardLive do
     Insights.load_chart_svgs(socket)
   end
 
+  defp quick_finance_defaults(kind \\ "expense") do
+    %{
+      "kind" => kind,
+      "amount_cents" => "",
+      "category" => default_quick_finance_category(kind),
+      "description" => "",
+      "occurred_on" => Date.to_iso8601(Date.utc_today()),
+      "expense_profile" => default_quick_expense_profile(kind),
+      "payment_method" => default_quick_payment_method(kind)
+    }
+  end
+
+  defp quick_finance_preset_attrs("income_salary") do
+    %{
+      "kind" => "income",
+      "category" => "Salário"
+    }
+  end
+
+  defp quick_finance_preset_attrs("income_extra") do
+    %{
+      "kind" => "income",
+      "category" => "Renda extra"
+    }
+  end
+
+  defp quick_finance_preset_attrs("expense_fixed") do
+    %{
+      "kind" => "expense",
+      "category" => "Moradia",
+      "expense_profile" => "fixed",
+      "payment_method" => "debit"
+    }
+  end
+
+  defp quick_finance_preset_attrs("expense_variable") do
+    %{
+      "kind" => "expense",
+      "category" => "Alimentação",
+      "expense_profile" => "variable",
+      "payment_method" => "debit"
+    }
+  end
+
+  defp quick_finance_preset_attrs(_preset), do: quick_finance_defaults()
+
+  defp normalize_quick_finance_attrs(attrs) when is_map(attrs) do
+    kind =
+      attrs
+      |> Map.get("kind", "expense")
+      |> to_string()
+      |> String.trim()
+      |> case do
+        "income" -> "income"
+        _ -> "expense"
+      end
+
+    defaults = quick_finance_defaults(kind)
+
+    merged =
+      defaults
+      |> Map.merge(string_key_map(attrs))
+      |> Map.put("kind", kind)
+      |> Map.update!("category", &default_if_blank(&1, default_quick_finance_category(kind)))
+      |> Map.update!("occurred_on", &default_if_blank(&1, Date.to_iso8601(Date.utc_today())))
+
+    if kind == "income" do
+      merged
+      |> Map.put("expense_profile", "")
+      |> Map.put("payment_method", "")
+    else
+      merged
+      |> Map.update!(
+        "expense_profile",
+        &default_if_blank(&1, default_quick_expense_profile(kind))
+      )
+      |> Map.update!("payment_method", &default_if_blank(&1, default_quick_payment_method(kind)))
+    end
+  end
+
+  defp normalize_quick_finance_attrs(_attrs), do: quick_finance_defaults()
+
+  defp string_key_map(attrs) do
+    Enum.reduce(attrs, %{}, fn {key, value}, acc ->
+      Map.put(acc, to_string(key), value)
+    end)
+  end
+
+  defp default_if_blank(value, fallback) when is_binary(value) do
+    if String.trim(value) == "", do: fallback, else: value
+  end
+
+  defp default_if_blank(nil, fallback), do: fallback
+  defp default_if_blank(value, _fallback), do: value
+
+  defp default_quick_finance_category("income"), do: "Salário"
+  defp default_quick_finance_category(_kind), do: "Alimentação"
+
+  defp default_quick_expense_profile("income"), do: ""
+  defp default_quick_expense_profile(_kind), do: "variable"
+
+  defp default_quick_payment_method("income"), do: ""
+  defp default_quick_payment_method(_kind), do: "debit"
+
   # Example generators for empty state interactions
 
   defp generate_task_example do
@@ -646,6 +808,7 @@ defmodule OrganizerWeb.DashboardLive do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
       <nav aria-label="Atalhos de navegação">
+        <a href="#quick-finance-hero" class="skip-link">Ir para lançamento rápido</a>
         <a href="#bulk-import-hero" class="skip-link">Ir para importação em lote</a>
         <a href="#operations-panel" class="skip-link">Ir para operação diária</a>
         <a href="#analytics-panel" class="skip-link">Ir para visão analítica</a>
@@ -675,26 +838,33 @@ defmodule OrganizerWeb.DashboardLive do
           current_user_id={@current_scope.user.id}
         />
 
-        <OrganizerWeb.Components.BulkImportHero.bulk_import_hero
-          bulk_form={@bulk_form}
-          bulk_payload_text={@bulk_payload_text}
-          bulk_result={@bulk_result}
-          bulk_preview={@bulk_preview}
-          bulk_strict_mode={@bulk_strict_mode}
-          last_bulk_import={@last_bulk_import}
-          bulk_recent_payloads={@bulk_recent_payloads}
-          bulk_template_favorites={@bulk_template_favorites}
-          bulk_import_block_size={@bulk_import_block_size}
-          bulk_import_block_index={@bulk_import_block_index}
-          bulk_top_categories={@bulk_top_categories}
-          bulk_share_finances={@bulk_share_finances}
-          bulk_share_link_id={@bulk_share_link_id}
-          account_links={@account_links}
-          current_user_id={@current_scope.user.id}
-          onboarding_active={@onboarding_active}
-          onboarding_step={@onboarding_step}
-          has_any_imports={@has_any_imports}
+        <QuickFinanceHero.quick_finance_hero
+          quick_finance_form={@quick_finance_form}
+          quick_finance_kind={@quick_finance_kind}
         />
+
+        <div id="bulk-import-legacy" class="hidden" aria-hidden="true">
+          <OrganizerWeb.Components.BulkImportHero.bulk_import_hero
+            bulk_form={@bulk_form}
+            bulk_payload_text={@bulk_payload_text}
+            bulk_result={@bulk_result}
+            bulk_preview={@bulk_preview}
+            bulk_strict_mode={@bulk_strict_mode}
+            last_bulk_import={@last_bulk_import}
+            bulk_recent_payloads={@bulk_recent_payloads}
+            bulk_template_favorites={@bulk_template_favorites}
+            bulk_import_block_size={@bulk_import_block_size}
+            bulk_import_block_index={@bulk_import_block_index}
+            bulk_top_categories={@bulk_top_categories}
+            bulk_share_finances={@bulk_share_finances}
+            bulk_share_link_id={@bulk_share_link_id}
+            account_links={@account_links}
+            current_user_id={@current_scope.user.id}
+            onboarding_active={@onboarding_active}
+            onboarding_step={@onboarding_step}
+            has_any_imports={@has_any_imports}
+          />
+        </div>
 
         <OperationsPanel.operations_panel
           streams={@streams}

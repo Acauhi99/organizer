@@ -131,7 +131,9 @@ defmodule OrganizerWeb.SharedFinanceLive do
             </article>
 
             <article class="collab-stat micro-surface rounded-2xl p-4 text-center">
-              <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">Parceiro arcou</p>
+              <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
+                Outra conta arcou
+              </p>
               <p class="mt-1 text-xl font-mono font-semibold text-success">
                 {format_cents(@metrics.paid_b_cents)}
               </p>
@@ -179,7 +181,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 <p class="mt-1 text-xs font-mono text-base-content/62">
                   {format_cents(view.entry.amount_cents)} • Você: {format_pct(view.split_ratio_mine)} ({format_cents(
                     view.amount_mine_cents
-                  )}) • Parceiro: {format_pct(view.split_ratio_theirs)} ({format_cents(
+                  )}) • Outra conta: {format_pct(view.split_ratio_theirs)} ({format_cents(
                     view.amount_theirs_cents
                   )})
                 </p>
@@ -250,14 +252,48 @@ defmodule OrganizerWeb.SharedFinanceLive do
   defp parse_int(_), do: :error
 
   defp format_cents(cents) when is_integer(cents) do
-    "R$ #{:erlang.float_to_binary(cents / 100, decimals: 2)}"
+    abs_cents = abs(cents)
+    integer_part = abs_cents |> div(100) |> Integer.to_string() |> add_thousands_separator()
+    decimal_part = abs_cents |> rem(100) |> Integer.to_string() |> String.pad_leading(2, "0")
+    sign = if cents < 0, do: "-", else: ""
+
+    "R$ #{sign}#{integer_part},#{decimal_part}"
   end
 
   defp format_cents(_), do: "R$ 0,00"
 
-  defp format_pct(ratio) when is_float(ratio) do
-    "#{:erlang.float_to_binary(ratio * 100, decimals: 1)}%"
+  defp format_pct(ratio) when is_number(ratio) do
+    "#{format_decimal_ptbr(ratio * 100, 1)}%"
   end
 
-  defp format_pct(_), do: "0.0%"
+  defp format_pct(_), do: "0,0%"
+
+  defp format_decimal_ptbr(value, decimals) when is_number(value) and decimals >= 0 do
+    rounded_value = Float.round(value * 1.0, decimals)
+    sign = if rounded_value < 0, do: "-", else: ""
+
+    normalized =
+      rounded_value
+      |> abs()
+      |> :erlang.float_to_binary(decimals: decimals)
+
+    case String.split(normalized, ".") do
+      [integer_part, decimal_part] ->
+        formatted_integer = add_thousands_separator(integer_part)
+        sign <> formatted_integer <> "," <> decimal_part
+
+      [integer_part] ->
+        sign <> add_thousands_separator(integer_part)
+    end
+  end
+
+  defp add_thousands_separator(value) when is_binary(value) do
+    value
+    |> String.reverse()
+    |> String.graphemes()
+    |> Enum.chunk_every(3)
+    |> Enum.map(&Enum.join/1)
+    |> Enum.join(".")
+    |> String.reverse()
+  end
 end

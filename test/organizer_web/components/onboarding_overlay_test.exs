@@ -54,7 +54,7 @@ defmodule OrganizerWeb.Components.OnboardingOverlayTest do
         """)
 
       assert html =~ "Bem-vindo ao Organizer!"
-      assert html =~ "importação em lote"
+      assert html =~ "formulários objetivos"
     end
 
     test "renders correct step content for step 2" do
@@ -70,8 +70,8 @@ defmodule OrganizerWeb.Components.OnboardingOverlayTest do
         />
         """)
 
-      assert html =~ "Formato de Importação"
-      assert html =~ "tipo: conteúdo"
+      assert html =~ "Lançamento Rápido"
+      assert html =~ "card de lançamento rápido"
     end
 
     test "renders correct step content for step 6" do

@@ -8,13 +8,19 @@ defmodule OrganizerWeb.DashboardLive.Formatters do
 
   @spec format_money(integer() | any()) :: String.t()
   def format_money(cents) when is_integer(cents) do
-    value = cents / 100
-    :erlang.float_to_binary(value, decimals: 2)
+    abs_cents = abs(cents)
+    integer_part = abs_cents |> div(100) |> Integer.to_string() |> add_thousands_separator()
+    decimal_part = abs_cents |> rem(100) |> Integer.to_string() |> String.pad_leading(2, "0")
+    sign = if cents < 0, do: "-", else: ""
+
+    "R$ #{sign}#{integer_part},#{decimal_part}"
   end
 
-  @spec format_percent(number() | any()) :: float()
-  def format_percent(value) when is_number(value), do: Float.round(value * 1.0, 1)
-  def format_percent(_value), do: 0.0
+  def format_money(_), do: "R$ 0,00"
+
+  @spec format_percent(number() | any()) :: String.t()
+  def format_percent(value) when is_number(value), do: format_decimal_ptbr(value * 1.0, 1)
+  def format_percent(_value), do: "0,0"
 
   @spec date_input_value(Date.t() | nil | any()) :: String.t()
   def date_input_value(nil), do: ""
@@ -115,4 +121,33 @@ defmodule OrganizerWeb.DashboardLive.Formatters do
   defp finance_payment_method_label(nil), do: nil
   defp finance_payment_method_label(value) when is_atom(value), do: Atom.to_string(value)
   defp finance_payment_method_label(_), do: nil
+
+  defp format_decimal_ptbr(value, decimals) when is_number(value) and decimals >= 0 do
+    rounded_value = Float.round(value * 1.0, decimals)
+    sign = if rounded_value < 0, do: "-", else: ""
+
+    normalized =
+      rounded_value
+      |> abs()
+      |> :erlang.float_to_binary(decimals: decimals)
+
+    case String.split(normalized, ".") do
+      [integer_part, decimal_part] ->
+        formatted_integer = add_thousands_separator(integer_part)
+        sign <> formatted_integer <> "," <> decimal_part
+
+      [integer_part] ->
+        sign <> add_thousands_separator(integer_part)
+    end
+  end
+
+  defp add_thousands_separator(value) when is_binary(value) do
+    value
+    |> String.reverse()
+    |> String.graphemes()
+    |> Enum.chunk_every(3)
+    |> Enum.map(&Enum.join/1)
+    |> Enum.join(".")
+    |> String.reverse()
+  end
 end

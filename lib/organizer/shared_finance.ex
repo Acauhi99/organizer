@@ -226,7 +226,7 @@ defmodule Organizer.SharedFinance do
 
   @doc """
   Lists all FinanceEntries shared with a given AccountLink, with split ratios calculated
-  for the current month based on each user's reference income.
+  for each entry month based on each user's reference income.
   Returns `{:error, :not_found}` if the user is not a participant of the link.
   """
   def list_shared_entries(scope, link_id, _params \\ %{}) do
@@ -239,26 +239,16 @@ defmodule Organizer.SharedFinance do
           from(fe in FinanceEntry, where: fe.shared_with_link_id == ^link_id)
           |> Repo.all()
 
-        now = Date.utc_today()
-        month = now.month
-        year = now.year
-
-        income_a = SplitCalculator.calculate_reference_income(link.user_a_id, month, year)
-        income_b = SplitCalculator.calculate_reference_income(link.user_b_id, month, year)
-
-        {ratio_a, ratio_b} = SplitCalculator.calculate_split_ratio(income_a, income_b)
-
         user_id = scope.user.id
-
-        {ratio_mine, ratio_theirs} =
-          if user_id == link.user_a_id do
-            {ratio_a, ratio_b}
-          else
-            {ratio_b, ratio_a}
-          end
+        ratio_by_period = build_ratio_by_period(entries, link)
 
         views =
           Enum.map(entries, fn entry ->
+            {ratio_a, ratio_b} =
+              Map.fetch!(ratio_by_period, {entry.occurred_on.year, entry.occurred_on.month})
+
+            {ratio_mine, ratio_theirs} = scoped_ratios(user_id, link, ratio_a, ratio_b)
+
             {amount_mine, amount_theirs} =
               SplitCalculator.split_amount(entry.amount_cents, ratio_mine)
 
@@ -298,20 +288,23 @@ defmodule Organizer.SharedFinance do
               view.entry.occurred_on.year == reference_month.year
           end)
 
-        now = Date.utc_today()
-        income_a = SplitCalculator.calculate_reference_income(link.user_a_id, now.month, now.year)
-        income_b = SplitCalculator.calculate_reference_income(link.user_b_id, now.month, now.year)
+        income_a =
+          SplitCalculator.calculate_reference_income(
+            link.user_a_id,
+            reference_month.month,
+            reference_month.year
+          )
+
+        income_b =
+          SplitCalculator.calculate_reference_income(
+            link.user_b_id,
+            reference_month.month,
+            reference_month.year
+          )
 
         {ratio_a, ratio_b} = SplitCalculator.calculate_split_ratio(income_a, income_b)
 
-        user_id = scope.user.id
-
-        {split_ratio_a, split_ratio_b} =
-          if user_id == link.user_a_id do
-            {ratio_a, ratio_b}
-          else
-            {ratio_b, ratio_a}
-          end
+        {split_ratio_a, split_ratio_b} = scoped_ratios(scope.user.id, link, ratio_a, ratio_b)
 
         metrics =
           LinkMetricsCalculator.calculate_link_metrics(
@@ -578,6 +571,27 @@ defmodule Organizer.SharedFinance do
     |> case do
       {:ok, %{account_link: account_link}} -> {:ok, account_link}
       {:error, _op, changeset, _changes} -> {:error, changeset}
+    end
+  end
+
+  defp build_ratio_by_period(entries, link) do
+    entries
+    |> Enum.map(fn entry -> {entry.occurred_on.year, entry.occurred_on.month} end)
+    |> MapSet.new()
+    |> Enum.reduce(%{}, fn {year, month}, acc ->
+      income_a = SplitCalculator.calculate_reference_income(link.user_a_id, month, year)
+      income_b = SplitCalculator.calculate_reference_income(link.user_b_id, month, year)
+      ratios = SplitCalculator.calculate_split_ratio(income_a, income_b)
+
+      Map.put(acc, {year, month}, ratios)
+    end)
+  end
+
+  defp scoped_ratios(user_id, link, ratio_a, ratio_b) do
+    if user_id == link.user_a_id do
+      {ratio_a, ratio_b}
+    else
+      {ratio_b, ratio_a}
     end
   end
 

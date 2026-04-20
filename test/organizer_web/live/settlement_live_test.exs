@@ -122,6 +122,61 @@ defmodule OrganizerWeb.SettlementLiveTest do
     end
   end
 
+  describe "transfer methods" do
+    setup %{conn: conn} do
+      %{user_a: user_a, scope_a: scope_a, link: link} = setup_linked_users()
+      conn = log_in_user(conn, user_a)
+      %{conn: conn, scope_a: scope_a, link: link}
+    end
+
+    test "renders extended transfer method options", %{conn: conn, link: link} do
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}/settlement")
+
+      assert has_element?(
+               view,
+               "#new-record-form select[name='record[method]'] option[value='pix']"
+             )
+
+      assert has_element?(
+               view,
+               "#new-record-form select[name='record[method]'] option[value='doc']"
+             )
+
+      assert has_element?(
+               view,
+               "#new-record-form select[name='record[method]'] option[value='transferencia_entre_contas']"
+             )
+
+      assert has_element?(
+               view,
+               "#new-record-form select[name='record[method]'] option[value='cartao_credito']"
+             )
+
+      assert has_element?(
+               view,
+               "#new-record-form select[name='record[method]'] option[value='outro']"
+             )
+    end
+
+    test "accepts creating a record with DOC method", %{conn: conn, scope_a: scope_a, link: link} do
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}/settlement")
+      today = Date.utc_today() |> Date.to_iso8601()
+
+      view
+      |> form("#new-record-form",
+        record: %{"amount_cents" => "5000", "method" => "doc", "transferred_at" => today}
+      )
+      |> render_submit()
+
+      {:ok, cycle} =
+        SharedFinance.get_or_create_settlement_cycle(scope_a, link.id, Date.utc_today())
+
+      {:ok, records} = SharedFinance.list_settlement_records(scope_a, cycle.id)
+
+      assert Enum.any?(records, &(&1.method == :doc))
+    end
+  end
+
   describe "confirm button" do
     setup %{conn: conn} do
       %{user_a: user_a, link: link} = setup_linked_users()
@@ -137,7 +192,7 @@ defmodule OrganizerWeb.SettlementLiveTest do
       view |> element("#confirm-settlement-btn") |> render_click()
 
       html = render(view)
-      assert html =~ "Confirmação registrada." or html =~ "Aguardando confirmação do parceiro."
+      assert html =~ "Confirmação registrada." or html =~ "Aguardando confirmação da outra conta."
     end
   end
 
@@ -181,6 +236,32 @@ defmodule OrganizerWeb.SettlementLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}/settlement")
       refute has_element?(view, "#settle-btn[disabled]")
+    end
+  end
+
+  describe "visual formatting" do
+    setup %{conn: conn} do
+      %{user_a: user_a, scope_a: scope_a, link: link} = setup_linked_users()
+      conn = log_in_user(conn, user_a)
+      %{conn: conn, scope_a: scope_a, link: link}
+    end
+
+    test "renders settlement amounts in pt-BR format", %{conn: conn, scope_a: scope_a, link: link} do
+      {:ok, cycle} =
+        SharedFinance.get_or_create_settlement_cycle(scope_a, link.id, Date.utc_today())
+
+      {:ok, _record} =
+        SharedFinance.create_settlement_record(scope_a, cycle.id, %{
+          amount_cents: 123_456,
+          method: :pix,
+          transferred_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}/settlement")
+      html = render(view)
+
+      assert html =~ "R$ 1.234,56"
+      refute html =~ "R$ 1234.56"
     end
   end
 end

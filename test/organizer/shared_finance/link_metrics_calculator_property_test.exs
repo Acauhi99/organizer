@@ -112,4 +112,15 @@ defmodule Organizer.SharedFinance.LinkMetricsCalculatorPropertyTest do
       end
     end
   end
+
+  test "imbalance_detected é false quando total_cents é zero" do
+    metrics = LinkMetricsCalculator.calculate_link_metrics([], 0.5, 0.5)
+
+    assert metrics.total_cents == 0
+    assert metrics.paid_a_cents == 0
+    assert metrics.paid_b_cents == 0
+    assert metrics.effective_pct_a == 0.0
+    assert metrics.effective_pct_b == 0.0
+    refute metrics.imbalance_detected
+  end
 end

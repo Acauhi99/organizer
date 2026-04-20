@@ -9,12 +9,11 @@ defmodule Organizer.SharedFinance.SplitCalculator do
 
   @doc """
   Calculates the reference income for a user in a given month/year.
-  = sum of active FixedCost amounts + sum of FinanceEntry amounts where kind=:income and occurred_on is in month/year.
+  = sum of FinanceEntry amounts where kind=:income and occurred_on is in month/year.
   """
   def calculate_reference_income(user_id, month, year, repo \\ Repo) do
-    fixed_cost_sum = query_active_fixed_costs_sum(user_id, repo)
     income_entry_sum = query_income_entries_sum(user_id, month, year, repo)
-    fixed_cost_sum + income_entry_sum
+    income_entry_sum
   end
 
   @doc """
@@ -48,17 +47,6 @@ defmodule Organizer.SharedFinance.SplitCalculator do
   # ---------------------------------------------------------------------------
   # Private helpers
   # ---------------------------------------------------------------------------
-
-  defp query_active_fixed_costs_sum(user_id, repo) do
-    result =
-      repo.one(
-        from fc in Organizer.Planning.FixedCost,
-          where: fc.user_id == ^user_id and fc.active == true,
-          select: sum(fc.amount_cents)
-      )
-
-    result || 0
-  end
 
   defp query_income_entries_sum(user_id, month, year, repo) do
     result =

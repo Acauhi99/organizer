@@ -215,5 +215,97 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
       assert view_a.split_ratio_mine == view_b.split_ratio_theirs
       assert view_a.split_ratio_theirs == view_b.split_ratio_mine
     end
+
+    test "when only one account has income in the month, shared expense is 100/0" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+
+      _income_a =
+        create_entry(user_a, %{
+          kind: :income,
+          amount_cents: 500_000,
+          category: "Salario",
+          occurred_on: ~D[2024-01-10]
+        })
+
+      expense =
+        create_entry(user_a, %{
+          kind: :expense,
+          amount_cents: 12_345,
+          occurred_on: ~D[2024-01-15],
+          shared_with_link_id: link.id
+        })
+
+      scope_a = make_scope(user_a)
+      scope_b = make_scope(user_b)
+
+      {:ok, [view_a]} = SharedFinance.list_shared_entries(scope_a, link.id)
+      {:ok, [view_b]} = SharedFinance.list_shared_entries(scope_b, link.id)
+
+      assert view_a.entry.id == expense.id
+      assert view_b.entry.id == expense.id
+
+      assert view_a.split_ratio_mine == 1.0
+      assert view_a.split_ratio_theirs == 0.0
+      assert view_a.amount_mine_cents == expense.amount_cents
+      assert view_a.amount_theirs_cents == 0
+
+      assert view_b.split_ratio_mine == 0.0
+      assert view_b.split_ratio_theirs == 1.0
+      assert view_b.amount_mine_cents == 0
+      assert view_b.amount_theirs_cents == expense.amount_cents
+    end
+
+    test "split ratio is dynamic per shared entry month" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+      scope_a = make_scope(user_a)
+
+      _income_a_jan =
+        create_entry(user_a, %{
+          kind: :income,
+          amount_cents: 500_000,
+          category: "Salario",
+          occurred_on: ~D[2024-01-03]
+        })
+
+      _income_b_feb =
+        create_entry(user_b, %{
+          kind: :income,
+          amount_cents: 400_000,
+          category: "Freelance",
+          occurred_on: ~D[2024-02-05]
+        })
+
+      jan_expense =
+        create_entry(user_a, %{
+          amount_cents: 10_000,
+          occurred_on: ~D[2024-01-15],
+          shared_with_link_id: link.id
+        })
+
+      feb_expense =
+        create_entry(user_a, %{
+          amount_cents: 20_000,
+          occurred_on: ~D[2024-02-15],
+          shared_with_link_id: link.id
+        })
+
+      {:ok, views} = SharedFinance.list_shared_entries(scope_a, link.id)
+      views_by_entry = Map.new(views, fn view -> {view.entry.id, view} end)
+
+      jan_view = Map.fetch!(views_by_entry, jan_expense.id)
+      feb_view = Map.fetch!(views_by_entry, feb_expense.id)
+
+      assert jan_view.split_ratio_mine == 1.0
+      assert jan_view.amount_mine_cents == jan_expense.amount_cents
+      assert jan_view.amount_theirs_cents == 0
+
+      assert feb_view.split_ratio_mine == 0.0
+      assert feb_view.amount_mine_cents == 0
+      assert feb_view.amount_theirs_cents == feb_expense.amount_cents
+    end
   end
 end

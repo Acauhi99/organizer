@@ -2,6 +2,7 @@ defmodule OrganizerWeb.SettlementLive do
   use OrganizerWeb, :live_view
 
   alias Organizer.SharedFinance
+  alias Organizer.SharedFinance.SettlementRecord
 
   @impl true
   def mount(%{"link_id" => link_id_param}, _session, socket) do
@@ -76,7 +77,7 @@ defmodule OrganizerWeb.SettlementLive do
         {:noreply,
          socket
          |> assign(:record_form, record_form(attrs))
-         |> put_flash(:error, "Método inválido. Use PIX ou TED.")}
+         |> put_flash(:error, "Método inválido. Selecione uma opção da lista.")}
 
       {:error, :invalid_date} ->
         {:noreply,
@@ -105,7 +106,7 @@ defmodule OrganizerWeb.SettlementLive do
          |> put_flash(:info, "Confirmação registrada.")}
 
       {:error, :awaiting_counterpart_confirmation} ->
-        {:noreply, put_flash(socket, :info, "Aguardando confirmação do parceiro.")}
+        {:noreply, put_flash(socket, :info, "Aguardando confirmação da outra conta.")}
 
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, "Não foi possível confirmar o acerto.")}
@@ -228,7 +229,7 @@ defmodule OrganizerWeb.SettlementLive do
                   {format_cents(record.amount_cents)}
                 </p>
                 <p class="text-xs text-base-content/62">
-                  {String.upcase(to_string(record.method))} • {format_date(record.transferred_at)}
+                  {format_method(record.method)} • {format_date(record.transferred_at)}
                 </p>
               </div>
             </div>
@@ -259,7 +260,7 @@ defmodule OrganizerWeb.SettlementLive do
                 type="select"
                 label="Método"
                 prompt="Selecione"
-                options={[{"PIX", "pix"}, {"TED", "ted"}]}
+                options={settlement_method_options()}
               />
 
               <.input
@@ -345,10 +346,22 @@ defmodule OrganizerWeb.SettlementLive do
 
   defp parse_method(nil), do: {:ok, :pix}
   defp parse_method(""), do: {:ok, :pix}
-  defp parse_method("pix"), do: {:ok, :pix}
-  defp parse_method("ted"), do: {:ok, :ted}
-  defp parse_method(:pix), do: {:ok, :pix}
-  defp parse_method(:ted), do: {:ok, :ted}
+
+  defp parse_method(value) when is_binary(value) do
+    case Enum.find(SettlementRecord.methods(), &(to_string(&1) == value)) do
+      nil -> {:error, :invalid_method}
+      method -> {:ok, method}
+    end
+  end
+
+  defp parse_method(value) when is_atom(value) do
+    if value in SettlementRecord.methods() do
+      {:ok, value}
+    else
+      {:error, :invalid_method}
+    end
+  end
+
   defp parse_method(_), do: {:error, :invalid_method}
 
   defp parse_transferred_at(nil), do: {:ok, DateTime.utc_now() |> DateTime.truncate(:second)}
@@ -367,7 +380,12 @@ defmodule OrganizerWeb.SettlementLive do
   defp parse_transferred_at(_), do: {:error, :invalid_date}
 
   defp format_cents(cents) when is_integer(cents) do
-    "R$ #{:erlang.float_to_binary(cents / 100, decimals: 2)}"
+    abs_cents = abs(cents)
+    integer_part = abs_cents |> div(100) |> Integer.to_string() |> add_thousands_separator()
+    decimal_part = abs_cents |> rem(100) |> Integer.to_string() |> String.pad_leading(2, "0")
+    sign = if cents < 0, do: "-", else: ""
+
+    "R$ #{sign}#{integer_part},#{decimal_part}"
   end
 
   defp format_cents(_), do: "R$ 0,00"
@@ -378,11 +396,28 @@ defmodule OrganizerWeb.SettlementLive do
 
   defp format_date(_), do: "—"
 
+  defp settlement_method_options do
+    SettlementRecord.method_options()
+  end
+
+  defp format_method(method) when is_atom(method), do: SettlementRecord.method_label(method)
+  defp format_method(_), do: "—"
+
   defp debtor_label(cycle, link) do
     if cycle.debtor_id == link.user_a_id, do: link.user_a.email, else: link.user_b.email
   end
 
   defp creditor_label(cycle, link) do
     if cycle.debtor_id == link.user_a_id, do: link.user_b.email, else: link.user_a.email
+  end
+
+  defp add_thousands_separator(value) when is_binary(value) do
+    value
+    |> String.reverse()
+    |> String.graphemes()
+    |> Enum.chunk_every(3)
+    |> Enum.map(&Enum.join/1)
+    |> Enum.join(".")
+    |> String.reverse()
   end
 end

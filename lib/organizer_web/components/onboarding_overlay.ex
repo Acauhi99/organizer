@@ -123,35 +123,34 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
     %{
       title: "Bem-vindo ao Organizer!",
       description:
-        "O Organizer permite que você organize sua vida através de importação em lote. Cole linhas de texto e o sistema interpreta automaticamente, criando tarefas, lançamentos financeiros e metas.",
-      example: "tarefa: Revisar documentação\nfinança: -50 Almoço\nmeta: Ler 12 livros este ano"
+        "O Organizer permite organizar tarefas, finanças e metas com formulários objetivos e fluxo guiado.",
+      example: "Tipo: Gasto\nValor: 12990\nCategoria: Alimentação\nData: hoje"
     }
   end
 
   defp step_content(2) do
     %{
-      title: "Formato de Importação",
+      title: "Lançamento Rápido",
       description:
-        "Cada linha segue o formato 'tipo: conteúdo'. O sistema reconhece automaticamente o tipo (tarefa, finança ou meta) e extrai as informações relevantes.",
-      example:
-        "tarefa: Comprar mantimentos\nfinança: -120.50 Supermercado\nmeta: Economizar R$ 5000"
+        "Use o card de lançamento rápido para registrar renda e gastos com presets e campos claros.",
+      example: "Preset: Gasto variável\nCategoria: Alimentação\nPagamento: Débito"
     }
   end
 
   defp step_content(3) do
     %{
-      title: "Sistema de Pré-visualização",
+      title: "Filtros Operacionais",
       description:
-        "Antes de importar, você pode revisar todas as linhas interpretadas. O sistema destaca erros e sugere correções automaticamente.",
+        "No painel de Operação diária, filtre por período, tipo e categoria para focar no que importa.",
       example: nil
     }
   end
 
   defp step_content(4) do
     %{
-      title: "Correções Automáticas",
+      title: "Edição Direta",
       description:
-        "O sistema oferece sugestões inteligentes para corrigir linhas com erro. Você pode aceitar as sugestões ou editar manualmente.",
+        "Edite tarefas, lançamentos e metas direto na lista quando precisar ajustar detalhes.",
       example: nil
     }
   end
@@ -174,10 +173,10 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
     }
   end
 
-  defp spotlight_target(1), do: "#bulk-import-hero"
-  defp spotlight_target(2), do: "#bulk-payload-input"
-  defp spotlight_target(3), do: "#bulk-preview-btn"
-  defp spotlight_target(4), do: "#bulk-import-hero"
+  defp spotlight_target(1), do: "#quick-finance-hero"
+  defp spotlight_target(2), do: "#quick-finance-form"
+  defp spotlight_target(3), do: "#operations-panel"
+  defp spotlight_target(4), do: "#operations-panel"
   defp spotlight_target(5), do: "#operations-panel"
   defp spotlight_target(6), do: "#account-link-panel"
 end

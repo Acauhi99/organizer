@@ -25,10 +25,8 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       Planning.create_finance_entry(scope, %{
         "description" => "Shared expense",
         "amount_cents" => 10_000,
-        "kind" => "expense",
-        "expense_profile" => "variable",
-        "payment_method" => "credit",
-        "category" => "Alimentação",
+        "kind" => "income",
+        "category" => "Salário",
         "occurred_on" => Date.to_iso8601(Date.utc_today())
       })
 
@@ -136,15 +134,36 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
   end
 
   describe "imbalance indicator" do
-    test "imbalance indicator is visible when imbalance_detected is true", %{conn: conn} do
+    test "imbalance indicator is hidden when totals are zero", %{conn: conn} do
       %{user_a: user_a, link: link} = setup_linked_users()
       conn = log_in_user(conn, user_a)
 
-      # With 0 entries: total_cents=0, effective_pct_a=0.0, expected_pct_a=50.0
-      # |0.0 - 50.0| = 50 > 5 → imbalance_detected = true
       {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
 
-      assert has_element?(view, "#imbalance-indicator")
+      refute has_element?(view, "#imbalance-indicator")
+    end
+  end
+
+  describe "visual formatting" do
+    setup %{conn: conn} do
+      %{user_a: user_a, scope_a: scope_a, link: link} = setup_linked_users()
+      conn = log_in_user(conn, user_a)
+      %{conn: conn, scope_a: scope_a, link: link}
+    end
+
+    test "renders money and percentages in pt-BR format", %{
+      conn: conn,
+      scope_a: scope_a,
+      link: link
+    } do
+      _entry = create_shared_entry(scope_a, link.id)
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      html = render(view)
+
+      assert html =~ "R$ 100,00"
+      assert html =~ ~r/\d+,\d%/
+      refute html =~ "R$ 100.00"
+      refute html =~ "100.0%"
     end
   end
 end

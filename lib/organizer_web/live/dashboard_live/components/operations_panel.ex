@@ -1,7 +1,6 @@
 defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
   use Phoenix.Component
   import OrganizerWeb.DashboardLive.Formatters
-  alias OrganizerWeb.Components.BulkImportHero
 
   attr :streams, :map, required: true
   attr :ops_tab, :string, required: true
@@ -172,7 +171,15 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
             </form>
             <div id="tasks" phx-update="stream" class="mt-3 space-y-2">
               <div id="tasks-empty-wrapper" class="hidden only:block">
-                <BulkImportHero.empty_state_educational entity_type={:tasks} />
+                <div
+                  id="empty-state-tasks"
+                  class="rounded-xl border border-dashed border-base-content/25 px-4 py-6 text-center"
+                >
+                  <p class="text-sm font-semibold text-base-content/85">Nenhuma tarefa cadastrada</p>
+                  <p class="mt-1 text-xs leading-5 text-base-content/65">
+                    Use os formulários da plataforma para começar a registrar suas tarefas.
+                  </p>
+                </div>
               </div>
               <article
                 :for={{id, task} <- @streams.tasks}
@@ -378,7 +385,17 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
             </form>
             <div id="finances" phx-update="stream" class="mt-3 space-y-2">
               <div id="finances-empty-wrapper" class="hidden only:block">
-                <BulkImportHero.empty_state_educational entity_type={:finances} />
+                <div
+                  id="empty-state-finances"
+                  class="rounded-xl border border-dashed border-base-content/25 px-4 py-6 text-center"
+                >
+                  <p class="text-sm font-semibold text-base-content/85">
+                    Nenhum lançamento financeiro
+                  </p>
+                  <p class="mt-1 text-xs leading-5 text-base-content/65">
+                    Registre rendas e gastos no card de lançamento rápido para começar seu histórico.
+                  </p>
+                </div>
               </div>
               <article
                 :for={{id, entry} <- @streams.finances}
@@ -622,7 +639,15 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
             </form>
             <div id="goals" phx-update="stream" class="mt-3 space-y-2">
               <div id="goals-empty-wrapper" class="hidden only:block">
-                <BulkImportHero.empty_state_educational entity_type={:goals} />
+                <div
+                  id="empty-state-goals"
+                  class="rounded-xl border border-dashed border-base-content/25 px-4 py-6 text-center"
+                >
+                  <p class="text-sm font-semibold text-base-content/85">Nenhuma meta cadastrada</p>
+                  <p class="mt-1 text-xs leading-5 text-base-content/65">
+                    Cadastre metas pelo painel para acompanhar evolução e próximos prazos.
+                  </p>
+                </div>
               </div>
               <article
                 :for={{id, goal} <- @streams.goals}

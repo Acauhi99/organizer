@@ -218,6 +218,20 @@ defmodule OrganizerWeb.DashboardLive.Insights do
   defp normalize_finance_category(category), do: to_string(category)
 
   defp money_axis_formatter(value) when is_number(value) do
-    "R$ " <> :erlang.float_to_binary(value / 100, decimals: 0)
+    rounded_amount = round(value / 100)
+    sign = if rounded_amount < 0, do: "-", else: ""
+    integer_part = rounded_amount |> abs() |> Integer.to_string() |> add_thousands_separator()
+
+    "R$ " <> sign <> integer_part
+  end
+
+  defp add_thousands_separator(value) when is_binary(value) do
+    value
+    |> String.reverse()
+    |> String.graphemes()
+    |> Enum.chunk_every(3)
+    |> Enum.map(&Enum.join/1)
+    |> Enum.join(".")
+    |> String.reverse()
   end
 end
