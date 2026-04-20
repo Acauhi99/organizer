@@ -14,6 +14,7 @@ defmodule Organizer.Planning do
   alias Organizer.Planning.Goal
   alias Organizer.Planning.ImportantDate
   alias Organizer.Planning.Task
+  alias Organizer.Planning.TaskChecklistItem
   alias Organizer.Repo
 
   def list_tasks(%Scope{} = scope, params \\ %{}) do
@@ -66,6 +67,14 @@ defmodule Organizer.Planning do
             query
           end
 
+        checklist_query =
+          from i in TaskChecklistItem,
+            order_by: [asc: i.position, asc: i.inserted_at]
+
+        query =
+          from t in query,
+            preload: [checklist_items: ^checklist_query]
+
         {:ok, Repo.all(query)}
       end
     end
@@ -89,7 +98,7 @@ defmodule Organizer.Planning do
 
   def get_task(%Scope{} = scope, id) do
     with {:ok, user_id} <- scope_user_id(scope),
-         %Task{} = task <- Repo.get_by(Task, id: id, user_id: user_id) do
+         %Task{} = task <- task_with_checklist_items_query(user_id, id) |> Repo.one() do
       {:ok, task}
     else
       nil -> {:error, :not_found}
@@ -134,6 +143,79 @@ defmodule Organizer.Planning do
     end
 
     result
+  end
+
+  def add_task_checklist_item(%Scope{} = scope, task_id, attrs) when is_map(attrs) do
+    with {:ok, user_id} <- scope_user_id(scope),
+         %Task{} = task <- Repo.get_by(Task, id: task_id, user_id: user_id),
+         {:ok, label} <- validate_checklist_label(attrs),
+         {:ok, item} <- create_task_checklist_item(task, label),
+         {:ok, _task} <- sync_task_status_with_checklist(scope, task.id) do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
+      {:ok, item}
+    else
+      nil ->
+        {:error, :not_found}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  def update_task_checklist_item(%Scope{} = scope, task_id, item_id, attrs) when is_map(attrs) do
+    with {:ok, user_id} <- scope_user_id(scope),
+         %Task{} = task <- Repo.get_by(Task, id: task_id, user_id: user_id),
+         %TaskChecklistItem{} = item <-
+           Repo.get_by(TaskChecklistItem, id: item_id, task_id: task.id),
+         {:ok, label} <- validate_checklist_label(attrs),
+         {:ok, item} <-
+           item |> TaskChecklistItem.changeset(%{label: label}) |> persist_changeset() do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
+      {:ok, item}
+    else
+      nil ->
+        {:error, :not_found}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  def toggle_task_checklist_item(%Scope{} = scope, task_id, item_id, checked_value) do
+    with {:ok, user_id} <- scope_user_id(scope),
+         %Task{} = task <- Repo.get_by(Task, id: task_id, user_id: user_id),
+         %TaskChecklistItem{} = item <-
+           Repo.get_by(TaskChecklistItem, id: item_id, task_id: task.id),
+         {:ok, checked?} <- parse_checked_flag(checked_value),
+         {:ok, item} <- update_checklist_item_checked(item, checked?),
+         {:ok, _task} <- sync_task_status_with_checklist(scope, task.id) do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
+      {:ok, item}
+    else
+      nil ->
+        {:error, :not_found}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  def delete_task_checklist_item(%Scope{} = scope, task_id, item_id) do
+    with {:ok, user_id} <- scope_user_id(scope),
+         %Task{} = task <- Repo.get_by(Task, id: task_id, user_id: user_id),
+         %TaskChecklistItem{} = item <-
+           Repo.get_by(TaskChecklistItem, id: item_id, task_id: task.id),
+         {:ok, _deleted} <- Repo.delete(item),
+         {:ok, _task} <- sync_task_status_with_checklist(scope, task.id) do
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
+      :ok
+    else
+      nil ->
+        {:error, :not_found}
+
+      {:error, _reason} = error ->
+        error
+    end
   end
 
   def list_finance_entries(%Scope{} = scope, params \\ %{}) do
@@ -628,6 +710,105 @@ defmodule Organizer.Planning do
 
     Map.merge(defaults, normalize_string_keys(attrs))
   end
+
+  defp create_task_checklist_item(task, label) do
+    next_position = next_task_checklist_item_position(task.id)
+
+    %TaskChecklistItem{task_id: task.id}
+    |> TaskChecklistItem.changeset(%{
+      label: label,
+      position: next_position,
+      checked: false,
+      checked_at: nil
+    })
+    |> persist_changeset()
+  end
+
+  defp update_checklist_item_checked(item, checked?) do
+    checked_at = if checked?, do: DateTime.utc_now() |> DateTime.truncate(:second), else: nil
+
+    item
+    |> TaskChecklistItem.changeset(%{
+      checked: checked?,
+      checked_at: checked_at
+    })
+    |> persist_changeset()
+  end
+
+  defp sync_task_status_with_checklist(scope, task_id) do
+    with {:ok, task} <- get_task(scope, task_id) do
+      checklist_items = task.checklist_items
+      total = length(checklist_items)
+      checked_total = Enum.count(checklist_items, & &1.checked)
+
+      desired_status =
+        cond do
+          total == 0 -> task.status
+          checked_total == total -> :done
+          checked_total > 0 -> :in_progress
+          true -> :todo
+        end
+
+      if desired_status == task.status do
+        {:ok, task}
+      else
+        completed_at =
+          if desired_status == :done, do: DateTime.utc_now() |> DateTime.truncate(:second)
+
+        task
+        |> Task.changeset(%{
+          title: task.title,
+          notes: task.notes,
+          due_on: task.due_on,
+          priority: task.priority,
+          status: desired_status,
+          completed_at: completed_at
+        })
+        |> persist_changeset()
+      end
+    end
+  end
+
+  defp task_with_checklist_items_query(user_id, id) do
+    checklist_query =
+      from i in TaskChecklistItem,
+        order_by: [asc: i.position, asc: i.inserted_at]
+
+    from t in Task,
+      where: t.id == ^id and t.user_id == ^user_id,
+      preload: [checklist_items: ^checklist_query]
+  end
+
+  defp next_task_checklist_item_position(task_id) do
+    (Repo.one(
+       from i in TaskChecklistItem,
+         where: i.task_id == ^task_id,
+         select: max(i.position)
+     ) || -1) + 1
+  end
+
+  defp validate_checklist_label(attrs) do
+    label =
+      attrs
+      |> Map.get("label", Map.get(attrs, :label))
+      |> to_string()
+      |> String.trim()
+
+    cond do
+      label == "" ->
+        {:error, {:validation, %{label: ["is required"]}}}
+
+      String.length(label) > 140 ->
+        {:error, {:validation, %{label: ["is too long"]}}}
+
+      true ->
+        {:ok, label}
+    end
+  end
+
+  defp parse_checked_flag(value) when value in [true, "true", "1", 1, "on"], do: {:ok, true}
+  defp parse_checked_flag(value) when value in [false, "false", "0", 0, "off"], do: {:ok, false}
+  defp parse_checked_flag(_value), do: {:error, {:validation, %{checked: ["is invalid"]}}}
 
   defp normalize_string_keys(attrs) do
     Enum.into(attrs, %{}, fn {k, v} -> {to_string(k), v} end)

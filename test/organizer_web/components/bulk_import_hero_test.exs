@@ -44,19 +44,6 @@ defmodule OrganizerWeb.Components.BulkImportHeroTest do
       assert html =~ "finança: valor descrição"
     end
 
-    test "renders empty state for goals" do
-      assigns = %{entity_type: :goals}
-
-      html =
-        rendered_to_string(~H"""
-        <BulkImportHero.empty_state_educational entity_type={@entity_type} />
-        """)
-
-      assert html =~ "empty-state-goals"
-      assert html =~ "Nenhuma meta cadastrada"
-      assert html =~ "meta: descrição"
-    end
-
     test "includes load example button" do
       assigns = %{entity_type: :tasks}
 
@@ -71,7 +58,7 @@ defmodule OrganizerWeb.Components.BulkImportHeroTest do
     end
 
     test "includes example code for each entity type" do
-      for entity_type <- [:bulk_import, :tasks, :finances, :goals] do
+      for entity_type <- [:bulk_import, :tasks, :finances] do
         assigns = %{entity_type: entity_type}
 
         html =

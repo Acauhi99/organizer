@@ -189,7 +189,7 @@ defmodule OrganizerWeb.Components.BulkImportHero do
   end
 
   defp hint_description(5) do
-    "Depois de importar, acompanhe tarefas, finanças e metas nos painéis secundários para manter o ritmo diário."
+    "Depois de importar, acompanhe tarefas e finanças nos painéis secundários para manter o ritmo diário."
   end
 
   defp hint_description(_) do
@@ -201,15 +201,13 @@ defmodule OrganizerWeb.Components.BulkImportHero do
   defp entity_icon(:bulk_import), do: "hero-document-text"
   defp entity_icon(:tasks), do: "hero-check-circle"
   defp entity_icon(:finances), do: "hero-currency-dollar"
-  defp entity_icon(:goals), do: "hero-trophy"
 
   defp empty_state_title(:bulk_import), do: "Comece a importar seus dados"
   defp empty_state_title(:tasks), do: "Nenhuma tarefa cadastrada"
   defp empty_state_title(:finances), do: "Nenhum lançamento financeiro"
-  defp empty_state_title(:goals), do: "Nenhuma meta cadastrada"
 
   defp empty_state_description(:bulk_import) do
-    "Use o Copy/Paste Studio para importar tarefas, lançamentos financeiros e metas em lote. Cole linhas de texto no formato 'tipo: conteúdo' e o sistema interpreta automaticamente."
+    "Use o Copy/Paste Studio para importar tarefas e lançamentos financeiros em lote. Cole linhas de texto no formato 'tipo: conteúdo' e o sistema interpreta automaticamente."
   end
 
   defp empty_state_description(:tasks) do
@@ -220,15 +218,10 @@ defmodule OrganizerWeb.Components.BulkImportHero do
     "Importe lançamentos financeiros usando o formato 'finança: valor descrição'. Use valores negativos para despesas e positivos para receitas."
   end
 
-  defp empty_state_description(:goals) do
-    "Crie metas usando o formato 'meta: descrição'. Você pode adicionar múltiplas metas de uma vez colando várias linhas."
-  end
-
   defp example_line(:bulk_import) do
     """
     tarefa: Revisar documentação
     finança: -50 Almoço
-    meta: Ler 12 livros este ano
     """
   end
 
@@ -245,14 +238,6 @@ defmodule OrganizerWeb.Components.BulkImportHero do
     finança: -120.50 Supermercado
     finança: 3500 Salário
     finança: -45 Transporte
-    """
-  end
-
-  defp example_line(:goals) do
-    """
-    meta: Economizar R$ 5000 este ano
-    meta: Ler 24 livros
-    meta: Fazer exercícios 3x por semana
     """
   end
 end

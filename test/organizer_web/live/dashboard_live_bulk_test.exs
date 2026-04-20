@@ -65,7 +65,7 @@ defmodule OrganizerWeb.DashboardLiveBulkTest do
 
     test "accepts string index from JavaScript", %{view: view} do
       render_hook(view, "validate_bulk_line", %{
-        "line" => "meta: Aprender Elixir",
+        "line" => "financeiro: Almoço 35",
         "index" => "2"
       })
 
@@ -194,7 +194,7 @@ defmodule OrganizerWeb.DashboardLiveBulkTest do
 
       payload = """
       tarefa: Task A | data=#{today} | prioridade=alta
-      meta: Meta B | horizonte=medio
+      financeiro: almoço 35
       """
 
       do_preview(view, payload)

@@ -3,6 +3,7 @@ defmodule Organizer.Planning.Task do
   import Ecto.Changeset
 
   alias Organizer.Accounts.User
+  alias Organizer.Planning.TaskChecklistItem
 
   @statuses [:todo, :in_progress, :done]
   @priorities [:low, :medium, :high]
@@ -16,6 +17,7 @@ defmodule Organizer.Planning.Task do
     field :completed_at, :utc_datetime
 
     belongs_to :user, User
+    has_many :checklist_items, TaskChecklistItem, on_delete: :delete_all
 
     timestamps(type: :utc_datetime)
   end

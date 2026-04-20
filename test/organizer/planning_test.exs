@@ -37,6 +37,75 @@ defmodule Organizer.PlanningTest do
     end
   end
 
+  describe "task checklist" do
+    test "adds checklist items and auto-updates task status based on checks" do
+      scope = user_scope_fixture()
+
+      assert {:ok, task} =
+               Planning.create_task(scope, %{
+                 "title" => "Compras do mercado",
+                 "priority" => "medium"
+               })
+
+      assert {:ok, item_a} =
+               Planning.add_task_checklist_item(scope, task.id, %{"label" => "Arroz"})
+
+      assert {:ok, item_b} =
+               Planning.add_task_checklist_item(scope, task.id, %{"label" => "Feijão"})
+
+      assert {:ok, task_after_add} = Planning.get_task(scope, task.id)
+      assert task_after_add.status == :todo
+      assert Enum.count(task_after_add.checklist_items) == 2
+      assert Enum.any?(task_after_add.checklist_items, &(&1.id == item_a.id))
+      assert Enum.any?(task_after_add.checklist_items, &(&1.id == item_b.id))
+
+      assert {:ok, _} = Planning.toggle_task_checklist_item(scope, task.id, item_a.id, "true")
+
+      assert {:ok, task_after_first_check} = Planning.get_task(scope, task.id)
+      assert task_after_first_check.status == :in_progress
+
+      assert {:ok, _} = Planning.toggle_task_checklist_item(scope, task.id, item_b.id, "true")
+
+      assert {:ok, task_done} = Planning.get_task(scope, task.id)
+      assert task_done.status == :done
+      refute is_nil(task_done.completed_at)
+
+      assert {:ok, _} = Planning.toggle_task_checklist_item(scope, task.id, item_a.id, "false")
+
+      assert {:ok, task_reopened} = Planning.get_task(scope, task.id)
+      assert task_reopened.status == :in_progress
+      assert is_nil(task_reopened.completed_at)
+    end
+
+    test "enforces ownership for checklist mutations" do
+      scope_a = user_scope_fixture()
+      scope_b = user_scope_fixture()
+
+      assert {:ok, task_a} =
+               Planning.create_task(scope_a, %{
+                 "title" => "Task privada com checklist",
+                 "priority" => "medium"
+               })
+
+      assert {:ok, item} =
+               Planning.add_task_checklist_item(scope_a, task_a.id, %{"label" => "Item A"})
+
+      assert {:error, :not_found} =
+               Planning.add_task_checklist_item(scope_b, task_a.id, %{"label" => "Invasão"})
+
+      assert {:error, :not_found} =
+               Planning.update_task_checklist_item(scope_b, task_a.id, item.id, %{
+                 "label" => "Alterado"
+               })
+
+      assert {:error, :not_found} =
+               Planning.toggle_task_checklist_item(scope_b, task_a.id, item.id, "true")
+
+      assert {:error, :not_found} =
+               Planning.delete_task_checklist_item(scope_b, task_a.id, item.id)
+    end
+  end
+
   describe "finance isolation" do
     test "aggregates finance summary per user" do
       scope_a = user_scope_fixture()

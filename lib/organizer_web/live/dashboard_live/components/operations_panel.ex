@@ -1,15 +1,14 @@
 defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
   use Phoenix.Component
+  import OrganizerWeb.CoreComponents, only: [icon: 1]
   import OrganizerWeb.DashboardLive.Formatters
 
   attr :streams, :map, required: true
   attr :ops_tab, :string, required: true
   attr :task_filters, :map, required: true
   attr :finance_filters, :map, required: true
-  attr :goal_filters, :map, required: true
   attr :editing_task_id, :any, default: nil
   attr :editing_finance_id, :any, default: nil
-  attr :editing_goal_id, :any, default: nil
   attr :ops_counts, :map, required: true
 
   def operations_panel(assigns) do
@@ -49,23 +48,9 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
           >
             Financeiro
           </button>
-          <button
-            id="ops-tab-goals"
-            type="button"
-            phx-click="set_ops_tab"
-            phx-value-tab="goals"
-            class={[
-              "btn btn-sm ds-pill-btn",
-              @ops_tab == "goals" && "btn-primary",
-              @ops_tab != "goals" && "btn-soft"
-            ]}
-          >
-            Metas
-          </button>
         </div>
       </div>
 
-      <%!-- Panel content --%>
       <div id="operations-panel-content">
         <div class="mt-3 grid gap-2 md:grid-cols-4">
           <article
@@ -81,6 +66,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
               {@ops_counts.tasks_open}
             </p>
           </article>
+
           <article
             id="ops-card-tasks-total"
             class="micro-surface rounded-lg p-3"
@@ -94,6 +80,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
               {@ops_counts.tasks_total}
             </p>
           </article>
+
           <article
             id="ops-card-finances-total"
             class="micro-surface rounded-lg p-3"
@@ -108,18 +95,29 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
             <p class="mt-1 text-lg font-semibold text-base-content">
               {@ops_counts.finances_total}
             </p>
+            <p class="mt-1 text-xs text-base-content/65">
+              Receitas: {Map.get(@ops_counts, :finances_income_total, 0)} • Despesas: {Map.get(
+                @ops_counts,
+                :finances_expense_total,
+                0
+              )}
+            </p>
           </article>
+
           <article
-            id="ops-card-goals-active"
+            id="ops-card-finances-balance"
             class="micro-surface rounded-lg p-3"
-            aria-label={"Metas ativas nos próximos #{@goal_filters.days} dias"}
+            aria-label={"Saldo financeiro nos últimos #{@finance_filters.days} dias"}
           >
             <div class="flex items-center justify-between">
-              <p class="text-xs uppercase tracking-wide text-base-content/65">Metas ativas</p>
-              <span class="text-xs text-base-content/65">{@goal_filters.days}d</span>
+              <p class="text-xs uppercase tracking-wide text-base-content/65">Saldo no filtro</p>
+              <span class="text-xs text-base-content/65">{@finance_filters.days}d</span>
             </div>
-            <p class="mt-1 text-lg font-semibold text-base-content">
-              {@ops_counts.goals_active}/{@ops_counts.goals_total}
+            <p class={[
+              "mt-1 text-lg font-semibold",
+              balance_value_class(finance_balance_cents(@ops_counts))
+            ]}>
+              {format_money(finance_balance_cents(@ops_counts))}
             </p>
           </article>
         </div>
@@ -169,6 +167,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                 maxlength="100"
               />
             </form>
+
             <div id="tasks" phx-update="stream" class="mt-3 space-y-2">
               <div id="tasks-empty-wrapper" class="hidden only:block">
                 <div
@@ -177,22 +176,140 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                 >
                   <p class="text-sm font-semibold text-base-content/85">Nenhuma tarefa cadastrada</p>
                   <p class="mt-1 text-xs leading-5 text-base-content/65">
-                    Use os formulários da plataforma para começar a registrar suas tarefas.
+                    Use o lançamento rápido de tarefas para começar o planejamento operacional.
                   </p>
                 </div>
               </div>
+
               <article
                 :for={{id, task} <- @streams.tasks}
                 id={id}
-                class="micro-surface rounded-lg p-3"
+                class={[
+                  "micro-surface rounded-xl border p-3",
+                  task_status_border_class(task.status)
+                ]}
               >
-                <p class="font-medium text-base-content">{task.title}</p>
-                <p class="text-xs text-base-content/65">
-                  {to_string(task.priority)} • {if task.due_on,
-                    do: Date.to_iso8601(task.due_on),
-                    else: "sem data"}
-                </p>
-                <div class="mt-2 flex gap-2">
+                <% checklist_items = task_checklist_items(task) %>
+                <% {checked_items, total_items} = task_checklist_totals(task) %>
+
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-semibold text-base-content">{task.title}</p>
+                    <p class="mt-1 text-xs text-base-content/65">
+                      Prazo: {task_due_label(task.due_on)}
+                    </p>
+                    <p :if={total_items > 0} class="mt-1 text-xs font-medium text-info/80">
+                      Checklist: {checked_items}/{total_items} itens concluídos
+                    </p>
+                    <p
+                      :if={task.notes && String.trim(task.notes) != ""}
+                      class="mt-2 line-clamp-2 text-xs text-base-content/72"
+                    >
+                      {task.notes}
+                    </p>
+                  </div>
+
+                  <div class="flex shrink-0 flex-wrap gap-1.5">
+                    <span class={task_priority_badge_class(task.priority)}>
+                      {task_priority_label(task.priority)}
+                    </span>
+                    <span class={task_status_badge_class(task.status)}>
+                      {task_status_label(task.status)}
+                    </span>
+                  </div>
+                </div>
+
+                <div :if={checklist_items != []} class="mt-3 space-y-1.5">
+                  <form
+                    :for={item <- checklist_items}
+                    id={"task-checklist-item-form-#{task.id}-#{item.id}"}
+                    phx-submit="save_task_checklist_item_label"
+                    class="flex items-center gap-1.5 rounded-md border border-base-content/12 bg-base-100/72 px-2 py-1.5"
+                  >
+                    <input type="hidden" name="task_id" value={task.id} />
+                    <input type="hidden" name="item_id" value={item.id} />
+                    <button
+                      id={"task-checklist-toggle-#{task.id}-#{item.id}"}
+                      type="button"
+                      phx-click="toggle_task_checklist_item"
+                      phx-value-task_id={task.id}
+                      phx-value-item_id={item.id}
+                      phx-value-checked={if(item.checked, do: "false", else: "true")}
+                      class={[
+                        "h-5 w-5 shrink-0 rounded border transition",
+                        item.checked &&
+                          "border-success/40 bg-success/20 text-success-content hover:bg-success/25",
+                        !item.checked &&
+                          "border-base-content/25 bg-base-100 text-base-content/70 hover:bg-base-200/70"
+                      ]}
+                      aria-label={
+                        if item.checked,
+                          do: "Desmarcar item da checklist",
+                          else: "Marcar item da checklist"
+                      }
+                    >
+                      <.icon
+                        name={if(item.checked, do: "hero-check", else: "hero-plus")}
+                        class="size-3.5"
+                      />
+                    </button>
+
+                    <input
+                      id={"task-checklist-label-#{task.id}-#{item.id}"}
+                      name="checklist_item[label]"
+                      type="text"
+                      value={item.label}
+                      maxlength="140"
+                      class={[
+                        "input input-sm input-ghost w-full border border-transparent px-2 py-1 text-sm",
+                        item.checked && "line-through text-base-content/55"
+                      ]}
+                    />
+
+                    <button
+                      id={"task-checklist-save-#{task.id}-#{item.id}"}
+                      type="submit"
+                      class="btn btn-ghost btn-xs"
+                    >
+                      Salvar
+                    </button>
+                    <button
+                      id={"task-checklist-delete-#{task.id}-#{item.id}"}
+                      type="button"
+                      phx-click="delete_task_checklist_item"
+                      phx-value-task_id={task.id}
+                      phx-value-item_id={item.id}
+                      class="btn btn-ghost btn-xs text-error"
+                    >
+                      Excluir
+                    </button>
+                  </form>
+                </div>
+
+                <form
+                  id={"task-checklist-add-form-#{task.id}"}
+                  phx-submit="add_task_checklist_item"
+                  class="mt-2 flex items-center gap-2"
+                >
+                  <input type="hidden" name="task_id" value={task.id} />
+                  <input
+                    id={"task-checklist-add-input-#{task.id}"}
+                    name="checklist_item[label]"
+                    type="text"
+                    maxlength="140"
+                    placeholder="Adicionar item da checklist..."
+                    class="input input-bordered input-sm w-full"
+                  />
+                  <button
+                    id={"task-checklist-add-btn-#{task.id}"}
+                    type="submit"
+                    class="btn btn-soft btn-xs shrink-0"
+                  >
+                    Adicionar
+                  </button>
+                </form>
+
+                <div class="mt-3 flex gap-2">
                   <button
                     id={"task-edit-btn-#{task.id}"}
                     type="button"
@@ -234,10 +351,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                     required
                     class="input input-bordered w-full"
                   />
-                  <label
-                    class="text-xs font-medium text-base-content/70"
-                    for={"task-due-#{task.id}"}
-                  >
+                  <label class="text-xs font-medium text-base-content/70" for={"task-due-#{task.id}"}>
                     Data
                   </label>
                   <input
@@ -287,11 +401,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                   </div>
                   <div class="flex gap-2">
                     <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-sm"
-                      phx-click="cancel_edit_task"
-                    >
+                    <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_edit_task">
                       Cancelar
                     </button>
                   </div>
@@ -322,9 +432,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
               <select name="filters[kind]" class="select select-bordered select-sm">
                 <option value="all" selected={@finance_filters.kind == "all"}>Todos tipos</option>
                 <option value="income" selected={@finance_filters.kind == "income"}>Receita</option>
-                <option value="expense" selected={@finance_filters.kind == "expense"}>
-                  Despesa
-                </option>
+                <option value="expense" selected={@finance_filters.kind == "expense"}>Despesa</option>
               </select>
               <select name="filters[expense_profile]" class="select select-bordered select-sm">
                 <option value="all" selected={@finance_filters.expense_profile == "all"}>
@@ -383,6 +491,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                 step="100"
               />
             </form>
+
             <div id="finances" phx-update="stream" class="mt-3 space-y-2">
               <div id="finances-empty-wrapper" class="hidden only:block">
                 <div
@@ -397,16 +506,46 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                   </p>
                 </div>
               </div>
+
               <article
                 :for={{id, entry} <- @streams.finances}
                 id={id}
-                class="micro-surface rounded-lg p-3"
+                class={[
+                  "micro-surface rounded-xl border p-3",
+                  finance_row_border_class(entry.kind)
+                ]}
               >
-                <p class="font-medium text-base-content">{entry.category}</p>
-                <p class="text-xs text-base-content/65">
-                  {finance_entry_meta_line(entry)}
-                </p>
-                <div class="mt-2 flex gap-2">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-semibold text-base-content">{entry.category}</p>
+                    <p
+                      :if={entry.description && String.trim(entry.description) != ""}
+                      class="mt-1 text-xs text-base-content/72"
+                    >
+                      {entry.description}
+                    </p>
+                    <p class="mt-1 text-xs text-base-content/65">
+                      {date_input_value(entry.occurred_on)}
+                    </p>
+                  </div>
+                  <p class={finance_amount_class(entry.kind)}>
+                    {format_money(entry.amount_cents)}
+                  </p>
+                </div>
+
+                <div class="mt-2 flex flex-wrap gap-1.5">
+                  <span class={finance_kind_badge_class(entry.kind)}>
+                    {finance_kind_label(entry.kind)}
+                  </span>
+                  <span :if={entry.expense_profile} class="badge badge-outline badge-sm">
+                    {finance_profile_label(entry.expense_profile)}
+                  </span>
+                  <span :if={entry.payment_method} class="badge badge-outline badge-sm">
+                    {finance_payment_label(entry.payment_method)}
+                  </span>
+                </div>
+
+                <div class="mt-3 flex gap-2">
                   <button
                     id={"finance-edit-btn-#{entry.id}"}
                     type="button"
@@ -568,247 +707,99 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
               </article>
             </div>
           </section>
-
-          <section class={[
-            "rounded-xl border border-base-content/12 bg-base-100/35 p-4",
-            @ops_tab != "goals" && "hidden"
-          ]}>
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/70">
-              Metas
-            </h2>
-            <form
-              id="goal-filters"
-              phx-change="filter_goals"
-              phx-debounce="500"
-              class="mt-3 grid gap-2 sm:grid-cols-4 lg:grid-cols-6"
-              aria-label="Filtros de metas"
-            >
-              <select name="filters[status]" class="select select-bordered select-sm">
-                <option value="all" selected={@goal_filters.status == "all"}>Todos status</option>
-                <option value="active" selected={@goal_filters.status == "active"}>Ativa</option>
-                <option value="paused" selected={@goal_filters.status == "paused"}>Pausada</option>
-                <option value="done" selected={@goal_filters.status == "done"}>Concluída</option>
-              </select>
-              <select name="filters[horizon]" class="select select-bordered select-sm">
-                <option value="all" selected={@goal_filters.horizon == "all"}>
-                  Todos horizontes
-                </option>
-                <option value="short" selected={@goal_filters.horizon == "short"}>
-                  Curto prazo
-                </option>
-                <option value="medium" selected={@goal_filters.horizon == "medium"}>
-                  Médio prazo
-                </option>
-                <option value="long" selected={@goal_filters.horizon == "long"}>Longo prazo</option>
-              </select>
-              <input
-                type="number"
-                name="filters[days]"
-                value={@goal_filters.days}
-                placeholder="Próximos dias..."
-                class="input input-bordered input-sm"
-                min="1"
-                max="3650"
-              />
-              <input
-                type="number"
-                name="filters[progress_min]"
-                value={@goal_filters.progress_min}
-                placeholder="Progresso mín %..."
-                class="input input-bordered input-sm"
-                min="0"
-                max="100"
-              />
-              <input
-                type="number"
-                name="filters[progress_max]"
-                value={@goal_filters.progress_max}
-                placeholder="Progresso máx %..."
-                class="input input-bordered input-sm"
-                min="0"
-                max="100"
-              />
-              <input
-                type="text"
-                name="filters[q]"
-                value={@goal_filters.q}
-                placeholder="Buscar por título ou descrição..."
-                class="input input-bordered input-sm"
-                maxlength="100"
-              />
-            </form>
-            <div id="goals" phx-update="stream" class="mt-3 space-y-2">
-              <div id="goals-empty-wrapper" class="hidden only:block">
-                <div
-                  id="empty-state-goals"
-                  class="rounded-xl border border-dashed border-base-content/25 px-4 py-6 text-center"
-                >
-                  <p class="text-sm font-semibold text-base-content/85">Nenhuma meta cadastrada</p>
-                  <p class="mt-1 text-xs leading-5 text-base-content/65">
-                    Cadastre metas pelo painel para acompanhar evolução e próximos prazos.
-                  </p>
-                </div>
-              </div>
-              <article
-                :for={{id, goal} <- @streams.goals}
-                id={id}
-                class="micro-surface rounded-lg p-3"
-              >
-                <p class="font-medium text-base-content">{goal.title}</p>
-                <p class="text-xs text-base-content/65">
-                  {to_string(goal.horizon)} • {to_string(goal.status)}
-                </p>
-                <div class="mt-2 flex gap-2">
-                  <button
-                    id={"goal-edit-btn-#{goal.id}"}
-                    type="button"
-                    phx-click="start_edit_goal"
-                    phx-value-id={goal.id}
-                    class="ds-inline-btn rounded-md px-2 py-1 text-xs"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    id={"goal-delete-btn-#{goal.id}"}
-                    type="button"
-                    phx-click="delete_goal"
-                    phx-value-id={goal.id}
-                    class="ds-inline-btn ds-inline-btn-danger rounded-md px-2 py-1 text-xs"
-                  >
-                    Excluir
-                  </button>
-                </div>
-
-                <form
-                  :if={editing?(@editing_goal_id, goal.id)}
-                  id={"goal-edit-form-#{goal.id}"}
-                  phx-submit="save_goal"
-                  class="border border-base-content/16 bg-base-100/80 mt-3 space-y-2 rounded-md p-3"
-                >
-                  <input type="hidden" name="_id" value={goal.id} />
-                  <label
-                    class="text-xs font-medium text-base-content/70"
-                    for={"goal-title-#{goal.id}"}
-                  >
-                    Título
-                  </label>
-                  <input
-                    id={"goal-title-#{goal.id}"}
-                    name="goal[title]"
-                    type="text"
-                    required
-                    value={goal.title}
-                    class="input input-bordered w-full"
-                  />
-                  <div class="grid gap-2 sm:grid-cols-2">
-                    <div>
-                      <label
-                        class="text-xs font-medium text-base-content/70"
-                        for={"goal-horizon-#{goal.id}"}
-                      >
-                        Horizonte
-                      </label>
-                      <select
-                        id={"goal-horizon-#{goal.id}"}
-                        name="goal[horizon]"
-                        class="select select-bordered w-full"
-                      >
-                        <option value="short" selected={goal.horizon == :short}>Curto</option>
-                        <option value="medium" selected={goal.horizon == :medium}>Médio</option>
-                        <option value="long" selected={goal.horizon == :long}>Longo</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label
-                        class="text-xs font-medium text-base-content/70"
-                        for={"goal-status-#{goal.id}"}
-                      >
-                        Status
-                      </label>
-                      <select
-                        id={"goal-status-#{goal.id}"}
-                        name="goal[status]"
-                        class="select select-bordered w-full"
-                      >
-                        <option value="active" selected={goal.status == :active}>Ativa</option>
-                        <option value="paused" selected={goal.status == :paused}>Pausada</option>
-                        <option value="done" selected={goal.status == :done}>Concluída</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="grid gap-2 sm:grid-cols-2">
-                    <div>
-                      <label
-                        class="text-xs font-medium text-base-content/70"
-                        for={"goal-target-#{goal.id}"}
-                      >
-                        Alvo
-                      </label>
-                      <input
-                        id={"goal-target-#{goal.id}"}
-                        name="goal[target_value]"
-                        type="number"
-                        value={goal.target_value || ""}
-                        class="input input-bordered w-full"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        class="text-xs font-medium text-base-content/70"
-                        for={"goal-current-#{goal.id}"}
-                      >
-                        Atual
-                      </label>
-                      <input
-                        id={"goal-current-#{goal.id}"}
-                        name="goal[current_value]"
-                        type="number"
-                        value={goal.current_value || 0}
-                        class="input input-bordered w-full"
-                      />
-                    </div>
-                  </div>
-                  <label
-                    class="text-xs font-medium text-base-content/70"
-                    for={"goal-date-#{goal.id}"}
-                  >
-                    Data
-                  </label>
-                  <input
-                    id={"goal-date-#{goal.id}"}
-                    name="goal[due_on]"
-                    type="date"
-                    value={date_input_value(goal.due_on)}
-                    class="input input-bordered w-full"
-                  />
-                  <label
-                    class="text-xs font-medium text-base-content/70"
-                    for={"goal-notes-#{goal.id}"}
-                  >
-                    Notas
-                  </label>
-                  <input
-                    id={"goal-notes-#{goal.id}"}
-                    name="goal[notes]"
-                    type="text"
-                    value={goal.notes || ""}
-                    class="input input-bordered w-full"
-                  />
-                  <div class="flex gap-2">
-                    <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
-                    <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_edit_goal">
-                      Cancelar
-                    </button>
-                  </div>
-                </form>
-              </article>
-            </div>
-          </section>
         </div>
-        <%!-- End of space-y-4 tabs container --%>
       </div>
-      <%!-- End of panel content --%>
     </section>
     """
   end
+
+  defp finance_balance_cents(ops_counts) do
+    Map.get(ops_counts, :finances_income_cents, 0) -
+      Map.get(ops_counts, :finances_expense_cents, 0)
+  end
+
+  defp task_checklist_items(task) do
+    case Map.get(task, :checklist_items) do
+      items when is_list(items) -> items
+      _ -> []
+    end
+  end
+
+  defp task_checklist_totals(task) do
+    items = task_checklist_items(task)
+    {Enum.count(items, & &1.checked), length(items)}
+  end
+
+  defp task_due_label(nil), do: "sem prazo"
+  defp task_due_label(%Date{} = due_on), do: Date.to_iso8601(due_on)
+  defp task_due_label(_), do: "sem prazo"
+
+  defp task_priority_label(:high), do: "Alta"
+  defp task_priority_label(:low), do: "Baixa"
+  defp task_priority_label(_), do: "Média"
+
+  defp task_status_label(:in_progress), do: "Em andamento"
+  defp task_status_label(:done), do: "Concluída"
+  defp task_status_label(_), do: "A fazer"
+
+  defp task_priority_badge_class(:high),
+    do: "badge badge-sm border-error/40 bg-error/14 text-error-content"
+
+  defp task_priority_badge_class(:low),
+    do: "badge badge-sm border-success/40 bg-success/14 text-success-content"
+
+  defp task_priority_badge_class(_),
+    do: "badge badge-sm border-warning/40 bg-warning/14 text-warning-content"
+
+  defp task_status_badge_class(:done),
+    do: "badge badge-sm border-success/40 bg-success/14 text-success-content"
+
+  defp task_status_badge_class(:in_progress),
+    do: "badge badge-sm border-info/40 bg-info/14 text-info-content"
+
+  defp task_status_badge_class(_),
+    do: "badge badge-sm border-base-content/25 bg-base-100 text-base-content/80"
+
+  defp task_status_border_class(:done), do: "border-success/25"
+  defp task_status_border_class(:in_progress), do: "border-info/25"
+  defp task_status_border_class(_), do: "border-base-content/15"
+
+  defp finance_row_border_class(:income), do: "border-success/25"
+  defp finance_row_border_class(:expense), do: "border-error/25"
+  defp finance_row_border_class(_), do: "border-base-content/15"
+
+  defp finance_amount_class(:income), do: "text-sm font-semibold font-mono text-success"
+  defp finance_amount_class(:expense), do: "text-sm font-semibold font-mono text-error"
+  defp finance_amount_class(_), do: "text-sm font-semibold font-mono text-base-content"
+
+  defp finance_kind_badge_class(:income),
+    do: "badge badge-sm border-success/40 bg-success/14 text-success-content"
+
+  defp finance_kind_badge_class(:expense),
+    do: "badge badge-sm border-error/40 bg-error/14 text-error-content"
+
+  defp finance_kind_badge_class(_),
+    do: "badge badge-sm border-base-content/25 bg-base-100 text-base-content/80"
+
+  defp finance_kind_label(:income), do: "Receita"
+  defp finance_kind_label(:expense), do: "Despesa"
+  defp finance_kind_label(_), do: "Tipo"
+
+  defp finance_profile_label(:fixed), do: "Fixa"
+  defp finance_profile_label(:variable), do: "Variável"
+  defp finance_profile_label(:recurring_fixed), do: "Recorrente fixa"
+  defp finance_profile_label(:recurring_variable), do: "Recorrente variável"
+
+  defp finance_profile_label(value) when is_atom(value),
+    do: value |> Atom.to_string() |> String.capitalize()
+
+  defp finance_profile_label(_), do: "Perfil"
+
+  defp finance_payment_label(:debit), do: "Débito"
+  defp finance_payment_label(:credit), do: "Crédito"
+
+  defp finance_payment_label(value) when is_atom(value),
+    do: value |> Atom.to_string() |> String.capitalize()
+
+  defp finance_payment_label(_), do: "Pagamento"
 end

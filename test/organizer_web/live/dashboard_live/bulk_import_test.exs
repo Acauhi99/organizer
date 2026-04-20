@@ -23,11 +23,6 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
     _ = :variable
     _ = :credit
     _ = :debit
-    # Goal atoms
-    _ = :active
-    _ = :paused
-    _ = :short
-    _ = :long
     :ok
   end
 
@@ -63,14 +58,14 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
       assert entry.type == :finance
     end
 
-    test "parses a valid goal line" do
+    test "marks goal line as invalid because metas are disabled" do
       payload = "meta: aprender Elixir"
       result = BulkImport.preview_bulk_payload(payload)
 
-      assert result.valid_total == 1
+      assert result.valid_total == 0
+      assert result.invalid_total == 1
       [entry] = result.entries
-      assert entry.status == :valid
-      assert entry.type == :goal
+      assert entry.status == :invalid
     end
 
     test "marks empty lines as ignored" do
@@ -102,8 +97,8 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
       result = BulkImport.preview_bulk_payload(payload)
 
       assert result.lines_total > 0
-      assert result.valid_total >= 3
-      assert result.invalid_total >= 1
+      assert result.valid_total >= 2
+      assert result.invalid_total >= 2
       assert result.ignored_total >= 1
 
       assert result.valid_total + result.invalid_total + result.ignored_total ==
@@ -141,7 +136,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
       assert String.length(result) > 0
       assert String.contains?(result, "tarefa:")
       assert String.contains?(result, "financeiro:")
-      assert String.contains?(result, "meta:")
+      refute String.contains?(result, "meta:")
     end
 
     test "returns non-empty string for 'tasks'" do
@@ -160,21 +155,13 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
       assert String.contains?(result, "financeiro:")
     end
 
-    test "returns non-empty string for 'goals'" do
-      result = BulkImport.bulk_template_payload("goals")
-
-      assert is_binary(result)
-      assert String.length(result) > 0
-      assert String.contains?(result, "meta:")
-    end
-
     test "returns empty string for unknown key" do
       assert BulkImport.bulk_template_payload("unknown") == ""
       assert BulkImport.bulk_template_payload("") == ""
     end
 
     test "templates produce parseable previews" do
-      for key <- ["mixed", "tasks", "finance", "goals"] do
+      for key <- ["mixed", "tasks", "finance"] do
         payload = BulkImport.bulk_template_payload(key)
         result = BulkImport.preview_bulk_payload(payload)
 
@@ -192,7 +179,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
       assert String.contains?(markdown, "# Organizer - Guia de Importacao Copy/Paste (Markdown)")
       assert String.contains?(markdown, "## Tarefa")
       assert String.contains?(markdown, "## Financeiro")
-      assert String.contains?(markdown, "## Meta")
+      refute String.contains?(markdown, "## Meta")
       assert String.contains?(markdown, "`tipo: conteudo`")
     end
   end
@@ -245,14 +232,14 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
     end
 
     test "applies fix to the correct line in a multi-line payload" do
-      payload = "tarefa: válida\ntarefa sem dois pontos\nmeta: outra válida"
+      payload = "tarefa: válida\ntarefa sem dois pontos\nfinanceiro: almoço 35"
 
       case BulkImport.apply_bulk_fix_for_line(payload, 2) do
         {:ok, fixed} ->
           lines = String.split(fixed, "\n")
           # Line 1 and 3 should be unchanged
           assert Enum.at(lines, 0) == "tarefa: válida"
-          assert Enum.at(lines, 2) == "meta: outra válida"
+          assert Enum.at(lines, 2) == "financeiro: almoço 35"
 
         {:error, :no_fix_available} ->
           :ok
@@ -266,7 +253,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
 
   describe "apply_all_bulk_fixes/1" do
     test "returns ok tuple with fixed payload and count" do
-      payload = "tarefa: válida\nmeta: outra válida"
+      payload = "tarefa: válida\nfinanceiro: almoço 35"
       result = BulkImport.apply_all_bulk_fixes(payload)
 
       assert {:ok, fixed_payload, count} = result
@@ -276,7 +263,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
     end
 
     test "returns count of 0 when no fixes are needed" do
-      payload = "tarefa: reunião\nmeta: aprender Elixir"
+      payload = "tarefa: reunião\nfinanceiro: almoço 35"
       {:ok, _fixed, count} = BulkImport.apply_all_bulk_fixes(payload)
 
       assert count == 0
@@ -284,7 +271,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
 
     test "fixes multiple fixable lines" do
       # Lines with missing colons should be fixable
-      payload = "tarefa reunião\nmeta aprender Elixir"
+      payload = "tarefa reunião\nfinanceiro almoço 35"
       result = BulkImport.apply_all_bulk_fixes(payload)
 
       assert {:ok, _fixed, count} = result
@@ -317,7 +304,6 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
     test "returns correct block structure for a preview with valid entries" do
       payload = """
       tarefa: reunião com equipe
-      meta: aprender Elixir
       financeiro: almoço 35
       """
 
@@ -332,7 +318,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
     end
 
     test "clamps index to valid range" do
-      payload = "tarefa: reunião\nmeta: aprender Elixir\nfinanceiro: almoço 35"
+      payload = "tarefa: reunião\nfinanceiro: almoço 35\nfinanceiro: internet 120"
       preview = BulkImport.preview_bulk_payload(payload)
 
       # Index way out of bounds should be clamped
@@ -342,7 +328,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImportTest do
     end
 
     test "handles size of 1 (one entry per block)" do
-      payload = "tarefa: reunião\nmeta: aprender Elixir\nfinanceiro: almoço 35"
+      payload = "tarefa: reunião\nfinanceiro: almoço 35\nfinanceiro: internet 120"
       preview = BulkImport.preview_bulk_payload(payload)
       result = BulkImport.current_bulk_import_block(preview, 1, 0)
 

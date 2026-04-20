@@ -41,7 +41,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
           map()
   def import_preview_entries(scope, entries, source_preview) do
     base = %{
-      created: %{tasks: 0, finances: 0, goals: 0},
+      created: %{tasks: 0, finances: 0},
       errors:
         entries
         |> Enum.filter(&(&1.status == :invalid))
@@ -51,7 +51,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
     }
 
     {result, imported_ids} =
-      Enum.reduce(entries, {base, %{tasks: [], finances: [], goals: []}}, fn entry, {acc, ids} ->
+      Enum.reduce(entries, {base, %{tasks: [], finances: []}}, fn entry, {acc, ids} ->
         case entry do
           %{status: :valid, type: :task, attrs: attrs, line_number: line_number} ->
             case Planning.create_task(scope, attrs) do
@@ -83,21 +83,6 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
                 {add_bulk_error(acc, line_number, inspect(reason)), ids}
             end
 
-          %{status: :valid, type: :goal, attrs: attrs, line_number: line_number} ->
-            case Planning.create_goal(scope, attrs) do
-              {:ok, goal} ->
-                {
-                  increment_bulk_count(acc, :goals),
-                  Map.update!(ids, :goals, fn values -> [goal.id | values] end)
-                }
-
-              {:error, {:validation, details}} ->
-                {add_bulk_error(acc, line_number, format_validation_errors(details)), ids}
-
-              {:error, reason} ->
-                {add_bulk_error(acc, line_number, inspect(reason)), ids}
-            end
-
           _ ->
             {acc, ids}
         end
@@ -107,8 +92,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
       if total_bulk_created(result.created) > 0 do
         %{
           tasks: Enum.reverse(imported_ids.tasks),
-          finances: Enum.reverse(imported_ids.finances),
-          goals: Enum.reverse(imported_ids.goals)
+          finances: Enum.reverse(imported_ids.finances)
         }
       else
         nil
@@ -131,14 +115,9 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
         Planning.delete_finance_entry(scope, id)
       end)
 
-    {goal_removed, goal_errors} =
-      undo_bulk_items(last_bulk_import.goals, fn id ->
-        Planning.delete_goal(scope, id)
-      end)
-
     %{
-      removed: %{tasks: task_removed, finances: finance_removed, goals: goal_removed},
-      errors: task_errors ++ finance_errors ++ goal_errors
+      removed: %{tasks: task_removed, finances: finance_removed},
+      errors: task_errors ++ finance_errors
     }
   end
 
@@ -197,7 +176,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
     """
     tarefa: reunião com equipe #{amanha}
     financeiro: almoço 35
-    meta: aprender Elixir
+    financeiro: internet 120,90
     """
     |> String.trim()
   end
@@ -206,7 +185,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
     amanha = Date.to_iso8601(Date.add(Date.utc_today(), 1))
 
     """
-    tarefa: revisar metas da semana #{amanha} alta
+    tarefa: revisar prioridades da semana #{amanha} alta
     tarefa: organizar documentos
     tarefa: planejar descanso baixa
     """
@@ -220,15 +199,6 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
     financeiro: almoço 35
     financeiro: salário 5000
     financeiro: uber #{today} 18,50
-    """
-    |> String.trim()
-  end
-
-  def bulk_template_payload("goals") do
-    """
-    meta: reserva de emergência horizonte=longo alvo=300000
-    meta: aprender Elixir
-    meta: rotina de treino horizonte=curto
     """
     |> String.trim()
   end
@@ -258,7 +228,6 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
 
     - Tarefa: `tarefa`, `task`, `t`
     - Financeiro: `financeiro`, `finance`, `lancamento`, `lanc`, `fin`, `f`, `receita`, `despesa`
-    - Meta: `meta`, `goal`, `g`
 
     ## Tarefa
 
@@ -320,34 +289,6 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
     - `financeiro: almoco 35`
     - `financeiro: tipo=despesa | natureza=fixa | pagamento=credito | valor=125,90 | categoria=moradia | data=#{today}`
 
-    ## Meta
-
-    Campos:
-    - `horizonte`, `horizon`
-    - `status`
-    - `alvo`, `target`, `target_value`
-    - `atual`, `current`, `current_value`
-    - `data`, `date`, `due`, `prazo`
-    - `nota`, `notas`, `notes`
-
-    Horizonte:
-    - `short` (`curto`)
-    - `medium` (`medio`)
-    - `long` (`longo`)
-
-    Status:
-    - `active` (`ativa`)
-    - `paused` (`pausada`)
-    - `done` (`concluida`)
-
-    Defaults:
-    - `horizon=medium`
-    - `status=active`
-    - `current_value=0`
-
-    Exemplos:
-    - `meta: Reserva de emergencia`
-    - `meta: Reserva de emergencia | horizonte=medio | alvo=300000 | atual=50000 | prazo=2026-12-31`
     """
     |> String.trim()
   end
@@ -487,15 +428,8 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
     end
   end
 
-  defp validate_preview_entry(:goal, attrs) do
-    case AttributeValidation.validate_goal_attrs(attrs) do
-      {:ok, _} ->
-        :ok
-
-      {:error, {:validation, details}} ->
-        {:error, format_validation_errors(details), suggest_goal_validation_fix(attrs, details)}
-    end
-  end
+  defp validate_preview_entry(:goal, _attrs),
+    do: {:error, "Tipo não suportado nesta importação: use tarefa ou financeiro.", nil}
 
   defp suggest_bulk_fix(line, reason) when is_binary(line) and is_binary(reason) do
     cond do
@@ -512,7 +446,6 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
       [raw_type, body] ->
         case canonical_bulk_type(raw_type) do
           {:task, _} -> "tarefa: " <> body
-          {:goal, _} -> "meta: " <> body
           {:finance_kind, kind} -> "financeiro: " <> kind <> " " <> body
           {:finance, _} -> "financeiro: " <> body
           :unknown -> nil
@@ -530,7 +463,6 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
 
         case canonical_bulk_type(raw_type) do
           {:task, _} -> "tarefa: " <> normalized_body
-          {:goal, _} -> "meta: " <> normalized_body
           {:finance_kind, kind} -> "financeiro: " <> kind <> " " <> normalized_body
           {:finance, _} -> "financeiro: " <> normalized_body
           :unknown -> nil
@@ -545,9 +477,6 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
     case normalize_token(token) do
       value when value in ["tarefa", "task", "t"] ->
         {:task, "tarefa"}
-
-      value when value in ["meta", "goal", "g", "objetivo"] ->
-        {:goal, "meta"}
 
       value
       when value in ["financeiro", "finance", "lancamento", "lanc", "fin", "f"] ->
@@ -608,25 +537,6 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
 
         "financeiro: " <> body
       end)
-    else
-      nil
-    end
-  end
-
-  defp suggest_goal_validation_fix(attrs, details) do
-    if Map.has_key?(details, :horizon) do
-      title = Map.get(attrs, "title", "Nova meta")
-
-      parts =
-        [
-          "horizonte=medium",
-          Map.get(attrs, "target_value") && "alvo=#{Map.get(attrs, "target_value")}",
-          Map.get(attrs, "status") && "status=#{Map.get(attrs, "status")}",
-          Map.get(attrs, "due_on") && "data=#{Map.get(attrs, "due_on")}"
-        ]
-        |> Enum.reject(&is_nil/1)
-
-      "meta: #{title} | " <> Enum.join(parts, " | ")
     else
       nil
     end
@@ -714,7 +624,7 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
   defp normalize_token(value), do: value |> to_string() |> normalize_token()
 
   defp total_bulk_created(created) do
-    created.tasks + created.finances + created.goals
+    created.tasks + created.finances
   end
 
   def parse_index(value) when is_integer(value), do: value

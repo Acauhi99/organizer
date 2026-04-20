@@ -158,15 +158,12 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
                 financeiro | finance | lancamento | lanc | fin | f
               </span>
               <span class="rounded-full border border-base-content/20 px-2 py-0.5 font-mono">
-                meta | goal | g
-              </span>
-              <span class="rounded-full border border-base-content/20 px-2 py-0.5 font-mono">
                 receita | despesa
               </span>
             </div>
           </article>
 
-          <div class="grid gap-3 xl:grid-cols-3">
+          <div class="grid gap-3 xl:grid-cols-2">
             <article class="micro-surface rounded-lg p-3">
               <p class="text-xs font-semibold uppercase tracking-wide text-base-content/62">
                 Tarefa
@@ -221,30 +218,6 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
               </ul>
               <div class="mt-2 rounded-md border border-base-content/14 bg-base-100/65 p-2 font-mono text-[0.82rem] leading-[1.5] text-base-content/90">
                 financeiro: almoço 35<br />financeiro: tipo=despesa | natureza=fixa | pagamento=credito | valor=125,90 | categoria=moradia | data=2026-04-05
-              </div>
-            </article>
-
-            <article class="micro-surface rounded-lg p-3">
-              <p class="text-xs font-semibold uppercase tracking-wide text-base-content/62">
-                Meta
-              </p>
-              <ul class="mt-2 space-y-1 text-sm text-base-content/82">
-                <li>Título é obrigatório no conteúdo.</li>
-                <li>
-                  Campos: <code class="font-mono text-[0.84rem]">horizonte/horizon</code>, <code class="font-mono text-[0.84rem]">status</code>, <code class="font-mono text-[0.84rem]">alvo/target/target_value</code>, <code class="font-mono text-[0.84rem]">atual/current/current_value</code>, <code class="font-mono text-[0.84rem]">data/date/due/prazo</code>, <code class="font-mono text-[0.84rem]">nota/notas/notes</code>.
-                </li>
-                <li>
-                  Horizonte: <code class="font-mono text-[0.84rem]">curto|short</code>, <code class="font-mono text-[0.84rem]">medio|médio|medium</code>, <code class="font-mono text-[0.84rem]">longo|long</code>.
-                </li>
-                <li>
-                  Status: <code class="font-mono text-[0.84rem]">ativa|active</code>, <code class="font-mono text-[0.84rem]">pausada|paused</code>, <code class="font-mono text-[0.84rem]">concluida|done</code>.
-                </li>
-                <li>
-                  Defaults: <code class="font-mono text-[0.84rem]">horizon=medium</code>, <code class="font-mono text-[0.84rem]">status=active</code>, <code class="font-mono text-[0.84rem]">current_value=0</code>.
-                </li>
-              </ul>
-              <div class="mt-2 rounded-md border border-base-content/14 bg-base-100/65 p-2 font-mono text-[0.82rem] leading-[1.5] text-base-content/90">
-                meta: Reserva de emergência<br />meta: Reserva de emergência | horizonte=medio | alvo=300000 | atual=50000 | prazo=2026-12-31
               </div>
             </article>
           </div>
@@ -704,7 +677,7 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
       </div>
 
       <div :if={@bulk_result} id="bulk-capture-result" class="mt-4 space-y-3">
-        <div class="grid gap-2 sm:grid-cols-3">
+        <div class="grid gap-2 sm:grid-cols-2">
           <article class="micro-surface rounded-lg p-3">
             <p class="text-xs uppercase tracking-wide text-base-content/65">Tarefas criadas</p>
             <p class="mt-1 text-lg font-semibold text-base-content">
@@ -717,12 +690,6 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
             </p>
             <p class="mt-1 text-lg font-semibold text-base-content">
               {@bulk_result.created.finances}
-            </p>
-          </article>
-          <article class="micro-surface rounded-lg p-3">
-            <p class="text-xs uppercase tracking-wide text-base-content/65">Metas criadas</p>
-            <p class="mt-1 text-lg font-semibold text-base-content">
-              {@bulk_result.created.goals}
             </p>
           </article>
         </div>
@@ -757,8 +724,7 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
     templates = [
       %{key: "mixed", label: "Misto"},
       %{key: "tasks", label: "Tarefas"},
-      %{key: "finance", label: "Financeiro"},
-      %{key: "goals", label: "Metas"}
+      %{key: "finance", label: "Financeiro"}
     ]
 
     favorite_set = MapSet.new(favorites)
@@ -771,11 +737,11 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
   defp template_favorited?(favorites, key), do: key in favorites
 
   defp bulk_capture_placeholder([top_cat | _]) do
-    "tarefa: reunião amanhã\nfinanceiro: #{top_cat} 35\nmeta: aprender Elixir"
+    "tarefa: reunião amanhã\nfinanceiro: #{top_cat} 35"
   end
 
   defp bulk_capture_placeholder(_) do
-    "tarefa: reunião amanhã\nfinanceiro: almoço 35\nmeta: aprender Elixir"
+    "tarefa: reunião amanhã\nfinanceiro: almoço 35"
   end
 
   defp bulk_preview_fixable_count(entries) when is_list(entries) do
@@ -827,13 +793,6 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
        |> Enum.join(" • "))
   end
 
-  defp bulk_preview_entry_label(%{status: :valid, type: :goal, attrs: attrs}) do
-    title = Map.get(attrs, "title", "sem título")
-    horizon = Map.get(attrs, "horizon", "horizonte pendente")
-    target = Map.get(attrs, "target_value", "alvo pendente")
-    "Meta: #{title} • #{horizon} • alvo #{target}"
-  end
-
   defp bulk_preview_entry_label(_), do: "Linha processada"
 
   defp bulk_entry_normalized_line(%{status: :valid, type: :task, attrs: attrs}) do
@@ -861,20 +820,6 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudio do
       Map.get(attrs, "category") && "categoria=#{Map.get(attrs, "category")}",
       Map.get(attrs, "occurred_on") && "data=#{Map.get(attrs, "occurred_on")}",
       Map.get(attrs, "description") && "descricao=#{Map.get(attrs, "description")}"
-    ]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join(" | ")
-  end
-
-  defp bulk_entry_normalized_line(%{status: :valid, type: :goal, attrs: attrs}) do
-    [
-      "meta: #{Map.get(attrs, "title", "")}",
-      Map.get(attrs, "horizon") && "horizonte=#{Map.get(attrs, "horizon")}",
-      Map.get(attrs, "target_value") && "alvo=#{Map.get(attrs, "target_value")}",
-      Map.get(attrs, "current_value") && "atual=#{Map.get(attrs, "current_value")}",
-      Map.get(attrs, "status") && "status=#{Map.get(attrs, "status")}",
-      Map.get(attrs, "due_on") && "data=#{Map.get(attrs, "due_on")}",
-      Map.get(attrs, "notes") && "notes=#{Map.get(attrs, "notes")}"
     ]
     |> Enum.reject(&is_nil/1)
     |> Enum.join(" | ")

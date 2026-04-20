@@ -123,7 +123,7 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
     %{
       title: "Bem-vindo ao Organizer!",
       description:
-        "O Organizer permite organizar tarefas, finanças e metas com formulários objetivos e fluxo guiado.",
+        "O Organizer permite organizar tarefas e finanças com formulários objetivos e fluxo guiado.",
       example: "Tipo: Gasto\nValor: 12990\nCategoria: Alimentação\nData: hoje"
     }
   end
@@ -150,7 +150,7 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
     %{
       title: "Edição Direta",
       description:
-        "Edite tarefas, lançamentos e metas direto na lista quando precisar ajustar detalhes.",
+        "Edite tarefas e lançamentos direto na lista quando precisar ajustar detalhes.",
       example: nil
     }
   end
@@ -159,7 +159,7 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
     %{
       title: "Painéis Secundários",
       description:
-        "Use os painéis de Operações e Analytics para visualizar e gerenciar suas tarefas, finanças e metas. Você pode ocultar ou mostrar esses painéis conforme necessário.",
+        "Use os painéis de Operações e Analytics para visualizar e gerenciar suas tarefas e finanças. Você pode ocultar ou mostrar esses painéis conforme necessário.",
       example: nil
     }
   end

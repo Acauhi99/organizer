@@ -12,7 +12,7 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudioTest do
             payload_text <- StreamData.string(:printable),
             bulk_strict_mode <- StreamData.boolean(),
             bulk_template_favorites <-
-              StreamData.list_of(StreamData.member_of(["mixed", "tasks", "finance", "goals"])),
+              StreamData.list_of(StreamData.member_of(["mixed", "tasks", "finance"])),
             bulk_import_block_size <- StreamData.member_of([2, 3, 5, 10]),
             bulk_import_block_index <- StreamData.integer(0..5)
           ) do
@@ -70,7 +70,7 @@ defmodule OrganizerWeb.DashboardLive.Components.BulkImportStudioTest do
         base_assigns()
         |> Map.put(:last_bulk_import, %{id: "some-id"})
         |> Map.put(:bulk_result, %{
-          created: %{tasks: 1, finances: 0, goals: 0},
+          created: %{tasks: 1, finances: 0},
           errors: []
         })
 

@@ -12,12 +12,12 @@ defmodule OrganizerWeb.DashboardLive do
     OperationsPanel
   }
 
-  alias OrganizerWeb.Components.QuickFinanceHero
+  alias OrganizerWeb.Components.{QuickFinanceHero, QuickTaskHero}
 
   @analytics_days_filters ["7", "15", "30", "90", "365"]
   @analytics_capacity_filters ["5", "10", "15", "20", "30"]
-  @bulk_template_keys ["mixed", "tasks", "finance", "goals"]
-  @ops_tabs ["tasks", "finances", "goals"]
+  @bulk_template_keys ["mixed", "tasks", "finance"]
+  @ops_tabs ["tasks", "finances"]
   @max_bulk_payload_bytes 50_000
 
   @impl true
@@ -101,6 +101,48 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   @impl true
+  def handle_event("quick_task_validate", %{"quick_task" => attrs}, socket) do
+    normalized = normalize_quick_task_attrs(attrs)
+
+    {:noreply, assign(socket, :quick_task_form, to_form(normalized, as: :quick_task))}
+  end
+
+  @impl true
+  def handle_event("quick_task_preset", %{"preset" => preset}, socket) do
+    preset_attrs = quick_task_preset_attrs(preset)
+    normalized = normalize_quick_task_attrs(preset_attrs)
+
+    {:noreply, assign(socket, :quick_task_form, to_form(normalized, as: :quick_task))}
+  end
+
+  @impl true
+  def handle_event("create_quick_task", %{"quick_task" => attrs}, socket) do
+    normalized = normalize_quick_task_attrs(attrs)
+
+    case Planning.create_task(socket.assigns.current_scope, normalized) do
+      {:ok, _task} ->
+        {:noreply,
+         socket
+         |> assign(:quick_task_form, to_form(quick_task_defaults(), as: :quick_task))
+         |> put_flash(:info, "Tarefa registrada.")
+         |> load_operation_collections()
+         |> refresh_dashboard_insights()}
+
+      {:error, {:validation, _details}} ->
+        {:noreply,
+         socket
+         |> assign(:quick_task_form, to_form(normalized, as: :quick_task))
+         |> put_flash(:error, "Verifique os campos para registrar a tarefa.")}
+
+      _ ->
+        {:noreply,
+         socket
+         |> assign(:quick_task_form, to_form(normalized, as: :quick_task))
+         |> put_flash(:error, "Não foi possível registrar a tarefa.")}
+    end
+  end
+
+  @impl true
   def handle_event("filter_tasks", %{"filters" => filters}, socket) do
     task_filters =
       socket.assigns.task_filters
@@ -126,20 +168,6 @@ defmodule OrganizerWeb.DashboardLive do
      |> load_operation_collections()}
   end
 
-  @impl true
-  def handle_event("filter_goals", %{"filters" => filters}, socket) do
-    goal_filters =
-      socket.assigns.goal_filters
-      |> Map.merge(Filters.normalize_goal_filters(filters))
-      |> Filters.sanitize_goal_filters()
-
-    {:noreply,
-     socket
-     |> assign(:goal_filters, goal_filters)
-     |> load_operation_collections()}
-  end
-
-  @impl true
   def handle_event("filter_analytics", %{"filters" => filters}, socket) do
     analytics_filters =
       socket.assigns.analytics_filters
@@ -381,7 +409,6 @@ defmodule OrganizerWeb.DashboardLive do
       case entity_type do
         "tasks" -> generate_task_example()
         "finances" -> generate_finance_example()
-        "goals" -> generate_goal_example()
         _ -> generate_mixed_example()
       end
 
@@ -434,6 +461,115 @@ defmodule OrganizerWeb.DashboardLive do
 
       _ ->
         {:noreply, put_flash(socket, :error, "Não foi possível atualizar a tarefa.")}
+    end
+  end
+
+  @impl true
+  def handle_event(
+        "add_task_checklist_item",
+        %{"task_id" => task_id, "checklist_item" => %{"label" => label}},
+        socket
+      ) do
+    case Planning.add_task_checklist_item(socket.assigns.current_scope, task_id, %{
+           "label" => label
+         }) do
+      {:ok, _item} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Item adicionado na checklist.")
+         |> load_operation_collections()
+         |> refresh_dashboard_insights()}
+
+      {:error, {:validation, _details}} ->
+        {:noreply, put_flash(socket, :error, "Informe um nome válido para o item da checklist.")}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Tarefa não encontrada.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Não foi possível adicionar o item da checklist.")}
+    end
+  end
+
+  @impl true
+  def handle_event(
+        "save_task_checklist_item_label",
+        %{
+          "task_id" => task_id,
+          "item_id" => item_id,
+          "checklist_item" => %{"label" => label}
+        },
+        socket
+      ) do
+    case Planning.update_task_checklist_item(
+           socket.assigns.current_scope,
+           task_id,
+           item_id,
+           %{"label" => label}
+         ) do
+      {:ok, _item} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Item da checklist atualizado.")
+         |> load_operation_collections()
+         |> refresh_dashboard_insights()}
+
+      {:error, {:validation, _details}} ->
+        {:noreply, put_flash(socket, :error, "Informe um nome válido para o item da checklist.")}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Item da checklist não encontrado.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Não foi possível atualizar o item da checklist.")}
+    end
+  end
+
+  @impl true
+  def handle_event(
+        "toggle_task_checklist_item",
+        %{"task_id" => task_id, "item_id" => item_id, "checked" => checked},
+        socket
+      ) do
+    case Planning.toggle_task_checklist_item(
+           socket.assigns.current_scope,
+           task_id,
+           item_id,
+           checked
+         ) do
+      {:ok, _item} ->
+        {:noreply,
+         socket
+         |> load_operation_collections()
+         |> refresh_dashboard_insights()}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Item da checklist não encontrado.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Não foi possível atualizar o item da checklist.")}
+    end
+  end
+
+  @impl true
+  def handle_event(
+        "delete_task_checklist_item",
+        %{"task_id" => task_id, "item_id" => item_id},
+        socket
+      ) do
+    case Planning.delete_task_checklist_item(socket.assigns.current_scope, task_id, item_id) do
+      :ok ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Item removido da checklist.")
+         |> load_operation_collections()
+         |> refresh_dashboard_insights()}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Item da checklist não encontrado.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Não foi possível remover o item da checklist.")}
     end
   end
 
@@ -517,65 +653,6 @@ defmodule OrganizerWeb.DashboardLive do
     end
   end
 
-  @impl true
-  def handle_event("start_edit_goal", %{"id" => id}, socket) do
-    {:noreply,
-     socket
-     |> assign(:ops_tab, "goals")
-     |> assign(:editing_goal_id, id)
-     |> load_operation_collections()}
-  end
-
-  @impl true
-  def handle_event("cancel_edit_goal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:editing_goal_id, nil)
-     |> load_operation_collections()}
-  end
-
-  @impl true
-  def handle_event("save_goal", %{"_id" => id, "goal" => attrs}, socket) do
-    case Planning.update_goal(socket.assigns.current_scope, id, attrs) do
-      {:ok, _goal} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Meta atualizada.")
-         |> assign(:editing_goal_id, nil)
-         |> load_operation_collections()}
-
-      {:error, {:validation, _details}} ->
-        {:noreply, put_flash(socket, :error, "Verifique os campos da meta.")}
-
-      {:error, :not_found} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Meta não encontrada.")
-         |> assign(:editing_goal_id, nil)}
-
-      _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível atualizar a meta.")}
-    end
-  end
-
-  @impl true
-  def handle_event("delete_goal", %{"id" => id}, socket) do
-    case Planning.delete_goal(socket.assigns.current_scope, id) do
-      {:ok, _goal} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Meta removida.")
-         |> assign(:editing_goal_id, nil)
-         |> load_operation_collections()}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Meta não encontrada.")}
-
-      _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível remover a meta.")}
-    end
-  end
-
   defp initialize_dashboard_state(socket, scope) do
     top_categories = FieldSuggester.suggest_values("category", scope)
     {:ok, account_links} = SharedFinance.list_account_links(scope)
@@ -590,13 +667,13 @@ defmodule OrganizerWeb.DashboardLive do
 
     {:ok, tasks} = Planning.list_tasks(scope, Filters.default_task_filters())
     {:ok, finances} = Planning.list_finance_entries(scope, Filters.default_finance_filters())
-    {:ok, goals} = Planning.list_goals(scope, Filters.default_goal_filters())
-    has_any_imports = length(tasks) > 0 || length(finances) > 0 || length(goals) > 0
+    has_any_imports = length(tasks) > 0 || length(finances) > 0
 
     socket
     |> assign(:current_scope, scope)
     |> assign(:quick_finance_kind, "expense")
     |> assign(:quick_finance_form, to_form(quick_finance_defaults(), as: :quick_finance))
+    |> assign(:quick_task_form, to_form(quick_task_defaults(), as: :quick_task))
     |> assign(:bulk_form, to_form(%{"payload" => ""}, as: :bulk))
     |> assign(:bulk_payload_text, "")
     |> assign(:bulk_result, nil)
@@ -614,11 +691,9 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:ops_tab, "tasks")
     |> assign(:task_filters, Filters.default_task_filters())
     |> assign(:finance_filters, Filters.default_finance_filters())
-    |> assign(:goal_filters, Filters.default_goal_filters())
     |> assign(:analytics_filters, Filters.default_analytics_filters())
     |> assign(:editing_task_id, nil)
     |> assign(:editing_finance_id, nil)
-    |> assign(:editing_goal_id, nil)
     |> assign(:onboarding_active, onboarding_active)
     |> assign(:onboarding_step, onboarding_progress.current_step)
     |> assign(:has_any_imports, has_any_imports)
@@ -636,18 +711,20 @@ defmodule OrganizerWeb.DashboardLive do
     {:ok, finances} =
       Planning.list_finance_entries(socket.assigns.current_scope, socket.assigns.finance_filters)
 
-    {:ok, goals} = Planning.list_goals(socket.assigns.current_scope, socket.assigns.goal_filters)
+    finance_income = Enum.filter(finances, &(&1.kind == :income))
+    finance_expenses = Enum.filter(finances, &(&1.kind == :expense))
 
     socket
     |> stream(:tasks, tasks, reset: true)
     |> stream(:finances, finances, reset: true)
-    |> stream(:goals, goals, reset: true)
     |> assign(:ops_counts, %{
       tasks_total: length(tasks),
       tasks_open: Enum.count(tasks, &(&1.status != :done)),
       finances_total: length(finances),
-      goals_total: length(goals),
-      goals_active: Enum.count(goals, &(&1.status == :active))
+      finances_income_total: length(finance_income),
+      finances_expense_total: length(finance_expenses),
+      finances_income_cents: Enum.reduce(finance_income, 0, &(&1.amount_cents + &2)),
+      finances_expense_cents: Enum.reduce(finance_expenses, 0, &(&1.amount_cents + &2))
     })
   end
 
@@ -704,6 +781,67 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   defp quick_finance_preset_attrs(_preset), do: quick_finance_defaults()
+
+  defp quick_task_defaults do
+    %{
+      "title" => "",
+      "priority" => "medium",
+      "status" => "todo",
+      "due_on" => Date.to_iso8601(Date.utc_today()),
+      "notes" => ""
+    }
+  end
+
+  defp quick_task_preset_attrs("today_focus") do
+    %{
+      "title" => "Foco do dia",
+      "priority" => "high",
+      "status" => "in_progress",
+      "due_on" => Date.to_iso8601(Date.utc_today())
+    }
+  end
+
+  defp quick_task_preset_attrs("next_action") do
+    %{
+      "title" => "Próxima ação",
+      "priority" => "medium",
+      "status" => "todo",
+      "due_on" => Date.to_iso8601(Date.utc_today())
+    }
+  end
+
+  defp quick_task_preset_attrs("backlog") do
+    %{
+      "title" => "Item de backlog",
+      "priority" => "low",
+      "status" => "todo",
+      "due_on" => Date.utc_today() |> Date.add(7) |> Date.to_iso8601()
+    }
+  end
+
+  defp quick_task_preset_attrs("shopping_list") do
+    %{
+      "title" => "Lista de compras do mercado",
+      "priority" => "medium",
+      "status" => "todo",
+      "due_on" => Date.to_iso8601(Date.utc_today()),
+      "notes" => "Após salvar, adicione itens na checklist desta tarefa."
+    }
+  end
+
+  defp quick_task_preset_attrs(_preset), do: quick_task_defaults()
+
+  defp normalize_quick_task_attrs(attrs) when is_map(attrs) do
+    defaults = quick_task_defaults()
+
+    attrs
+    |> string_key_map()
+    |> Map.merge(defaults, fn _key, incoming, default -> default_if_blank(incoming, default) end)
+    |> Map.update!("priority", &normalize_quick_task_priority/1)
+    |> Map.update!("status", &normalize_quick_task_status/1)
+  end
+
+  defp normalize_quick_task_attrs(_attrs), do: quick_task_defaults()
 
   defp normalize_quick_finance_attrs(attrs) when is_map(attrs) do
     kind =
@@ -785,22 +923,27 @@ defmodule OrganizerWeb.DashboardLive do
     """
   end
 
-  defp generate_goal_example do
-    """
-    meta: Economizar R$ 5000 para viagem de férias
-    meta: Ler 24 livros durante o ano
-    meta: Fazer exercícios 3 vezes por semana
-    meta: Aprender um novo idioma
-    meta: Reduzir gastos mensais em 15%
-    """
-  end
-
   defp generate_mixed_example do
     """
     tarefa: Revisar documentação do projeto
     finança: -50 Almoço executivo
-    meta: Ler 12 livros este ano
     """
+  end
+
+  defp normalize_quick_task_priority(priority) do
+    case to_string(priority) |> String.trim() do
+      "low" -> "low"
+      "high" -> "high"
+      _ -> "medium"
+    end
+  end
+
+  defp normalize_quick_task_status(status) do
+    case to_string(status) |> String.trim() do
+      "in_progress" -> "in_progress"
+      "done" -> "done"
+      _ -> "todo"
+    end
   end
 
   @impl true
@@ -843,6 +986,8 @@ defmodule OrganizerWeb.DashboardLive do
           quick_finance_kind={@quick_finance_kind}
         />
 
+        <QuickTaskHero.quick_task_hero quick_task_form={@quick_task_form} />
+
         <div id="bulk-import-legacy" class="hidden" aria-hidden="true">
           <OrganizerWeb.Components.BulkImportHero.bulk_import_hero
             bulk_form={@bulk_form}
@@ -871,10 +1016,8 @@ defmodule OrganizerWeb.DashboardLive do
           ops_tab={@ops_tab}
           task_filters={@task_filters}
           finance_filters={@finance_filters}
-          goal_filters={@goal_filters}
           editing_task_id={@editing_task_id}
           editing_finance_id={@editing_finance_id}
-          editing_goal_id={@editing_goal_id}
           ops_counts={@ops_counts}
         />
 

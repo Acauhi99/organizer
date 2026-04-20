@@ -155,7 +155,7 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
 
           remaining_preview = BulkImport.preview_bulk_payload(remaining_payload)
 
-          created_total = result.created.tasks + result.created.finances + result.created.goals
+          created_total = result.created.tasks + result.created.finances
 
           share_result =
             maybe_share_imported_finances(
@@ -192,7 +192,7 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
               socket
               |> put_flash(
                 :info,
-                "Bloco importado: #{result.created.tasks} tarefas, #{result.created.finances} lançamentos e #{result.created.goals} metas." <>
+                "Bloco importado: #{result.created.tasks} tarefas e #{result.created.finances} lançamentos." <>
                   bulk_share_success_suffix(share_result)
               )
               |> load_operation_collections()
@@ -364,7 +364,7 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
                   )
 
                 created_total =
-                  result.created.tasks + result.created.finances + result.created.goals
+                  result.created.tasks + result.created.finances
 
                 socket =
                   socket
@@ -381,7 +381,7 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
                     socket
                     |> put_flash(
                       :info,
-                      "Importação concluída: #{result.created.tasks} tarefas, #{result.created.finances} lançamentos e #{result.created.goals} metas." <>
+                      "Importação concluída: #{result.created.tasks} tarefas e #{result.created.finances} lançamentos." <>
                         bulk_share_success_suffix(share_result)
                     )
                     |> load_operation_collections()
@@ -495,7 +495,7 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
           last_bulk_import ->
             undo = BulkImport.undo_bulk_import(last_bulk_import, socket.assigns.current_scope)
 
-            removed_total = undo.removed.tasks + undo.removed.finances + undo.removed.goals
+            removed_total = undo.removed.tasks + undo.removed.finances
 
             socket =
               socket
@@ -509,7 +509,7 @@ defmodule OrganizerWeb.DashboardLive.BulkEventHandlers do
                 socket
                 |> put_flash(
                   :info,
-                  "Importação desfeita: #{undo.removed.tasks} tarefas, #{undo.removed.finances} lançamentos e #{undo.removed.goals} metas removidos."
+                  "Importação desfeita: #{undo.removed.tasks} tarefas e #{undo.removed.finances} lançamentos removidos."
                 )
                 |> load_operation_collections()
                 |> refresh_dashboard_insights()

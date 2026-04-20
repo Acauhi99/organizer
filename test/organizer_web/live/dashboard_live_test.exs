@@ -17,6 +17,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert {:ok, view, _html} = live(conn, ~p"/dashboard")
       assert has_element?(view, "#account-link-panel")
       assert has_element?(view, "#quick-finance-form")
+      assert has_element?(view, "#quick-task-form")
       assert has_element?(view, "#quick-bulk")
       assert has_element?(view, "#bulk-capture-form")
       assert has_element?(view, "#analytics-panel")
@@ -82,6 +83,44 @@ defmodule OrganizerWeb.DashboardLiveTest do
              )
     end
 
+    test "creates task through quick task form", %{conn: conn, scope: scope} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      today = Date.to_iso8601(Date.utc_today())
+
+      view
+      |> form("#quick-task-form", %{
+        "quick_task" => %{
+          "title" => "Fechar conciliação bancária",
+          "priority" => "high",
+          "status" => "in_progress",
+          "due_on" => today,
+          "notes" => "Prioridade da manhã"
+        }
+      })
+      |> render_submit()
+
+      {:ok, tasks} = Planning.list_tasks(scope, %{})
+
+      assert Enum.any?(tasks, fn task ->
+               task.title == "Fechar conciliação bancária" and
+                 task.priority == :high and
+                 task.status == :in_progress
+             end)
+    end
+
+    test "applies quick preset for shopping list task", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      view
+      |> element("#quick-task-preset-shopping-list")
+      |> render_click()
+
+      assert has_element?(
+               view,
+               "#quick-task-form input[name='quick_task[title]'][value='Lista de compras do mercado']"
+             )
+    end
+
     test "imports mixed items through copy/paste mode", %{conn: conn, scope: scope} do
       {:ok, view, _html} = live(conn, ~p"/dashboard")
       today = Date.to_iso8601(Date.utc_today())
@@ -89,7 +128,6 @@ defmodule OrganizerWeb.DashboardLiveTest do
       payload = """
       tarefa: Comprar ração | data=#{today} | prioridade=alta
       financeiro: tipo=despesa | natureza=fixa | pagamento=credito | valor=125,90 | categoria=pet | data=#{today}
-      meta: Reserva viagem | horizonte=medio | alvo=200000
       """
 
       view
@@ -100,7 +138,6 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       {:ok, tasks} = Planning.list_tasks(scope, %{})
       {:ok, finances} = Planning.list_finance_entries(scope, %{})
-      {:ok, goals} = Planning.list_goals(scope, %{})
 
       assert Enum.any?(tasks, &(&1.title == "Comprar ração"))
 
@@ -110,8 +147,6 @@ defmodule OrganizerWeb.DashboardLiveTest do
                  entry.expense_profile == :fixed and
                  entry.payment_method == :credit
              end)
-
-      assert Enum.any?(goals, &(&1.title == "Reserva viagem"))
     end
 
     test "applies a quick template in copy/paste mode", %{conn: conn, scope: scope} do
@@ -127,11 +162,9 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       {:ok, tasks} = Planning.list_tasks(scope, %{})
       {:ok, finances} = Planning.list_finance_entries(scope, %{})
-      {:ok, goals} = Planning.list_goals(scope, %{})
 
       assert Enum.any?(tasks, &String.contains?(&1.title, "reunião com equipe"))
       assert Enum.any?(finances, &(&1.kind == :expense and &1.category == "almoço"))
-      assert Enum.any?(goals, &(&1.title == "aprender Elixir"))
     end
 
     test "previews lines without creating records", %{conn: conn, scope: scope} do
@@ -281,7 +314,6 @@ defmodule OrganizerWeb.DashboardLiveTest do
       payload = """
       tarefa: Ajustar parser | data=15-04-2026 | prioridade=urgente
       financeiro: tipo=despesa | natureza=variavel | pagamento=debito | valor=R$ 1.234,56 | categoria=moradia | data=15/04/2026
-      meta: Meta com alvo | horizonte=médio | alvo=10.000 | data=2026/12/01
       """
 
       view
@@ -290,7 +322,6 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       {:ok, tasks} = Planning.list_tasks(scope, %{})
       {:ok, finances} = Planning.list_finance_entries(scope, %{})
-      {:ok, goals} = Planning.list_goals(scope, %{})
 
       task = Enum.find(tasks, &(&1.title == "Ajustar parser"))
       assert task
@@ -302,11 +333,6 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert Date.to_iso8601(finance.occurred_on) == "2026-04-15"
       assert finance.expense_profile == :variable
       assert finance.payment_method == :debit
-
-      goal = Enum.find(goals, &(&1.title == "Meta com alvo"))
-      assert goal
-      assert goal.target_value == 10_000
-      assert Date.to_iso8601(goal.due_on) == "2026-12-01"
     end
 
     test "manages template favorites and payload history", %{conn: conn} do
@@ -403,6 +429,54 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert {:error, :not_found} = Planning.get_task(scope, task.id)
     end
 
+    test "manages checklist items and auto-completes task", %{conn: conn, scope: scope} do
+      assert {:ok, task} =
+               Planning.create_task(scope, %{"title" => "Compras", "priority" => "medium"})
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      view
+      |> form("#task-checklist-add-form-#{task.id}", %{
+        "task_id" => to_string(task.id),
+        "checklist_item" => %{"label" => "Arroz"}
+      })
+      |> render_submit()
+
+      view
+      |> form("#task-checklist-add-form-#{task.id}", %{
+        "task_id" => to_string(task.id),
+        "checklist_item" => %{"label" => "Feijão"}
+      })
+      |> render_submit()
+
+      assert {:ok, task_with_items} = Planning.get_task(scope, task.id)
+      assert length(task_with_items.checklist_items) == 2
+
+      [first_item | _] = task_with_items.checklist_items
+
+      view
+      |> element("#task-checklist-toggle-#{task.id}-#{first_item.id}")
+      |> render_click()
+
+      assert {:ok, task_in_progress} = Planning.get_task(scope, task.id)
+      assert task_in_progress.status == :in_progress
+
+      item_ids = Enum.map(task_in_progress.checklist_items, & &1.id)
+
+      Enum.each(item_ids, fn item_id ->
+        if item_id != first_item.id do
+          view
+          |> element("#task-checklist-toggle-#{task.id}-#{item_id}")
+          |> render_click()
+        end
+      end)
+
+      assert {:ok, task_done} = Planning.get_task(scope, task.id)
+      assert task_done.status == :done
+      refute is_nil(task_done.completed_at)
+      assert render(view) =~ "Checklist: 2/2 itens concluídos"
+    end
+
     test "edits and deletes a finance entry inline", %{conn: conn, scope: scope} do
       assert {:ok, entry} =
                Planning.create_finance_entry(scope, %{
@@ -469,49 +543,6 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert {:error, :not_found} = Planning.get_finance_entry(scope, entry.id)
     end
 
-    test "edits and deletes a goal inline", %{conn: conn, scope: scope} do
-      assert {:ok, goal} =
-               Planning.create_goal(scope, %{
-                 "title" => "Meta original",
-                 "horizon" => "short",
-                 "status" => "active",
-                 "target_value" => 100
-               })
-
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      view
-      |> element("#goal-edit-btn-#{goal.id}")
-      |> render_click()
-
-      view
-      |> form("#goal-edit-form-#{goal.id}", %{
-        "_id" => to_string(goal.id),
-        "goal" => %{
-          "title" => "Meta atualizada",
-          "horizon" => "medium",
-          "status" => "paused",
-          "target_value" => 200,
-          "current_value" => 50,
-          "due_on" => Date.to_iso8601(Date.utc_today()),
-          "notes" => "ajustada"
-        }
-      })
-      |> render_submit()
-
-      assert {:ok, updated_goal} = Planning.get_goal(scope, goal.id)
-      assert updated_goal.title == "Meta atualizada"
-      assert updated_goal.status == :paused
-      assert updated_goal.horizon == :medium
-      assert updated_goal.target_value == 200
-
-      view
-      |> element("#goal-delete-btn-#{goal.id}")
-      |> render_click()
-
-      assert {:error, :not_found} = Planning.get_goal(scope, goal.id)
-    end
-
     test "filters tasks by status and priority", %{conn: conn, scope: scope} do
       assert {:ok, done_task} =
                Planning.create_task(scope, %{
@@ -564,31 +595,6 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       assert has_element?(view, "#finance-edit-btn-#{recent_entry.id}")
       refute has_element?(view, "#finance-edit-btn-#{old_entry.id}")
-    end
-
-    test "filters goals by status", %{conn: conn, scope: scope} do
-      assert {:ok, active_goal} =
-               Planning.create_goal(scope, %{
-                 "title" => "Meta ativa",
-                 "horizon" => "short",
-                 "status" => "active"
-               })
-
-      assert {:ok, paused_goal} =
-               Planning.create_goal(scope, %{
-                 "title" => "Meta pausada",
-                 "horizon" => "long",
-                 "status" => "paused"
-               })
-
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      view
-      |> form("#goal-filters", %{"filters" => %{"status" => "paused"}})
-      |> render_change()
-
-      assert has_element?(view, "#goal-edit-btn-#{paused_goal.id}")
-      refute has_element?(view, "#goal-edit-btn-#{active_goal.id}")
     end
 
     test "applies finance template for quick copy/paste capture", %{conn: conn, scope: scope} do
@@ -745,11 +751,6 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert has_element?(view, "#empty-state-finances")
     end
 
-    test "empty state for goals is shown when user has no goals", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-      assert has_element?(view, "#empty-state-goals")
-    end
-
     test "empty state for account links is shown when user has no links", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/dashboard")
       assert has_element?(view, "#account-link-empty-state")
@@ -761,6 +762,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       assert has_element?(view, "#quick-finance-hero")
       assert has_element?(view, "#quick-finance-form")
+      assert has_element?(view, "#quick-task-form")
     end
 
     test "empty state disappears after importing data", %{conn: conn, user: user} do
