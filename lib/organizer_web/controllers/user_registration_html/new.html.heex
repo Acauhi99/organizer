@@ -1,5 +1,5 @@
 <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
-  <section class="public-auth-shell mx-auto max-w-6xl py-4 sm:py-8">
+  <section class="public-auth-shell responsive-shell mx-auto max-w-6xl py-4 sm:py-8">
     <div class="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
       <article class="brand-hero-card public-auth-hero rounded-[2rem] p-6 sm:p-8">
         <p class="hero-eyebrow text-xs font-semibold uppercase tracking-[0.2em]">
@@ -15,7 +15,7 @@
           <%= if @invite_pending? do %>
             Depois do cadastro, vamos concluir automaticamente o vínculo entre as contas para liberar o espaço colaborativo de finanças.
           <% else %>
-            Configure seu acesso e comece com os dois fluxos core ativos: chat copy/paste para lançamentos e compartilhamento por link entre contas.
+            Configure seu acesso e comece com importação por texto, formulários rápidos e compartilhamento financeiro por vínculo.
           <% end %>
         </p>
 
@@ -43,10 +43,10 @@
               </span>
               <div>
                 <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-                  Chat copy/paste
+                  Importação por texto
                 </p>
                 <p class="hero-meta-copy mt-1 text-xs">
-                  Cole texto livre e transforme em dados estruturados.
+                  Cole linhas livres com prévia e validação antes de salvar.
                 </p>
               </div>
             </div>
@@ -78,7 +78,7 @@
                   Painel integrado
                 </p>
                 <p class="hero-meta-copy mt-1 text-xs">
-                  Tarefas, metas e financeiro no mesmo lugar desde o primeiro login.
+                  Tarefas, operação financeira e analytics no mesmo lugar desde o primeiro login.
                 </p>
               </div>
             </div>

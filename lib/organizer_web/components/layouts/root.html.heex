@@ -29,16 +29,16 @@
         !@current_scope && "public-guest-nav"
       ]}
     >
-      <div class="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        <.link href={~p"/"} class="inline-flex items-center gap-2.5">
+      <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-6 lg:px-8 2xl:max-w-[100rem]">
+        <.link href={~p"/"} class="inline-flex min-w-0 items-center gap-2.5">
           <img src={~p"/images/organizer-logo.svg"} alt="Organizer" class="brand-mark h-8 w-8" />
-          <span class="brand-wordmark text-xs font-semibold uppercase tracking-[0.2em]">
+          <span class="brand-wordmark hidden text-xs font-semibold uppercase tracking-[0.2em] min-[360px]:inline">
             Organizer
           </span>
         </.link>
 
         <ul class={[
-          "menu nav-menu menu-horizontal gap-1 p-0",
+          "menu nav-menu menu-horizontal flex-wrap justify-end gap-1 p-0",
           !@current_scope && "public-guest-menu"
         ]}>
           <%= if @current_scope do %>
@@ -59,7 +59,7 @@
           <% else %>
             <li>
               <.link href={~p"/users/register"} class="top-nav-link public-guest-link">
-                Cadastrar
+                Criar conta
               </.link>
             </li>
             <li>
