@@ -72,7 +72,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
         phx-submit="create_quick_finance"
         class="space-y-4"
       >
-        <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <.input
             field={@quick_finance_form[:kind]}
             type="select"

@@ -69,7 +69,7 @@ defmodule OrganizerWeb.Components.QuickTaskHero do
         phx-submit="create_quick_task"
         class="space-y-4"
       >
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <.input
             field={@quick_task_form[:title]}
             id="quick-task-title"

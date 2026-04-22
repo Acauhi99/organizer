@@ -41,7 +41,7 @@ defmodule OrganizerWeb.Layouts do
     ~H"""
     <header class={["px-4 pb-2 pt-4 sm:px-6 lg:px-8", !@current_scope && "public-shell-header"]}>
       <div class={[
-        "surface-card mx-auto flex max-w-7xl flex-col gap-4 rounded-3xl p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6",
+        "app-shell-header-card surface-card mx-auto flex w-full max-w-7xl flex-col gap-4 rounded-3xl p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6 2xl:max-w-[100rem]",
         !@current_scope && "public-shell-header-card"
       ]}>
         <div class="space-y-1">
@@ -70,8 +70,12 @@ defmodule OrganizerWeb.Layouts do
       </div>
     </header>
 
-    <main id="main-content" class="px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-      <div class={["mx-auto space-y-4", @wide && "max-w-7xl", !@wide && "max-w-2xl"]}>
+    <main id="main-content" class="app-shell-main px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <div class={[
+        "app-shell-content mx-auto space-y-4",
+        @wide && "max-w-7xl 2xl:max-w-[100rem]",
+        !@wide && "max-w-2xl 2xl:max-w-4xl"
+      ]}>
         {render_slot(@inner_block)}
       </div>
     </main>

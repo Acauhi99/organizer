@@ -153,14 +153,14 @@ defmodule OrganizerWeb.SettlementLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
-      <section class="collab-shell mx-auto max-w-6xl space-y-6">
+      <section class="collab-shell responsive-shell mx-auto max-w-6xl space-y-6">
         <header class="surface-card collab-hero rounded-3xl p-6 sm:p-8">
           <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
                 Acerto colaborativo
               </p>
-              <h1 class="text-3xl font-black tracking-[-0.02em] text-base-content">
+              <h1 class="text-2xl font-black tracking-[-0.02em] text-base-content sm:text-3xl">
                 Acerto de contas do vínculo
               </h1>
               <p class="max-w-2xl text-sm leading-6 text-base-content/78">
@@ -180,7 +180,7 @@ defmodule OrganizerWeb.SettlementLive do
                 <% @cycle.balance_cents > 0 and not is_nil(@cycle.debtor_id) -> %>
                   <p class="text-sm text-base-content/82">
                     {debtor_label(@cycle, @link)} deve
-                    <span class="font-mono font-semibold text-warning">
+                    <span class="break-words font-mono font-semibold text-warning">
                       {format_cents(@cycle.balance_cents)}
                     </span>
                     a {creditor_label(@cycle, @link)}
@@ -225,7 +225,7 @@ defmodule OrganizerWeb.SettlementLive do
               class="shared-entry-row micro-surface flex items-center justify-between rounded-2xl p-4"
             >
               <div>
-                <p class="text-sm font-medium font-mono text-base-content/92">
+                <p class="break-words text-sm font-medium font-mono text-base-content/92">
                   {format_cents(record.amount_cents)}
                 </p>
                 <p class="text-xs text-base-content/62">

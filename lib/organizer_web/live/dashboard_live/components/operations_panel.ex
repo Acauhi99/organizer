@@ -15,7 +15,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
     ~H"""
     <section
       id="operations-panel"
-      class="surface-card order-6 rounded-2xl p-4 scroll-mt-20"
+      class="operations-shell surface-card order-6 rounded-2xl p-4 scroll-mt-20"
     >
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/70">
@@ -52,7 +52,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
       </div>
 
       <div id="operations-panel-content">
-        <div class="mt-3 grid gap-2 md:grid-cols-4">
+        <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <article
             id="ops-card-tasks-open"
             class="micro-surface rounded-lg p-3"
@@ -134,7 +134,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
               id="task-filters"
               phx-change="filter_tasks"
               phx-debounce="500"
-              class="mt-3 grid gap-2 sm:grid-cols-4"
+              class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
               aria-label="Filtros de tarefas"
             >
               <select name="filters[status]" class="select select-bordered select-sm">
@@ -224,7 +224,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                     :for={item <- checklist_items}
                     id={"task-checklist-item-form-#{task.id}-#{item.id}"}
                     phx-submit="save_task_checklist_item_label"
-                    class="flex items-center gap-2 rounded-lg border border-base-content/16 bg-base-100/55 px-2.5 py-2"
+                    class="flex flex-wrap items-center gap-2 rounded-lg border border-base-content/16 bg-base-100/55 px-2.5 py-2 sm:flex-nowrap"
                   >
                     <input type="hidden" name="task_id" value={task.id} />
                     <input type="hidden" name="item_id" value={item.id} />
@@ -290,7 +290,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                 <form
                   id={"task-checklist-add-form-#{task.id}"}
                   phx-submit="add_task_checklist_item"
-                  class="mt-3 flex items-center gap-2 rounded-lg bg-base-100/30 p-2"
+                  class="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-base-100/30 p-2 sm:flex-nowrap"
                 >
                   <input type="hidden" name="task_id" value={task.id} />
                   <input
@@ -310,7 +310,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                   </button>
                 </form>
 
-                <div class="mt-3 flex gap-2">
+                <div class="mt-3 flex flex-wrap gap-2">
                   <button
                     id={"task-edit-btn-#{task.id}"}
                     type="button"
@@ -400,7 +400,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                       </select>
                     </div>
                   </div>
-                  <div class="flex gap-2">
+                  <div class="flex flex-wrap gap-2">
                     <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
                     <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_edit_task">
                       Cancelar
@@ -422,7 +422,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
               id="finance-filters"
               phx-change="filter_finances"
               phx-debounce="500"
-              class="mt-3 grid gap-2 sm:grid-cols-4 lg:grid-cols-6"
+              class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8"
               aria-label="Filtros de lançamentos"
             >
               <select name="filters[days]" class="select select-bordered select-sm">
@@ -516,7 +516,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                   finance_row_border_class(entry.kind)
                 ]}
               >
-                <div class="flex items-start justify-between gap-3">
+                <div class="flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap">
                   <div class="min-w-0 flex-1">
                     <p class="truncate text-sm font-semibold text-base-content">{entry.category}</p>
                     <p
@@ -546,7 +546,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                   </span>
                 </div>
 
-                <div class="mt-3 flex gap-2">
+                <div class="mt-3 flex flex-wrap gap-2">
                   <button
                     id={"finance-edit-btn-#{entry.id}"}
                     type="button"
@@ -694,7 +694,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                     value={entry.description || ""}
                     class="input input-bordered w-full"
                   />
-                  <div class="flex gap-2">
+                  <div class="flex flex-wrap gap-2">
                     <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
                     <button
                       type="button"

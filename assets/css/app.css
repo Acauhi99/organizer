@@ -71,7 +71,7 @@
 
 body {
   font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
-  font-size: 16px;
+  font-size: clamp(15px, 0.55vw + 13px, 18px);
   line-height: 1.55;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -80,6 +80,19 @@ body {
     radial-gradient(120% 120% at 82% -12%, rgba(168, 214, 236, 0.34), transparent 58%),
     radial-gradient(95% 100% at -8% 102%, rgba(189, 230, 203, 0.36), transparent 56%),
     linear-gradient(180deg, #f7f3ed 0%, #f3f0ea 44%, #efece6 100%);
+}
+
+html,
+body {
+  overflow-x: clip;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
 }
 
 h1,
@@ -335,7 +348,7 @@ summary:focus-visible {
 
 .contex-plot svg {
   width: 100%;
-  min-width: 340px;
+  min-width: 280px;
   height: auto;
 }
 
@@ -359,7 +372,7 @@ summary:focus-visible {
 }
 
 #analytics-panel .contex-plot svg {
-  min-width: 280px;
+  min-width: 240px;
 }
 
 #analytics-panel .contex-plot text {
@@ -1022,4 +1035,122 @@ summary:focus-visible {
 .skip-link:focus {
   top: 1rem;
   left: 1rem;
+}
+
+.app-shell-main {
+  width: 100%;
+}
+
+.app-shell-content {
+  width: 100%;
+}
+
+.responsive-shell {
+  width: 100%;
+}
+
+@media (max-width: 480px) {
+  .site-nav .nav-menu {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .site-nav .identity-pill {
+    max-width: 9rem;
+  }
+
+  .app-shell-main {
+    padding-top: 1.2rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .app-shell-header-card {
+    border-radius: 1.15rem;
+    padding: 0.9rem;
+  }
+
+  .surface-card,
+  .micro-surface {
+    border-radius: 1rem;
+  }
+
+  .operations-shell #task-filters,
+  .operations-shell #finance-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .operations-shell #tasks [id^="task-checklist-item-form-"] .input,
+  .operations-shell #tasks [id^="task-checklist-add-form-"] .input {
+    min-width: 100%;
+  }
+
+  .bulk-code-list code,
+  .bulk-code-list .font-mono {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .contex-plot svg,
+  #analytics-panel .contex-plot svg {
+    min-width: 0;
+  }
+}
+
+@media (min-width: 481px) and (max-width: 767px) {
+  .operations-shell #task-filters,
+  .operations-shell #finance-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contex-plot svg,
+  #analytics-panel .contex-plot svg {
+    min-width: 0;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .operations-shell #task-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .operations-shell #finance-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1920px) {
+  .site-nav > div,
+  .app-shell-header-card,
+  .app-shell-content,
+  .public-home,
+  .public-auth-shell,
+  .collab-shell,
+  .responsive-shell {
+    max-width: 110rem;
+  }
+
+  .dashboard-shell {
+    gap: 1.5rem;
+  }
+}
+
+@media (min-width: 2560px) {
+  .site-nav > div,
+  .app-shell-header-card,
+  .app-shell-content,
+  .public-home,
+  .public-auth-shell,
+  .collab-shell,
+  .responsive-shell {
+    max-width: 132rem;
+  }
+
+  .app-shell-main {
+    padding-top: 2.4rem;
+    padding-bottom: 3rem;
+  }
+
+  .dashboard-shell {
+    gap: 2rem;
+  }
 }

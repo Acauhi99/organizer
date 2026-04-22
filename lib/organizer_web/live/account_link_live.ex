@@ -117,14 +117,14 @@ defmodule OrganizerWeb.AccountLinkLive do
     <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
       <%= case @live_action do %>
         <% :index -> %>
-          <section class="collab-shell mx-auto max-w-5xl space-y-6">
+          <section class="collab-shell responsive-shell mx-auto max-w-5xl space-y-6">
             <header class="surface-card collab-hero rounded-3xl p-6 sm:p-8">
               <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div class="space-y-2">
                   <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
                     Fluxo colaborativo
                   </p>
-                  <h1 class="text-3xl font-black tracking-[-0.02em] text-base-content">
+                  <h1 class="text-2xl font-black tracking-[-0.02em] text-base-content sm:text-3xl">
                     Vínculos entre contas
                   </h1>
                   <p class="max-w-2xl text-sm leading-6 text-base-content/78">
@@ -222,12 +222,12 @@ defmodule OrganizerWeb.AccountLinkLive do
             </section>
           </section>
         <% :new_invite -> %>
-          <section class="collab-shell mx-auto max-w-5xl space-y-6">
+          <section class="collab-shell responsive-shell mx-auto max-w-5xl space-y-6">
             <header class="surface-card collab-hero rounded-3xl p-6 sm:p-8">
               <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
                 Convite por link
               </p>
-              <h1 class="mt-2 text-3xl font-black tracking-[-0.02em] text-base-content">
+              <h1 class="mt-2 text-2xl font-black tracking-[-0.02em] text-base-content sm:text-3xl">
                 Gerar e aceitar convite
               </h1>
               <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/78">

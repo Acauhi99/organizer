@@ -103,14 +103,14 @@ defmodule OrganizerWeb.SharedFinanceLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
-      <section class="collab-shell mx-auto max-w-6xl space-y-6">
+      <section class="collab-shell responsive-shell mx-auto max-w-6xl space-y-6">
         <header class="surface-card collab-hero rounded-3xl p-6 sm:p-8">
           <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
                 Finanças compartilhadas
               </p>
-              <h1 class="text-3xl font-black tracking-[-0.02em] text-base-content">
+              <h1 class="text-2xl font-black tracking-[-0.02em] text-base-content sm:text-3xl">
                 Visão conjunta do vínculo
               </h1>
               <p class="max-w-2xl text-sm leading-6 text-base-content/78">
@@ -180,14 +180,14 @@ defmodule OrganizerWeb.SharedFinanceLive do
               <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
                 Total compartilhado
               </p>
-              <p class="mt-1 text-xl font-mono font-semibold text-base-content">
+              <p class="mt-1 break-words text-xl font-mono font-semibold text-base-content">
                 {format_cents(@metrics.total_cents)}
               </p>
             </article>
 
             <article class="collab-stat micro-surface rounded-2xl p-4 text-center">
               <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">Você arcou</p>
-              <p class="mt-1 text-xl font-mono font-semibold text-info">
+              <p class="mt-1 break-words text-xl font-mono font-semibold text-info">
                 {format_cents(@metrics.paid_a_cents)}
               </p>
             </article>
@@ -196,7 +196,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
               <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
                 Outra conta arcou
               </p>
-              <p class="mt-1 text-xl font-mono font-semibold text-success">
+              <p class="mt-1 break-words text-xl font-mono font-semibold text-success">
                 {format_cents(@metrics.paid_b_cents)}
               </p>
             </article>
@@ -240,7 +240,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 <p class="truncate text-sm font-medium text-base-content/92">
                   {view.entry.description || view.entry.category}
                 </p>
-                <p class="mt-1 text-xs font-mono text-base-content/62">
+                <p class="mt-1 break-words text-[0.72rem] font-mono text-base-content/62 sm:text-xs">
                   {format_cents(view.entry.amount_cents)} • Você: {format_pct(view.split_ratio_mine)} ({format_cents(
                     view.amount_mine_cents
                   )}) • Outra conta: {format_pct(view.split_ratio_theirs)} ({format_cents(
