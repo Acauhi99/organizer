@@ -222,7 +222,6 @@ defmodule Organizer.Planning.FieldSuggester do
     _e -> []
   end
 
-  defp longest_common_prefix([]), do: nil
   defp longest_common_prefix([single]) when is_binary(single), do: single
 
   defp longest_common_prefix([first | rest]) when is_binary(first) do

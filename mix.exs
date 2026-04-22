@@ -8,6 +8,11 @@ defmodule Organizer.MixProject do
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
+      dialyzer: [
+        plt_add_deps: :app_tree,
+        plt_local_path: "priv/plts",
+        ignore_warnings: ".dialyzer_ignore.exs"
+      ],
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
@@ -27,7 +32,7 @@ defmodule Organizer.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test]
+      preferred_envs: [precommit: :test, dialyzer: :dev]
     ]
   end
 
@@ -67,7 +72,8 @@ defmodule Organizer.MixProject do
       {:gettext, "~> 0.26"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+      {:dialyxir, "~> 1.4", only: :dev, runtime: false}
     ]
   end
 
@@ -90,7 +96,13 @@ defmodule Organizer.MixProject do
         "esbuild organizer --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warning-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: [
+        "compile --all-warnings --warnings-as-errors",
+        "cmd env MIX_ENV=dev mix dialyzer --format short",
+        "deps.unlock --unused",
+        "format",
+        "test --warnings-as-errors"
+      ]
     ]
   end
 end

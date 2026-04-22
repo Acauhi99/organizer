@@ -615,13 +615,12 @@ defmodule OrganizerWeb.DashboardLive.BulkImport do
   defp clamp_bulk_index(_index, total) when total <= 0, do: 0
   defp clamp_bulk_index(index, total), do: index |> max(0) |> min(total - 1)
 
-  defp normalize_token(value) when is_binary(value) do
+  @spec normalize_token(String.t()) :: String.t()
+  defp normalize_token(value) do
     value
     |> String.trim()
     |> String.downcase()
   end
-
-  defp normalize_token(value), do: value |> to_string() |> normalize_token()
 
   defp total_bulk_created(created) do
     created.tasks + created.finances

@@ -8,6 +8,28 @@ defmodule Organizer.Planning.FinanceEntry do
   @expense_profiles [:fixed, :variable, :recurring_fixed, :recurring_variable]
   @payment_methods [:credit, :debit]
   @shared_split_modes [:income_ratio, :manual]
+  @type kind :: :income | :expense
+  @type expense_profile :: :fixed | :variable | :recurring_fixed | :recurring_variable
+  @type payment_method :: :credit | :debit
+  @type shared_split_mode :: :income_ratio | :manual
+
+  @type t :: %__MODULE__{
+          id: integer() | nil,
+          kind: kind() | nil,
+          expense_profile: expense_profile() | nil,
+          payment_method: payment_method() | nil,
+          amount_cents: integer() | nil,
+          category: String.t() | nil,
+          description: String.t() | nil,
+          occurred_on: Date.t() | nil,
+          shared_with_link_id: integer() | nil,
+          shared_split_mode: shared_split_mode() | nil,
+          shared_manual_mine_cents: integer() | nil,
+          user_id: integer() | nil,
+          user: term() | nil,
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
+        }
 
   schema "finance_entries" do
     field :kind, Ecto.Enum, values: @kinds
@@ -29,6 +51,7 @@ defmodule Organizer.Planning.FinanceEntry do
   def kinds, do: @kinds
   def expense_profiles, do: @expense_profiles
   def payment_methods, do: @payment_methods
+  def shared_split_modes, do: @shared_split_modes
 
   def changeset(entry, attrs) do
     entry

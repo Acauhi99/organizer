@@ -568,24 +568,29 @@ defmodule Organizer.SharedFinance do
   end
 
   defp do_accept_invite(invite, acceptor_id) do
-    Ecto.Multi.new()
-    |> Ecto.Multi.update(
-      :invite,
-      Ecto.Changeset.change(invite, %{status: :accepted})
-    )
-    |> Ecto.Multi.insert(:account_link, fn _changes ->
-      %AccountLink{}
-      |> Ecto.Changeset.change(%{
-        user_a_id: invite.inviter_id,
-        user_b_id: acceptor_id,
-        status: :active,
-        invite_id: invite.id
-      })
+    Repo.transaction(fn ->
+      case Repo.update(Ecto.Changeset.change(invite, %{status: :accepted})) do
+        {:ok, _updated_invite} ->
+          %AccountLink{}
+          |> Ecto.Changeset.change(%{
+            user_a_id: invite.inviter_id,
+            user_b_id: acceptor_id,
+            status: :active,
+            invite_id: invite.id
+          })
+          |> Repo.insert()
+          |> case do
+            {:ok, account_link} -> account_link
+            {:error, changeset} -> Repo.rollback(changeset)
+          end
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
     end)
-    |> Repo.transaction()
     |> case do
-      {:ok, %{account_link: account_link}} -> {:ok, account_link}
-      {:error, _op, changeset, _changes} -> {:error, changeset}
+      {:ok, account_link} -> {:ok, account_link}
+      {:error, changeset} -> {:error, changeset}
     end
   end
 

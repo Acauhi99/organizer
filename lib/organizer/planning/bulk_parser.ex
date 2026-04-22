@@ -92,9 +92,8 @@ defmodule Organizer.Planning.BulkParser do
   # Private helpers (used only in this facade for type dispatch)
   # ---------------------------------------------------------------------------
 
-  defp normalize_token(value) when is_binary(value) do
+  @spec normalize_token(String.t()) :: String.t()
+  defp normalize_token(value) do
     value |> String.trim() |> String.downcase()
   end
-
-  defp normalize_token(value), do: value |> to_string() |> normalize_token()
 end

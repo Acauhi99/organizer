@@ -372,13 +372,12 @@ defmodule OrganizerWeb.SharedFinanceLive do
   defp shared_period_label("last_3_months"), do: "Últimos 3 meses"
   defp shared_period_label(_), do: "Tudo"
 
-  defp normalize_shared_period_filter(params) when is_map(params) do
+  @spec normalize_shared_period_filter(map()) :: String.t()
+  defp normalize_shared_period_filter(params) do
     case Map.get(params, "period") do
       "current_month" -> "current_month"
       "last_3_months" -> "last_3_months"
       _ -> "all"
     end
   end
-
-  defp normalize_shared_period_filter(_params), do: "all"
 end
