@@ -11,7 +11,7 @@ defmodule Organizer.SharedFinance.LinkMetricsCalculator do
   @doc """
   Calculates LinkMetrics for a given set of SharedEntryViews and split ratios.
   """
-  def calculate_link_metrics(shared_entries, split_ratio_a, split_ratio_b) do
+  def calculate_link_metrics(shared_entries, split_ratio_a, split_ratio_b, opts \\ []) do
     total_cents = Enum.sum(Enum.map(shared_entries, & &1.entry.amount_cents))
     paid_a_cents = Enum.sum(Enum.map(shared_entries, & &1.amount_mine_cents))
     paid_b_cents = total_cents - paid_a_cents
@@ -30,11 +30,11 @@ defmodule Organizer.SharedFinance.LinkMetricsCalculator do
     imbalance_detected =
       total_cents > 0 and abs(effective_pct_a - expected_pct_a) > @imbalance_threshold
 
-    today = Date.utc_today()
+    reference_date = Keyword.get(opts, :reference_date, Date.utc_today())
 
     %LinkMetrics{
-      reference_month: today.month,
-      reference_year: today.year,
+      reference_month: reference_date.month,
+      reference_year: reference_date.year,
       total_cents: total_cents,
       paid_a_cents: paid_a_cents,
       paid_b_cents: paid_b_cents,

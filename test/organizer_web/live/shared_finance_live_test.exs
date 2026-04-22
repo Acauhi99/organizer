@@ -34,6 +34,20 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
     updated_entry
   end
 
+  defp create_shared_entry_on(scope, link_id, date, amount_cents) do
+    {:ok, entry} =
+      Planning.create_finance_entry(scope, %{
+        "description" => "Shared expense #{Date.to_iso8601(date)}",
+        "amount_cents" => amount_cents,
+        "kind" => "expense",
+        "category" => "Moradia",
+        "occurred_on" => Date.to_iso8601(date)
+      })
+
+    {:ok, updated_entry} = SharedFinance.share_finance_entry(scope, entry.id, link_id)
+    updated_entry
+  end
+
   describe "access" do
     test "redirects unauthenticated users", %{conn: conn} do
       assert {:error, {:redirect, %{to: "/users/log-in"}}} =
@@ -79,6 +93,28 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       entry = create_shared_entry(scope_a, link.id)
       {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
       assert has_element?(view, "#unshare-entry-#{entry.id}")
+    end
+
+    test "filters shared entries by selected period", %{conn: conn, scope_a: scope_a, link: link} do
+      current_date = Date.utc_today()
+      old_date = Date.add(current_date, -150)
+
+      current_entry = create_shared_entry_on(scope_a, link.id, current_date, 12_000)
+      old_entry = create_shared_entry_on(scope_a, link.id, old_date, 7_000)
+
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+
+      assert has_element?(view, "#unshare-entry-#{current_entry.id}")
+      assert has_element?(view, "#unshare-entry-#{old_entry.id}")
+      assert has_element?(view, "#shared-period-filter-all.btn-primary")
+
+      view
+      |> element("#shared-period-filter-current-month")
+      |> render_click()
+
+      assert has_element?(view, "#shared-period-filter-current-month.btn-primary")
+      assert has_element?(view, "#unshare-entry-#{current_entry.id}")
+      refute has_element?(view, "#unshare-entry-#{old_entry.id}")
     end
   end
 

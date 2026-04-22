@@ -5,6 +5,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
   import Phoenix.LiveViewTest
 
   alias Organizer.Planning
+  alias Organizer.SharedFinance
 
   describe "access" do
     test "redirects unauthenticated users", %{conn: conn} do
@@ -67,6 +68,51 @@ defmodule OrganizerWeb.DashboardLiveTest do
                  entry.amount_cents == 12_345 and
                  entry.category == "Alimentação" and
                  entry.payment_method == :debit
+             end)
+    end
+
+    test "shows quick finance sharing controls disabled when user has no links", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      assert has_element?(view, "#quick-finance-share-controls")
+      assert has_element?(view, "#quick-finance-share-with-link[disabled]")
+      assert has_element?(view, "#quick-finance-share-link-id[disabled]")
+    end
+
+    test "creates quick expense from decimal amount and shares with linked account", %{
+      conn: conn,
+      scope: scope
+    } do
+      linked_user = user_fixture()
+      linked_scope = user_scope_fixture(linked_user)
+      {:ok, invite} = SharedFinance.create_invite(scope)
+      {:ok, link} = SharedFinance.accept_invite(linked_scope, invite.token)
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      today = Date.to_iso8601(Date.utc_today())
+
+      view
+      |> form("#quick-finance-form", %{
+        "quick_finance" => %{
+          "kind" => "expense",
+          "amount_cents" => "182.54",
+          "category" => "Alimentação",
+          "description" => "mercado compartilhado",
+          "occurred_on" => today,
+          "expense_profile" => "variable",
+          "payment_method" => "debit",
+          "share_with_link" => "true"
+        }
+      })
+      |> render_submit()
+
+      {:ok, finances} = Planning.list_finance_entries(scope, %{})
+
+      assert Enum.any?(finances, fn entry ->
+               entry.kind == :expense and
+                 entry.amount_cents == 18_254 and
+                 entry.category == "Alimentação" and
+                 entry.shared_with_link_id == link.id
              end)
     end
 

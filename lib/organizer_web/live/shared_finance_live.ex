@@ -3,9 +3,12 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
   alias Organizer.SharedFinance
 
+  @shared_period_filters ["current_month", "last_3_months", "all"]
+
   @impl true
-  def mount(%{"link_id" => link_id_param}, _session, socket) do
+  def mount(%{"link_id" => link_id_param} = params, _session, socket) do
     scope = socket.assigns.current_scope
+    selected_period = normalize_shared_period_filter(params)
 
     with {:ok, link_id} <- parse_int(link_id_param),
          {:ok, link} <- SharedFinance.get_account_link(scope, link_id) do
@@ -13,14 +16,20 @@ defmodule OrganizerWeb.SharedFinanceLive do
         Phoenix.PubSub.subscribe(Organizer.PubSub, "account_link:#{link_id}")
       end
 
-      {:ok, views} = SharedFinance.list_shared_entries(scope, link_id)
-      {:ok, metrics} = SharedFinance.get_link_metrics(scope, link_id, Date.utc_today())
+      {:ok, views} = SharedFinance.list_shared_entries(scope, link_id, %{period: selected_period})
+
+      {:ok, metrics} =
+        SharedFinance.get_link_metrics(scope, link_id, Date.utc_today(), %{
+          period: selected_period
+        })
+
       {:ok, trend} = SharedFinance.get_recurring_variable_trend(scope, link_id)
 
       socket =
         socket
         |> assign(:link, link)
         |> assign(:link_id, link_id)
+        |> assign(:selected_shared_period, selected_period)
         |> assign(:metrics, metrics)
         |> assign(:trend, trend)
         |> assign(:shared_entries_count, length(views))
@@ -72,6 +81,15 @@ defmodule OrganizerWeb.SharedFinanceLive do
   end
 
   @impl true
+  def handle_event("set_shared_period", %{"period" => period}, socket)
+      when period in @shared_period_filters do
+    {:noreply,
+     socket
+     |> assign(:selected_shared_period, period)
+     |> reload_shared_data()}
+  end
+
+  @impl true
   def handle_info({:shared_entry_updated, _entry}, socket) do
     {:noreply, reload_shared_data(socket)}
   end
@@ -110,7 +128,51 @@ defmodule OrganizerWeb.SharedFinanceLive do
             <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
               Resumo do período
             </h2>
-            <span class="text-xs text-base-content/62">{Date.utc_today() |> Date.to_iso8601()}</span>
+            <span class="text-xs text-base-content/62">
+              {format_reference_period(@metrics, @selected_shared_period)}
+            </span>
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button
+              id="shared-period-filter-current-month"
+              type="button"
+              phx-click="set_shared_period"
+              phx-value-period="current_month"
+              class={[
+                "btn btn-xs",
+                @selected_shared_period == "current_month" && "btn-primary",
+                @selected_shared_period != "current_month" && "btn-soft"
+              ]}
+            >
+              Mês atual
+            </button>
+            <button
+              id="shared-period-filter-last-3-months"
+              type="button"
+              phx-click="set_shared_period"
+              phx-value-period="last_3_months"
+              class={[
+                "btn btn-xs",
+                @selected_shared_period == "last_3_months" && "btn-primary",
+                @selected_shared_period != "last_3_months" && "btn-soft"
+              ]}
+            >
+              Últimos 3 meses
+            </button>
+            <button
+              id="shared-period-filter-all"
+              type="button"
+              phx-click="set_shared_period"
+              phx-value-period="all"
+              class={[
+                "btn btn-xs",
+                @selected_shared_period == "all" && "btn-primary",
+                @selected_shared_period != "all" && "btn-soft"
+              ]}
+            >
+              Tudo
+            </button>
           </div>
 
           <div class="collab-stats-grid mt-4 grid gap-3 sm:grid-cols-3">
@@ -228,9 +290,13 @@ defmodule OrganizerWeb.SharedFinanceLive do
   defp reload_shared_data(socket) do
     scope = socket.assigns.current_scope
     link_id = socket.assigns.link_id
+    selected_period = socket.assigns.selected_shared_period
 
-    {:ok, views} = SharedFinance.list_shared_entries(scope, link_id)
-    {:ok, metrics} = SharedFinance.get_link_metrics(scope, link_id, Date.utc_today())
+    {:ok, views} = SharedFinance.list_shared_entries(scope, link_id, %{period: selected_period})
+
+    {:ok, metrics} =
+      SharedFinance.get_link_metrics(scope, link_id, Date.utc_today(), %{period: selected_period})
+
     {:ok, trend} = SharedFinance.get_recurring_variable_trend(scope, link_id)
 
     socket
@@ -296,4 +362,23 @@ defmodule OrganizerWeb.SharedFinanceLive do
     |> Enum.join(".")
     |> String.reverse()
   end
+
+  defp format_reference_period(metrics, period) do
+    month = metrics.reference_month |> to_string() |> String.pad_leading(2, "0")
+    "#{shared_period_label(period)} • até #{month}/#{metrics.reference_year}"
+  end
+
+  defp shared_period_label("current_month"), do: "Mês atual"
+  defp shared_period_label("last_3_months"), do: "Últimos 3 meses"
+  defp shared_period_label(_), do: "Tudo"
+
+  defp normalize_shared_period_filter(params) when is_map(params) do
+    case Map.get(params, "period") do
+      "current_month" -> "current_month"
+      "last_3_months" -> "last_3_months"
+      _ -> "all"
+    end
+  end
+
+  defp normalize_shared_period_filter(_params), do: "all"
 end

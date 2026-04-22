@@ -33,13 +33,13 @@ defmodule Organizer.SharedFinance.SplitCalculatorPropertyTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Feature: shared-finance, Property 9: Divisão igualitária quando renda combinada é zero
+  # Feature: shared-finance, Property 9: Sem fallback 50/50 quando renda combinada é zero
   # Validates: Requirements 3.4
   # ---------------------------------------------------------------------------
 
   @tag feature: "shared-finance", property: 9
-  test "Property 9: calculate_split_ratio(0, 0) retorna {0.5, 0.5}" do
-    assert SplitCalculator.calculate_split_ratio(0, 0) == {0.5, 0.5}
+  test "Property 9: calculate_split_ratio(0, 0) retorna {1.0, 0.0}" do
+    assert SplitCalculator.calculate_split_ratio(0, 0) == {1.0, 0.0}
   end
 
   # ---------------------------------------------------------------------------

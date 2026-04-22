@@ -4,6 +4,8 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
 
   attr :quick_finance_form, :any, required: true
   attr :quick_finance_kind, :string, required: true
+  attr :account_links, :list, default: []
+  attr :current_user_id, :integer, default: 0
 
   def quick_finance_hero(assigns) do
     ~H"""
@@ -81,10 +83,10 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           <.input
             field={@quick_finance_form[:amount_cents]}
             id="quick-finance-amount"
-            type="number"
-            label="Valor (centavos)"
-            placeholder="Ex: 12990"
-            min="1"
+            type="text"
+            label="Valor"
+            placeholder="Ex: 182,54"
+            autocomplete="off"
             required
           />
 
@@ -130,6 +132,33 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           placeholder="Opcional"
         />
 
+        <section
+          :if={@quick_finance_kind == "expense"}
+          id="quick-finance-share-controls"
+          class="rounded-xl border border-base-content/14 bg-base-100/45 p-3"
+        >
+          <.input
+            field={@quick_finance_form[:share_with_link]}
+            id="quick-finance-share-with-link"
+            type="checkbox"
+            label=" Compartilhar gasto com conta vinculada"
+            disabled={Enum.empty?(@account_links)}
+          />
+
+          <.input
+            field={@quick_finance_form[:shared_with_link_id]}
+            id="quick-finance-share-link-id"
+            type="select"
+            label="Conta vinculada"
+            options={share_link_options(@account_links, @current_user_id)}
+            disabled={Enum.empty?(@account_links) || !share_enabled?(@quick_finance_form)}
+          />
+
+          <p :if={Enum.empty?(@account_links)} class="text-xs text-base-content/70">
+            Você ainda não possui vínculo ativo. Crie um vínculo para compartilhar gastos.
+          </p>
+        </section>
+
         <.button type="submit" variant="primary" class="w-full sm:w-auto">
           Registrar lançamento
         </.button>
@@ -166,5 +195,40 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
       active? && "btn-primary",
       not active? && "btn-soft"
     ]
+  end
+
+  defp share_enabled?(quick_finance_form) do
+    case quick_finance_form[:share_with_link] do
+      %{value: value} -> truthy?(value)
+      _ -> false
+    end
+  end
+
+  defp truthy?(value) when is_boolean(value), do: value
+  defp truthy?(value) when value in ["true", "on", "1"], do: true
+  defp truthy?(_value), do: false
+
+  defp share_link_options([], _current_user_id), do: [{"Sem vínculo ativo", ""}]
+
+  defp share_link_options(account_links, current_user_id) do
+    Enum.map(account_links, fn link ->
+      {share_link_label(link, current_user_id), to_string(link.id)}
+    end)
+  end
+
+  defp share_link_label(link, current_user_id) do
+    partner_email =
+      cond do
+        current_user_id == link.user_a_id and is_map(link.user_b) ->
+          Map.get(link.user_b, :email, "conta vinculada")
+
+        current_user_id == link.user_b_id and is_map(link.user_a) ->
+          Map.get(link.user_a, :email, "conta vinculada")
+
+        true ->
+          "conta vinculada"
+      end
+
+    "Vínculo ##{link.id} • #{partner_email}"
   end
 end

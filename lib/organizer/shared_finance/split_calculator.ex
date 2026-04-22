@@ -17,15 +17,33 @@ defmodule Organizer.SharedFinance.SplitCalculator do
   end
 
   @doc """
+  Calculates the reference income for a user in a given month/year with carryover.
+
+  Priority:
+  1. Income sum in the requested month/year
+  2. If zero, income sum from the latest previous month (<= requested month/year)
+  3. If still none, 0
+  """
+  def calculate_reference_income_with_carryover(user_id, month, year, repo \\ Repo) do
+    current_income = calculate_reference_income(user_id, month, year, repo)
+
+    if current_income > 0 do
+      current_income
+    else
+      query_latest_income_month_sum_until(user_id, month, year, repo)
+    end
+  end
+
+  @doc """
   Calculates the split ratio between two users based on their reference incomes.
   Returns {ratio_a, ratio_b} where ratio_a + ratio_b == 1.0.
-  When income_a + income_b == 0, returns {0.5, 0.5}.
+  When income_a + income_b == 0, returns {1.0, 0.0}.
   """
   def calculate_split_ratio(income_a, income_b) do
     total = income_a + income_b
 
     if total == 0 do
-      {0.5, 0.5}
+      {1.0, 0.0}
     else
       ratio_a = income_a / total
       ratio_b = income_b / total
@@ -57,6 +75,31 @@ defmodule Organizer.SharedFinance.SplitCalculator do
               fe.kind == :income and
               fragment("strftime('%m', ?)", fe.occurred_on) == ^zero_pad(month) and
               fragment("strftime('%Y', ?)", fe.occurred_on) == ^to_string(year),
+          select: sum(fe.amount_cents)
+      )
+
+    result || 0
+  end
+
+  defp query_latest_income_month_sum_until(user_id, month, year, repo) do
+    period_end = year |> Date.new!(month, 1) |> Date.end_of_month()
+
+    result =
+      repo.one(
+        from fe in Organizer.Planning.FinanceEntry,
+          where:
+            fe.user_id == ^user_id and
+              fe.kind == :income and
+              fe.occurred_on <= ^period_end,
+          group_by: [
+            fragment("strftime('%Y', ?)", fe.occurred_on),
+            fragment("strftime('%m', ?)", fe.occurred_on)
+          ],
+          order_by: [
+            desc: fragment("strftime('%Y', ?)", fe.occurred_on),
+            desc: fragment("strftime('%m', ?)", fe.occurred_on)
+          ],
+          limit: 1,
           select: sum(fe.amount_cents)
       )
 

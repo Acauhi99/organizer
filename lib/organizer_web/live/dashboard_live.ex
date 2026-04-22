@@ -2,6 +2,7 @@ defmodule OrganizerWeb.DashboardLive do
   use OrganizerWeb, :live_view
 
   alias Organizer.Planning
+  alias Organizer.Planning.AmountParser
   alias Organizer.SharedFinance
   alias OrganizerWeb.DashboardLive.{Filters, BulkImport, Insights}
 
@@ -48,7 +49,7 @@ defmodule OrganizerWeb.DashboardLive do
 
   @impl true
   def handle_event("quick_finance_validate", %{"quick_finance" => attrs}, socket) do
-    normalized = normalize_quick_finance_attrs(attrs)
+    normalized = normalize_quick_finance_attrs(attrs, socket.assigns.account_links)
 
     {:noreply,
      socket
@@ -59,7 +60,7 @@ defmodule OrganizerWeb.DashboardLive do
   @impl true
   def handle_event("quick_finance_preset", %{"preset" => preset}, socket) do
     preset_attrs = quick_finance_preset_attrs(preset)
-    normalized = normalize_quick_finance_attrs(preset_attrs)
+    normalized = normalize_quick_finance_attrs(preset_attrs, socket.assigns.account_links)
 
     {:noreply,
      socket
@@ -69,18 +70,36 @@ defmodule OrganizerWeb.DashboardLive do
 
   @impl true
   def handle_event("create_quick_finance", %{"quick_finance" => attrs}, socket) do
-    normalized = normalize_quick_finance_attrs(attrs)
+    normalized =
+      normalize_quick_finance_attrs(attrs, socket.assigns.account_links, parse_amount?: true)
 
     case Planning.create_finance_entry(socket.assigns.current_scope, normalized) do
-      {:ok, _entry} ->
+      {:ok, entry} ->
+        share_result =
+          maybe_share_quick_finance_entry(socket.assigns.current_scope, entry, normalized)
+
         kind = normalized["kind"]
-        reset_form = quick_finance_defaults(kind)
+        reset_form = quick_finance_defaults(kind, socket.assigns.account_links)
+
+        flash_message =
+          case share_result do
+            :shared ->
+              "Lançamento registrado e compartilhado no vínculo."
+
+            :share_failed ->
+              "Lançamento registrado, mas não foi possível compartilhar no vínculo."
+
+            :not_shared ->
+              "Lançamento registrado."
+          end
+
+        flash_level = if share_result == :share_failed, do: :error, else: :info
 
         {:noreply,
          socket
          |> assign(:quick_finance_kind, kind)
          |> assign(:quick_finance_form, to_form(reset_form, as: :quick_finance))
-         |> put_flash(:info, "Lançamento registrado.")
+         |> put_flash(flash_level, flash_message)
          |> load_operation_collections()
          |> refresh_dashboard_insights()}
 
@@ -672,7 +691,10 @@ defmodule OrganizerWeb.DashboardLive do
     socket
     |> assign(:current_scope, scope)
     |> assign(:quick_finance_kind, "expense")
-    |> assign(:quick_finance_form, to_form(quick_finance_defaults(), as: :quick_finance))
+    |> assign(
+      :quick_finance_form,
+      to_form(quick_finance_defaults("expense", account_links), as: :quick_finance)
+    )
     |> assign(:quick_task_form, to_form(quick_task_defaults(), as: :quick_task))
     |> assign(:bulk_form, to_form(%{"payload" => ""}, as: :bulk))
     |> assign(:bulk_payload_text, "")
@@ -736,7 +758,12 @@ defmodule OrganizerWeb.DashboardLive do
     Insights.load_chart_svgs(socket)
   end
 
-  defp quick_finance_defaults(kind \\ "expense") do
+  defp quick_finance_defaults(kind \\ "expense", account_links \\ []) do
+    default_shared_with_link_id =
+      account_links
+      |> List.first()
+      |> then(&if is_nil(&1), do: "", else: to_string(&1.id))
+
     %{
       "kind" => kind,
       "amount_cents" => "",
@@ -744,7 +771,9 @@ defmodule OrganizerWeb.DashboardLive do
       "description" => "",
       "occurred_on" => Date.to_iso8601(Date.utc_today()),
       "expense_profile" => default_quick_expense_profile(kind),
-      "payment_method" => default_quick_payment_method(kind)
+      "payment_method" => default_quick_payment_method(kind),
+      "share_with_link" => "false",
+      "shared_with_link_id" => if(kind == "expense", do: default_shared_with_link_id, else: "")
     }
   end
 
@@ -843,7 +872,11 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp normalize_quick_task_attrs(_attrs), do: quick_task_defaults()
 
-  defp normalize_quick_finance_attrs(attrs) when is_map(attrs) do
+  defp normalize_quick_finance_attrs(attrs, account_links, opts \\ [])
+
+  defp normalize_quick_finance_attrs(attrs, account_links, opts) when is_map(attrs) do
+    parse_amount? = Keyword.get(opts, :parse_amount?, false)
+
     kind =
       attrs
       |> Map.get("kind", "expense")
@@ -854,7 +887,7 @@ defmodule OrganizerWeb.DashboardLive do
         _ -> "expense"
       end
 
-    defaults = quick_finance_defaults(kind)
+    defaults = quick_finance_defaults(kind, account_links)
 
     merged =
       defaults
@@ -862,6 +895,8 @@ defmodule OrganizerWeb.DashboardLive do
       |> Map.put("kind", kind)
       |> Map.update!("category", &default_if_blank(&1, default_quick_finance_category(kind)))
       |> Map.update!("occurred_on", &default_if_blank(&1, Date.to_iso8601(Date.utc_today())))
+      |> normalize_quick_finance_share_fields(kind, account_links)
+      |> maybe_parse_quick_finance_amount(parse_amount?)
 
     if kind == "income" do
       merged
@@ -877,7 +912,110 @@ defmodule OrganizerWeb.DashboardLive do
     end
   end
 
-  defp normalize_quick_finance_attrs(_attrs), do: quick_finance_defaults()
+  defp normalize_quick_finance_attrs(_attrs, account_links, _opts),
+    do: quick_finance_defaults("expense", account_links)
+
+  defp maybe_parse_quick_finance_amount(attrs, false), do: attrs
+
+  defp maybe_parse_quick_finance_amount(attrs, true) do
+    amount_value = Map.get(attrs, "amount_cents")
+
+    case parse_quick_finance_amount_cents(amount_value) do
+      {:ok, cents} -> Map.put(attrs, "amount_cents", Integer.to_string(cents))
+      :error -> attrs
+    end
+  end
+
+  defp parse_quick_finance_amount_cents(value) when is_integer(value), do: {:ok, value}
+
+  defp parse_quick_finance_amount_cents(value) when is_binary(value) do
+    cleaned = String.trim(value)
+
+    cond do
+      cleaned == "" ->
+        :error
+
+      Regex.match?(~r/^\d+$/, cleaned) ->
+        {:ok, String.to_integer(cleaned)}
+
+      true ->
+        case AmountParser.parse(cleaned) do
+          {:ok, cents} -> {:ok, cents}
+          _ -> :error
+        end
+    end
+  end
+
+  defp parse_quick_finance_amount_cents(_value), do: :error
+
+  defp normalize_quick_finance_share_fields(attrs, kind, account_links) do
+    link_ids = Enum.map(account_links, &to_string(&1.id))
+    valid_link_ids = MapSet.new(link_ids)
+
+    selected_link_id =
+      attrs
+      |> Map.get("shared_with_link_id", "")
+      |> to_string()
+      |> String.trim()
+
+    default_link_id = List.first(link_ids) || ""
+
+    normalized_link_id =
+      if MapSet.member?(valid_link_ids, selected_link_id),
+        do: selected_link_id,
+        else: default_link_id
+
+    cond do
+      kind != "expense" or MapSet.size(valid_link_ids) == 0 ->
+        attrs
+        |> Map.put("share_with_link", "false")
+        |> Map.put("shared_with_link_id", "")
+
+      truthy_quick_finance_value?(Map.get(attrs, "share_with_link")) ->
+        attrs
+        |> Map.put("share_with_link", "true")
+        |> Map.put("shared_with_link_id", normalized_link_id)
+
+      true ->
+        attrs
+        |> Map.put("share_with_link", "false")
+        |> Map.put("shared_with_link_id", normalized_link_id)
+    end
+  end
+
+  defp truthy_quick_finance_value?(value) when is_boolean(value), do: value
+  defp truthy_quick_finance_value?(value) when value in ["true", "on", "1"], do: true
+  defp truthy_quick_finance_value?(_value), do: false
+
+  defp maybe_share_quick_finance_entry(_scope, _entry, %{"kind" => "income"}), do: :not_shared
+
+  defp maybe_share_quick_finance_entry(scope, entry, attrs) do
+    if truthy_quick_finance_value?(Map.get(attrs, "share_with_link")) do
+      case parse_quick_share_link_id(Map.get(attrs, "shared_with_link_id")) do
+        {:ok, link_id} ->
+          case SharedFinance.share_finance_entry(scope, entry.id, link_id) do
+            {:ok, _shared_entry} -> :shared
+            _ -> :share_failed
+          end
+
+        :error ->
+          :share_failed
+      end
+    else
+      :not_shared
+    end
+  end
+
+  defp parse_quick_share_link_id(value) do
+    value
+    |> to_string()
+    |> String.trim()
+    |> Integer.parse()
+    |> case do
+      {link_id, ""} when link_id > 0 -> {:ok, link_id}
+      _ -> :error
+    end
+  end
 
   defp string_key_map(attrs) do
     Enum.reduce(attrs, %{}, fn {key, value}, acc ->
@@ -984,6 +1122,8 @@ defmodule OrganizerWeb.DashboardLive do
         <QuickFinanceHero.quick_finance_hero
           quick_finance_form={@quick_finance_form}
           quick_finance_kind={@quick_finance_kind}
+          account_links={@account_links}
+          current_user_id={@current_scope.user.id}
         />
 
         <QuickTaskHero.quick_task_hero quick_task_form={@quick_task_form} />

@@ -229,24 +229,29 @@ defmodule Organizer.SharedFinance do
   for each entry month based on each user's reference income.
   Returns `{:error, :not_found}` if the user is not a participant of the link.
   """
-  def list_shared_entries(scope, link_id, _params \\ %{}) do
+  def list_shared_entries(scope, link_id, params \\ %{}) do
     case get_account_link(scope, link_id) do
       {:error, :not_found} ->
         {:error, :not_found}
 
       {:ok, link} ->
+        period = normalize_shared_period(params)
+        reference_date = normalize_reference_date(Map.get(params, :reference_date))
+
         entries =
           from(fe in FinanceEntry, where: fe.shared_with_link_id == ^link_id)
           |> Repo.all()
+          |> apply_shared_period_filter(period, reference_date)
 
         user_id = scope.user.id
         ratio_by_period = build_ratio_by_period(entries, link)
 
         views =
           Enum.map(entries, fn entry ->
-            {ratio_a, ratio_b} =
+            period_info =
               Map.fetch!(ratio_by_period, {entry.occurred_on.year, entry.occurred_on.month})
 
+            {ratio_a, ratio_b} = resolve_entry_ratios(entry, link, period_info)
             {ratio_mine, ratio_theirs} = scoped_ratios(user_id, link, ratio_a, ratio_b)
 
             {amount_mine, amount_theirs} =
@@ -274,35 +279,41 @@ defmodule Organizer.SharedFinance do
   `reference_month` is a `%Date{}` struct.
   Returns `{:ok, %LinkMetrics{}}` or `{:error, :not_found}`.
   """
-  def get_link_metrics(scope, link_id, reference_month) do
+  def get_link_metrics(scope, link_id, reference_month, params \\ %{}) do
     case get_account_link(scope, link_id) do
       {:error, :not_found} ->
         {:error, :not_found}
 
       {:ok, link} ->
-        {:ok, all_views} = list_shared_entries(scope, link_id)
+        period = normalize_shared_period(params)
 
-        filtered_views =
-          Enum.filter(all_views, fn view ->
-            view.entry.occurred_on.month == reference_month.month and
-              view.entry.occurred_on.year == reference_month.year
-          end)
+        {:ok, filtered_views} =
+          list_shared_entries(scope, link_id, %{
+            period: period,
+            reference_date: reference_month
+          })
 
         income_a =
-          SplitCalculator.calculate_reference_income(
+          SplitCalculator.calculate_reference_income_with_carryover(
             link.user_a_id,
             reference_month.month,
             reference_month.year
           )
 
         income_b =
-          SplitCalculator.calculate_reference_income(
+          SplitCalculator.calculate_reference_income_with_carryover(
             link.user_b_id,
             reference_month.month,
             reference_month.year
           )
 
-        {ratio_a, ratio_b} = SplitCalculator.calculate_split_ratio(income_a, income_b)
+        {ratio_a, ratio_b} =
+          resolve_metrics_ratios(
+            income_a,
+            income_b,
+            filtered_views,
+            link
+          )
 
         {split_ratio_a, split_ratio_b} = scoped_ratios(scope.user.id, link, ratio_a, ratio_b)
 
@@ -310,7 +321,8 @@ defmodule Organizer.SharedFinance do
           LinkMetricsCalculator.calculate_link_metrics(
             filtered_views,
             split_ratio_a,
-            split_ratio_b
+            split_ratio_b,
+            reference_date: reference_month
           )
 
         {:ok, metrics}
@@ -579,12 +591,121 @@ defmodule Organizer.SharedFinance do
     |> Enum.map(fn entry -> {entry.occurred_on.year, entry.occurred_on.month} end)
     |> MapSet.new()
     |> Enum.reduce(%{}, fn {year, month}, acc ->
-      income_a = SplitCalculator.calculate_reference_income(link.user_a_id, month, year)
-      income_b = SplitCalculator.calculate_reference_income(link.user_b_id, month, year)
+      income_a =
+        SplitCalculator.calculate_reference_income_with_carryover(link.user_a_id, month, year)
+
+      income_b =
+        SplitCalculator.calculate_reference_income_with_carryover(link.user_b_id, month, year)
+
       ratios = SplitCalculator.calculate_split_ratio(income_a, income_b)
 
-      Map.put(acc, {year, month}, ratios)
+      Map.put(acc, {year, month}, %{
+        income_a: income_a,
+        income_b: income_b,
+        ratios: ratios
+      })
     end)
+  end
+
+  defp resolve_entry_ratios(entry, link, period_info) do
+    case period_info do
+      %{income_a: 0, income_b: 0} ->
+        if entry.user_id == link.user_b_id do
+          {0.0, 1.0}
+        else
+          {1.0, 0.0}
+        end
+
+      %{ratios: {ratio_a, ratio_b}} ->
+        {ratio_a, ratio_b}
+    end
+  end
+
+  defp resolve_metrics_ratios(income_a, income_b, filtered_views, link) do
+    if income_a == 0 and income_b == 0 do
+      fallback_ratios_from_entry_ownership(filtered_views, link)
+    else
+      SplitCalculator.calculate_split_ratio(income_a, income_b)
+    end
+  end
+
+  defp fallback_ratios_from_entry_ownership(filtered_views, link) do
+    totals =
+      Enum.reduce(filtered_views, %{a: 0, b: 0}, fn view, acc ->
+        cond do
+          view.entry.user_id == link.user_a_id ->
+            %{acc | a: acc.a + view.entry.amount_cents}
+
+          view.entry.user_id == link.user_b_id ->
+            %{acc | b: acc.b + view.entry.amount_cents}
+
+          true ->
+            acc
+        end
+      end)
+
+    total = totals.a + totals.b
+
+    if total > 0 do
+      {totals.a / total, totals.b / total}
+    else
+      {1.0, 0.0}
+    end
+  end
+
+  defp normalize_shared_period(params) when is_map(params) do
+    period = Map.get(params, :period) || Map.get(params, "period")
+
+    case to_string(period) do
+      "current_month" -> "current_month"
+      "last_3_months" -> "last_3_months"
+      "all" -> "all"
+      _ -> "all"
+    end
+  end
+
+  defp normalize_shared_period(_params), do: "all"
+
+  defp normalize_reference_date(%Date{} = date), do: date
+  defp normalize_reference_date(_), do: Date.utc_today()
+
+  defp apply_shared_period_filter(entries, "all", reference_date) do
+    end_on = Date.end_of_month(reference_date)
+
+    Enum.filter(entries, fn entry ->
+      Date.compare(entry.occurred_on, end_on) != :gt
+    end)
+  end
+
+  defp apply_shared_period_filter(entries, period, reference_date) do
+    end_on = Date.end_of_month(reference_date)
+
+    start_on =
+      case period do
+        "current_month" ->
+          Date.beginning_of_month(reference_date)
+
+        "last_3_months" ->
+          reference_date
+          |> shift_months(-2)
+          |> Date.beginning_of_month()
+
+        _ ->
+          Date.beginning_of_month(reference_date)
+      end
+
+    Enum.filter(entries, fn entry ->
+      Date.compare(entry.occurred_on, start_on) != :lt and
+        Date.compare(entry.occurred_on, end_on) != :gt
+    end)
+  end
+
+  defp shift_months(%Date{} = date, delta_months) when is_integer(delta_months) do
+    month_index = date.year * 12 + (date.month - 1) + delta_months
+    new_year = div(month_index, 12)
+    new_month = rem(month_index, 12) + 1
+
+    Date.new!(new_year, new_month, 1)
   end
 
   defp scoped_ratios(user_id, link, ratio_a, ratio_b) do
