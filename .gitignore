@@ -39,3 +39,7 @@ npm-debug.log
 *.db
 *.db-*
 
+# Dialyzer PLTs (cache local)
+/priv/plts/
+*.plt
+*.plt.hash
