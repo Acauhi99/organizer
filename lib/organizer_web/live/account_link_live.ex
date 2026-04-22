@@ -56,6 +56,20 @@ defmodule OrganizerWeb.AccountLinkLive do
   end
 
   @impl true
+  def handle_event("copy_invite_url", _params, socket) do
+    case socket.assigns.invite_url do
+      invite_url when is_binary(invite_url) and invite_url != "" ->
+        {:noreply,
+         socket
+         |> push_event("copy-to-clipboard", %{text: invite_url})
+         |> put_flash(:info, "Link copiado. Agora é só enviar para a outra conta.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Gere um convite antes de copiar o link.")}
+    end
+  end
+
+  @impl true
   def handle_event("accept_invite", params, socket) do
     scope = socket.assigns.current_scope
     token = extract_invite_token(params)
@@ -261,6 +275,19 @@ defmodule OrganizerWeb.AccountLinkLive do
                     class="micro-surface rounded-xl border border-base-content/15 p-3 break-all text-sm font-mono text-base-content/90"
                   >
                     {@invite_url}
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button
+                      id="copy-invite-url-btn"
+                      type="button"
+                      phx-click="copy_invite_url"
+                      class="btn btn-soft btn-xs sm:btn-sm"
+                    >
+                      <.icon name="hero-clipboard-document" class="size-4" /> Copiar link
+                    </button>
+                    <p class="text-xs text-base-content/68">
+                      Envie este link para a outra pessoa aceitar o convite em 1 clique.
+                    </p>
                   </div>
                 </div>
               </section>

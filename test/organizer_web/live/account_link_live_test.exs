@@ -72,9 +72,21 @@ defmodule OrganizerWeb.AccountLinkLiveTest do
       view |> element("#create-invite-btn") |> render_click()
 
       assert has_element?(view, "#invite-url")
+      assert has_element?(view, "#copy-invite-url-btn")
 
       invite_url_text = view |> element("#invite-url") |> render()
       assert invite_url_text =~ "account-links/accept/"
+    end
+
+    test "copies generated link to clipboard", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/account-links/invite")
+
+      view |> element("#create-invite-btn") |> render_click()
+      view |> element("#copy-invite-url-btn") |> render_click()
+
+      assert_push_event(view, "copy-to-clipboard", payload)
+      assert payload.text =~ "account-links/accept/"
+      assert render(view) =~ "Link copiado. Agora é só enviar para a outra conta."
     end
   end
 
