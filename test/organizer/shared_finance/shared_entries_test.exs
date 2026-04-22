@@ -38,7 +38,7 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
   end
 
   # ---------------------------------------------------------------------------
-  # share_finance_entry/3
+  # share_finance_entry/3-4
   # ---------------------------------------------------------------------------
 
   describe "share_finance_entry/3" do
@@ -86,6 +86,38 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
       {:ok, updated} = SharedFinance.share_finance_entry(scope_a, entry.id, link.id)
 
       assert_receive {:shared_entry_updated, ^updated}
+    end
+
+    test "supports manual split mode when sharing" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+      entry = create_entry(user_a, %{amount_cents: 50_000})
+      scope_a = make_scope(user_a)
+
+      assert {:ok, updated} =
+               SharedFinance.share_finance_entry(scope_a, entry.id, link.id, %{
+                 "shared_split_mode" => "manual",
+                 "shared_manual_mine_amount" => "200"
+               })
+
+      assert updated.shared_with_link_id == link.id
+      assert updated.shared_split_mode == :manual
+      assert updated.shared_manual_mine_cents == 20_000
+    end
+
+    test "returns validation error when manual split exceeds total" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+      entry = create_entry(user_a, %{amount_cents: 10_000})
+      scope_a = make_scope(user_a)
+
+      assert {:error, {:validation, %{shared_manual_mine_cents: _}}} =
+               SharedFinance.share_finance_entry(scope_a, entry.id, link.id, %{
+                 "shared_split_mode" => "manual",
+                 "shared_manual_mine_amount" => "200"
+               })
     end
   end
 
@@ -339,6 +371,49 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
       assert_in_delta feb_view.split_ratio_mine, 0.5555555555, 0.000001
       assert feb_view.amount_mine_cents == 11_111
       assert feb_view.amount_theirs_cents == 8_889
+    end
+
+    test "manual split overrides income ratio for shared entry amounts" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+      scope_a = make_scope(user_a)
+      scope_b = make_scope(user_b)
+
+      _income_a =
+        create_entry(user_a, %{
+          kind: :income,
+          amount_cents: 500_000,
+          category: "Salario",
+          occurred_on: ~D[2024-04-05]
+        })
+
+      _income_b =
+        create_entry(user_b, %{
+          kind: :income,
+          amount_cents: 500_000,
+          category: "Salario",
+          occurred_on: ~D[2024-04-06]
+        })
+
+      entry = create_entry(user_a, %{amount_cents: 50_000})
+
+      {:ok, _shared} =
+        SharedFinance.share_finance_entry(scope_a, entry.id, link.id, %{
+          "shared_split_mode" => "manual",
+          "shared_manual_mine_amount" => "200"
+        })
+
+      {:ok, [view_a]} = SharedFinance.list_shared_entries(scope_a, link.id)
+      {:ok, [view_b]} = SharedFinance.list_shared_entries(scope_b, link.id)
+
+      assert view_a.amount_mine_cents == 20_000
+      assert view_a.amount_theirs_cents == 30_000
+      assert_in_delta view_a.split_ratio_mine, 0.4, 0.00001
+
+      assert view_b.amount_mine_cents == 30_000
+      assert view_b.amount_theirs_cents == 20_000
+      assert_in_delta view_b.split_ratio_mine, 0.6, 0.00001
     end
   end
 

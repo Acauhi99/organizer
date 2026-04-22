@@ -7,6 +7,7 @@ defmodule Organizer.SharedFinance do
   import Ecto.Query
 
   alias Organizer.Repo
+  alias Organizer.Planning.AmountParser
   alias Organizer.SharedFinance.{AccountLink, Invite}
   alias Organizer.Planning.FinanceEntry
 
@@ -151,7 +152,7 @@ defmodule Organizer.SharedFinance do
   Verifies the entry belongs to the user and the user is a participant of the link.
   Broadcasts a PubSub event after successful update.
   """
-  def share_finance_entry(scope, entry_id, link_id) do
+  def share_finance_entry(scope, entry_id, link_id, attrs \\ %{}) do
     user_id = scope.user.id
 
     entry_query =
@@ -168,20 +169,20 @@ defmodule Organizer.SharedFinance do
             {:error, :not_found}
 
           {:ok, _link} ->
-            case entry
-                 |> Ecto.Changeset.change(%{shared_with_link_id: link_id})
-                 |> Repo.update() do
-              {:ok, updated_entry} = result ->
-                Phoenix.PubSub.broadcast(
-                  Organizer.PubSub,
-                  "account_link:#{link_id}",
-                  {:shared_entry_updated, updated_entry}
-                )
+            with {:ok, share_attrs} <- normalize_share_attrs(entry, attrs),
+                 {:ok, updated_entry} <-
+                   entry
+                   |> Ecto.Changeset.change(Map.put(share_attrs, :shared_with_link_id, link_id))
+                   |> Repo.update() do
+              Phoenix.PubSub.broadcast(
+                Organizer.PubSub,
+                "account_link:#{link_id}",
+                {:shared_entry_updated, updated_entry}
+              )
 
-                result
-
-              error ->
-                error
+              {:ok, updated_entry}
+            else
+              {:error, _reason} = error -> error
             end
         end
     end
@@ -206,7 +207,13 @@ defmodule Organizer.SharedFinance do
       entry ->
         link_id = entry.shared_with_link_id
 
-        case entry |> Ecto.Changeset.change(%{shared_with_link_id: nil}) |> Repo.update() do
+        case entry
+             |> Ecto.Changeset.change(%{
+               shared_with_link_id: nil,
+               shared_split_mode: nil,
+               shared_manual_mine_cents: nil
+             })
+             |> Repo.update() do
           {:ok, updated_entry} = result ->
             if link_id do
               Phoenix.PubSub.broadcast(
@@ -251,18 +258,14 @@ defmodule Organizer.SharedFinance do
             period_info =
               Map.fetch!(ratio_by_period, {entry.occurred_on.year, entry.occurred_on.month})
 
-            {ratio_a, ratio_b} = resolve_entry_ratios(entry, link, period_info)
-            {ratio_mine, ratio_theirs} = scoped_ratios(user_id, link, ratio_a, ratio_b)
-
-            {amount_mine, amount_theirs} =
-              SplitCalculator.split_amount(entry.amount_cents, ratio_mine)
+            split = resolve_entry_split(entry, link, user_id, period_info)
 
             %SharedEntryView{
               entry: entry,
-              split_ratio_mine: ratio_mine,
-              split_ratio_theirs: ratio_theirs,
-              amount_mine_cents: amount_mine,
-              amount_theirs_cents: amount_theirs
+              split_ratio_mine: split.ratio_mine,
+              split_ratio_theirs: split.ratio_theirs,
+              amount_mine_cents: split.amount_mine_cents,
+              amount_theirs_cents: split.amount_theirs_cents
             }
           end)
 
@@ -607,18 +610,52 @@ defmodule Organizer.SharedFinance do
     end)
   end
 
-  defp resolve_entry_ratios(entry, link, period_info) do
-    case period_info do
-      %{income_a: 0, income_b: 0} ->
-        if entry.user_id == link.user_b_id do
-          {0.0, 1.0}
-        else
-          {1.0, 0.0}
+  defp resolve_entry_split(entry, link, current_user_id, period_info) do
+    if entry.shared_split_mode == :manual and is_integer(entry.shared_manual_mine_cents) do
+      resolve_manual_entry_split(entry, current_user_id)
+    else
+      {ratio_a, ratio_b} =
+        case period_info do
+          %{income_a: 0, income_b: 0} ->
+            owner_fallback_ratios(entry, link)
+
+          %{ratios: {period_ratio_a, period_ratio_b}} ->
+            {period_ratio_a, period_ratio_b}
         end
 
-      %{ratios: {ratio_a, ratio_b}} ->
-        {ratio_a, ratio_b}
+      {ratio_mine, ratio_theirs} = scoped_ratios(current_user_id, link, ratio_a, ratio_b)
+      {amount_mine, amount_theirs} = SplitCalculator.split_amount(entry.amount_cents, ratio_mine)
+
+      %{
+        ratio_mine: ratio_mine,
+        ratio_theirs: ratio_theirs,
+        amount_mine_cents: amount_mine,
+        amount_theirs_cents: amount_theirs
+      }
     end
+  end
+
+  defp resolve_manual_entry_split(entry, current_user_id) do
+    total_cents = entry.amount_cents
+    owner_amount_mine_cents = min(max(entry.shared_manual_mine_cents, 0), total_cents)
+    owner_amount_theirs_cents = total_cents - owner_amount_mine_cents
+
+    {amount_mine, amount_theirs} =
+      if entry.user_id == current_user_id do
+        {owner_amount_mine_cents, owner_amount_theirs_cents}
+      else
+        {owner_amount_theirs_cents, owner_amount_mine_cents}
+      end
+
+    ratio_mine = if total_cents > 0, do: amount_mine / total_cents, else: 0.0
+    ratio_theirs = if total_cents > 0, do: amount_theirs / total_cents, else: 0.0
+
+    %{
+      ratio_mine: ratio_mine,
+      ratio_theirs: ratio_theirs,
+      amount_mine_cents: amount_mine,
+      amount_theirs_cents: amount_theirs
+    }
   end
 
   defp resolve_metrics_ratios(income_a, income_b, filtered_views, link) do
@@ -650,6 +687,90 @@ defmodule Organizer.SharedFinance do
       {totals.a / total, totals.b / total}
     else
       {1.0, 0.0}
+    end
+  end
+
+  defp owner_fallback_ratios(entry, link) do
+    if entry.user_id == link.user_b_id do
+      {0.0, 1.0}
+    else
+      {1.0, 0.0}
+    end
+  end
+
+  defp normalize_share_attrs(entry, attrs) when is_map(attrs) do
+    mode =
+      attrs
+      |> Map.get("shared_split_mode", Map.get(attrs, :shared_split_mode, "income_ratio"))
+      |> to_string()
+      |> String.trim()
+      |> case do
+        "manual" -> :manual
+        _ -> :income_ratio
+      end
+
+    case mode do
+      :income_ratio ->
+        {:ok, %{shared_split_mode: :income_ratio, shared_manual_mine_cents: nil}}
+
+      :manual ->
+        parse_manual_share_mine_cents(attrs)
+        |> case do
+          {:ok, mine_cents} ->
+            cond do
+              mine_cents < 0 ->
+                {:error,
+                 {:validation,
+                  %{shared_manual_mine_cents: ["must be greater than or equal to 0"]}}}
+
+              mine_cents > entry.amount_cents ->
+                {:error,
+                 {:validation,
+                  %{shared_manual_mine_cents: ["must be less than or equal to total amount"]}}}
+
+              true ->
+                {:ok, %{shared_split_mode: :manual, shared_manual_mine_cents: mine_cents}}
+            end
+
+          :error ->
+            {:error,
+             {:validation,
+              %{shared_manual_mine_cents: ["must be a valid non-negative monetary value"]}}}
+        end
+    end
+  end
+
+  defp normalize_share_attrs(_entry, _attrs) do
+    {:ok, %{shared_split_mode: :income_ratio, shared_manual_mine_cents: nil}}
+  end
+
+  defp parse_manual_share_mine_cents(attrs) when is_map(attrs) do
+    cond do
+      is_integer(Map.get(attrs, :shared_manual_mine_cents)) ->
+        {:ok, Map.get(attrs, :shared_manual_mine_cents)}
+
+      is_integer(Map.get(attrs, "shared_manual_mine_cents")) ->
+        {:ok, Map.get(attrs, "shared_manual_mine_cents")}
+
+      true ->
+        attrs
+        |> Map.get("shared_manual_mine_amount", Map.get(attrs, :shared_manual_mine_amount))
+        |> case do
+          value when is_binary(value) ->
+            case AmountParser.parse(String.trim(value)) do
+              {:ok, cents} -> {:ok, cents}
+              _ -> :error
+            end
+
+          nil ->
+            :error
+
+          value ->
+            case AmountParser.parse(value) do
+              {:ok, cents} -> {:ok, cents}
+              _ -> :error
+            end
+        end
     end
   end
 

@@ -86,14 +86,15 @@ defmodule OrganizerWeb.DashboardLive do
             :shared ->
               "Lançamento registrado e compartilhado no vínculo."
 
-            :share_failed ->
-              "Lançamento registrado, mas não foi possível compartilhar no vínculo."
+            {:share_failed, reason} ->
+              "Lançamento registrado, mas #{reason}."
 
             :not_shared ->
               "Lançamento registrado."
           end
 
-        flash_level = if share_result == :share_failed, do: :error, else: :info
+        flash_level =
+          if match?({:share_failed, _reason}, share_result), do: :error, else: :info
 
         {:noreply,
          socket
@@ -773,7 +774,10 @@ defmodule OrganizerWeb.DashboardLive do
       "expense_profile" => default_quick_expense_profile(kind),
       "payment_method" => default_quick_payment_method(kind),
       "share_with_link" => "false",
-      "shared_with_link_id" => if(kind == "expense", do: default_shared_with_link_id, else: "")
+      "shared_with_link_id" => if(kind == "expense", do: default_shared_with_link_id, else: ""),
+      "shared_split_mode" => "income_ratio",
+      "shared_manual_mine_amount" => "",
+      "shared_manual_theirs_amount" => ""
     }
   end
 
@@ -931,18 +935,13 @@ defmodule OrganizerWeb.DashboardLive do
   defp parse_quick_finance_amount_cents(value) when is_binary(value) do
     cleaned = String.trim(value)
 
-    cond do
-      cleaned == "" ->
-        :error
-
-      Regex.match?(~r/^\d+$/, cleaned) ->
-        {:ok, String.to_integer(cleaned)}
-
-      true ->
-        case AmountParser.parse(cleaned) do
-          {:ok, cents} -> {:ok, cents}
-          _ -> :error
-        end
+    if cleaned == "" do
+      :error
+    else
+      case AmountParser.parse(cleaned) do
+        {:ok, cents} -> {:ok, cents}
+        _ -> :error
+      end
     end
   end
 
@@ -970,16 +969,65 @@ defmodule OrganizerWeb.DashboardLive do
         attrs
         |> Map.put("share_with_link", "false")
         |> Map.put("shared_with_link_id", "")
+        |> Map.put("shared_split_mode", "income_ratio")
+        |> Map.put("shared_manual_mine_amount", "")
+        |> Map.put("shared_manual_theirs_amount", "")
 
       truthy_quick_finance_value?(Map.get(attrs, "share_with_link")) ->
         attrs
         |> Map.put("share_with_link", "true")
         |> Map.put("shared_with_link_id", normalized_link_id)
+        |> normalize_quick_finance_split_mode()
+        |> derive_quick_finance_manual_theirs_amount()
 
       true ->
         attrs
         |> Map.put("share_with_link", "false")
         |> Map.put("shared_with_link_id", normalized_link_id)
+        |> Map.put("shared_split_mode", "income_ratio")
+        |> Map.put("shared_manual_mine_amount", "")
+        |> Map.put("shared_manual_theirs_amount", "")
+    end
+  end
+
+  defp normalize_quick_finance_split_mode(attrs) do
+    mode =
+      attrs
+      |> Map.get("shared_split_mode", "income_ratio")
+      |> to_string()
+      |> String.trim()
+      |> case do
+        "manual" -> "manual"
+        _ -> "income_ratio"
+      end
+
+    Map.put(attrs, "shared_split_mode", mode)
+  end
+
+  defp derive_quick_finance_manual_theirs_amount(attrs) do
+    if Map.get(attrs, "shared_split_mode") == "manual" do
+      mine_value = Map.get(attrs, "shared_manual_mine_amount", "")
+
+      case {
+        parse_quick_finance_amount_cents(Map.get(attrs, "amount_cents")),
+        parse_quick_finance_amount_cents(mine_value)
+      } do
+        {{:ok, total_cents}, {:ok, mine_cents}} ->
+          normalized_mine = min(max(mine_cents, 0), total_cents)
+          theirs_cents = total_cents - normalized_mine
+
+          attrs
+          |> Map.put("shared_manual_mine_amount", format_amount_input(normalized_mine))
+          |> Map.put("shared_manual_theirs_amount", format_amount_input(theirs_cents))
+
+        _ ->
+          attrs
+          |> Map.put("shared_manual_theirs_amount", "")
+      end
+    else
+      attrs
+      |> Map.put("shared_manual_mine_amount", "")
+      |> Map.put("shared_manual_theirs_amount", "")
     end
   end
 
@@ -993,17 +1041,75 @@ defmodule OrganizerWeb.DashboardLive do
     if truthy_quick_finance_value?(Map.get(attrs, "share_with_link")) do
       case parse_quick_share_link_id(Map.get(attrs, "shared_with_link_id")) do
         {:ok, link_id} ->
-          case SharedFinance.share_finance_entry(scope, entry.id, link_id) do
-            {:ok, _shared_entry} -> :shared
-            _ -> :share_failed
+          share_attrs = build_quick_share_attrs(attrs, entry.amount_cents)
+
+          case SharedFinance.share_finance_entry(scope, entry.id, link_id, share_attrs) do
+            {:ok, _shared_entry} ->
+              :shared
+
+            {:error, {:validation, details}} ->
+              {:share_failed, quick_share_validation_message(details)}
+
+            _ ->
+              {:share_failed, "não foi possível aplicar o compartilhamento"}
           end
 
         :error ->
-          :share_failed
+          {:share_failed, "vínculo inválido para compartilhamento"}
       end
     else
       :not_shared
     end
+  end
+
+  defp build_quick_share_attrs(attrs, total_cents) do
+    mode =
+      attrs
+      |> Map.get("shared_split_mode", "income_ratio")
+      |> to_string()
+      |> String.trim()
+      |> case do
+        "manual" -> "manual"
+        _ -> "income_ratio"
+      end
+
+    if mode == "manual" do
+      mine_amount = Map.get(attrs, "shared_manual_mine_amount", "")
+
+      with {:ok, parsed_mine_cents} <- parse_quick_finance_amount_cents(mine_amount),
+           true <- parsed_mine_cents >= 0 and parsed_mine_cents <= total_cents do
+        %{
+          "shared_split_mode" => "manual",
+          "shared_manual_mine_cents" => parsed_mine_cents
+        }
+      else
+        _ ->
+          %{
+            "shared_split_mode" => "manual",
+            "shared_manual_mine_amount" => mine_amount
+          }
+      end
+    else
+      %{"shared_split_mode" => "income_ratio"}
+    end
+  end
+
+  defp quick_share_validation_message(details) when is_map(details) do
+    cond do
+      Map.has_key?(details, :shared_manual_mine_cents) ->
+        "no modo manual, informe um valor válido para você sem exceder o total"
+
+      true ->
+        "validação do compartilhamento falhou"
+    end
+  end
+
+  defp quick_share_validation_message(_details), do: "validação do compartilhamento falhou"
+
+  defp format_amount_input(cents) when is_integer(cents) and cents >= 0 do
+    integer_part = cents |> div(100) |> Integer.to_string()
+    decimal_part = cents |> rem(100) |> Integer.to_string() |> String.pad_leading(2, "0")
+    integer_part <> "," <> decimal_part
   end
 
   defp parse_quick_share_link_id(value) do

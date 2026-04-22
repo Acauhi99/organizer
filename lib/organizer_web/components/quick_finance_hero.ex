@@ -154,6 +154,45 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
             disabled={Enum.empty?(@account_links) || !share_enabled?(@quick_finance_form)}
           />
 
+          <.input
+            field={@quick_finance_form[:shared_split_mode]}
+            id="quick-finance-share-mode"
+            type="select"
+            label="Forma de compartilhamento"
+            options={[
+              {"Padrão (por % de renda)", "income_ratio"},
+              {"Manual (valor fixo)", "manual"}
+            ]}
+            disabled={Enum.empty?(@account_links) || !share_enabled?(@quick_finance_form)}
+          />
+
+          <div
+            :if={share_enabled?(@quick_finance_form) && manual_share_mode?(@quick_finance_form)}
+            id="quick-finance-manual-split"
+            class="mt-2 grid gap-2 rounded-xl border border-info/20 bg-info/5 p-3 sm:grid-cols-2"
+          >
+            <.input
+              field={@quick_finance_form[:shared_manual_mine_amount]}
+              id="quick-finance-manual-mine-amount"
+              type="text"
+              label="Quanto você paga"
+              placeholder="Ex: 200,00"
+              autocomplete="off"
+            />
+
+            <.input
+              field={@quick_finance_form[:shared_manual_theirs_amount]}
+              id="quick-finance-manual-theirs-amount"
+              type="text"
+              label="Quanto a outra conta paga"
+              readonly
+            />
+
+            <p class="text-xs text-base-content/68 sm:col-span-2">
+              Ao informar o seu valor, o restante é preenchido automaticamente para a outra conta.
+            </p>
+          </div>
+
           <p :if={Enum.empty?(@account_links)} class="text-xs text-base-content/70">
             Você ainda não possui vínculo ativo. Crie um vínculo para compartilhar gastos.
           </p>
@@ -200,6 +239,13 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
   defp share_enabled?(quick_finance_form) do
     case quick_finance_form[:share_with_link] do
       %{value: value} -> truthy?(value)
+      _ -> false
+    end
+  end
+
+  defp manual_share_mode?(quick_finance_form) do
+    case quick_finance_form[:shared_split_mode] do
+      %{value: "manual"} -> true
       _ -> false
     end
   end

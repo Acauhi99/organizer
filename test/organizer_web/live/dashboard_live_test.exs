@@ -51,7 +51,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       |> form("#quick-finance-form", %{
         "quick_finance" => %{
           "kind" => "expense",
-          "amount_cents" => "12345",
+          "amount_cents" => "123,45",
           "category" => "Alimentação",
           "description" => "mercado",
           "occurred_on" => today,
@@ -113,6 +113,76 @@ defmodule OrganizerWeb.DashboardLiveTest do
                  entry.amount_cents == 18_254 and
                  entry.category == "Alimentação" and
                  entry.shared_with_link_id == link.id
+             end)
+    end
+
+    test "creates quick shared expense with manual split mode", %{conn: conn, scope: scope} do
+      linked_user = user_fixture()
+      linked_scope = user_scope_fixture(linked_user)
+      {:ok, invite} = SharedFinance.create_invite(scope)
+      {:ok, link} = SharedFinance.accept_invite(linked_scope, invite.token)
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      today = Date.to_iso8601(Date.utc_today())
+
+      view
+      |> form("#quick-finance-form", %{
+        "quick_finance" => %{
+          "kind" => "expense",
+          "amount_cents" => "500",
+          "category" => "Moradia",
+          "description" => "aluguel compartilhado",
+          "occurred_on" => today,
+          "expense_profile" => "fixed",
+          "payment_method" => "debit",
+          "share_with_link" => "true"
+        }
+      })
+      |> render_change()
+
+      view
+      |> form("#quick-finance-form", %{
+        "quick_finance" => %{
+          "kind" => "expense",
+          "amount_cents" => "500",
+          "category" => "Moradia",
+          "description" => "aluguel compartilhado",
+          "occurred_on" => today,
+          "expense_profile" => "fixed",
+          "payment_method" => "debit",
+          "share_with_link" => "true",
+          "shared_with_link_id" => to_string(link.id),
+          "shared_split_mode" => "manual"
+        }
+      })
+      |> render_change()
+
+      view
+      |> form("#quick-finance-form", %{
+        "quick_finance" => %{
+          "kind" => "expense",
+          "amount_cents" => "500",
+          "category" => "Moradia",
+          "description" => "aluguel compartilhado",
+          "occurred_on" => today,
+          "expense_profile" => "fixed",
+          "payment_method" => "debit",
+          "share_with_link" => "true",
+          "shared_with_link_id" => to_string(link.id),
+          "shared_split_mode" => "manual",
+          "shared_manual_mine_amount" => "200"
+        }
+      })
+      |> render_submit()
+
+      {:ok, finances} = Planning.list_finance_entries(scope, %{})
+
+      assert Enum.any?(finances, fn entry ->
+               entry.kind == :expense and
+                 entry.amount_cents == 50_000 and
+                 entry.shared_with_link_id == link.id and
+                 entry.shared_split_mode == :manual and
+                 entry.shared_manual_mine_cents == 20_000
              end)
     end
 
