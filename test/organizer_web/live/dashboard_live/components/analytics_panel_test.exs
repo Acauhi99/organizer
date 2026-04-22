@@ -26,6 +26,10 @@ defmodule OrganizerWeb.DashboardLive.Components.AnalyticsPanelTest do
             planned_capacity_14d <- StreamData.integer(0..100),
             capacity_gap <- StreamData.integer(-50..50),
             overload_alert <- StreamData.boolean(),
+            tasks_created_window <- StreamData.integer(0..100),
+            tasks_completed_window <- StreamData.integer(0..100),
+            open_high_priority <- StreamData.integer(0..40),
+            overdue_open <- StreamData.integer(0..40),
             finances_total <- StreamData.integer(0..100)
           ) do
       assigns = %{
@@ -66,6 +70,28 @@ defmodule OrganizerWeb.DashboardLive.Components.AnalyticsPanelTest do
         progress_chart: %{loading: false, chart_svg: Phoenix.HTML.raw("")},
         finance_trend_chart: %{loading: false, chart_svg: Phoenix.HTML.raw("")},
         finance_category_chart: %{loading: false, chart_svg: Phoenix.HTML.raw("")},
+        task_priority_chart: %{loading: false, chart_svg: Phoenix.HTML.raw("")},
+        finance_mix_chart: %{loading: false, chart_svg: Phoenix.HTML.raw("")},
+        analytics_highlights: %{
+          tasks_created_window: tasks_created_window,
+          tasks_completed_window: tasks_completed_window,
+          tasks_total_window: tasks_created_window + tasks_completed_window,
+          tasks_completion_rate: 0.0,
+          open_high_priority: open_high_priority,
+          overdue_open: overdue_open,
+          finance_entries_window: finances_total,
+          expense_entries_window: max(finances_total - 5, 0),
+          income_cents: 10_000,
+          expense_cents: 8_000,
+          net_cents: 2_000,
+          avg_expense_ticket_cents: 1_000,
+          dominant_expense_category: "Moradia",
+          dominant_expense_share: 38.4,
+          expense_mix_top: [
+            %{label: "Moradia", share: 38.4, amount_cents: 3_840},
+            %{label: "Alimentação", share: 24.8, amount_cents: 2_480}
+          ]
+        },
         ops_counts: %{finances_total: finances_total}
       }
 
@@ -103,13 +129,32 @@ defmodule OrganizerWeb.DashboardLive.Components.AnalyticsPanelTest do
         progress_chart: %{loading: false, chart_svg: Phoenix.HTML.raw("")},
         finance_trend_chart: %{loading: false, chart_svg: Phoenix.HTML.raw("")},
         finance_category_chart: %{loading: false, chart_svg: Phoenix.HTML.raw("")},
+        task_priority_chart: %{loading: false, chart_svg: Phoenix.HTML.raw("")},
+        finance_mix_chart: %{loading: false, chart_svg: Phoenix.HTML.raw("")},
+        analytics_highlights: %{
+          tasks_created_window: 0,
+          tasks_completed_window: 0,
+          tasks_total_window: 0,
+          tasks_completion_rate: 0.0,
+          open_high_priority: 0,
+          overdue_open: 0,
+          finance_entries_window: 0,
+          expense_entries_window: 0,
+          income_cents: 0,
+          expense_cents: 0,
+          net_cents: 0,
+          avg_expense_ticket_cents: 0,
+          dominant_expense_category: nil,
+          dominant_expense_share: 0.0,
+          expense_mix_top: []
+        },
         ops_counts: %{finances_total: 0}
       }
     end
 
     test "shows no data message when progress chart has no data" do
       html = render_component(&AnalyticsPanel.analytics_panel/1, base_assigns())
-      assert html =~ "Sem dados suficientes"
+      assert html =~ "Sem atividade de tarefas no período selecionado."
     end
 
     test "shows days filter chips" do

@@ -2,7 +2,7 @@ defmodule OrganizerWeb.DashboardLive.Components.AnalyticsPanel do
   @moduledoc """
   Analytics panel component for the DashboardLive.
 
-  Renders the analytics section with filters, charts, and capacity/burnout metrics.
+  Renders the analytics section with filters, actionable highlights and charts.
   """
 
   use Phoenix.Component
@@ -15,6 +15,9 @@ defmodule OrganizerWeb.DashboardLive.Components.AnalyticsPanel do
   attr :progress_chart, :map, required: true
   attr :finance_trend_chart, :map, required: true
   attr :finance_category_chart, :map, required: true
+  attr :task_priority_chart, :map, required: true
+  attr :finance_mix_chart, :map, required: true
+  attr :analytics_highlights, :map, required: true
   attr :ops_counts, :map, required: true
 
   def analytics_panel(assigns) do
@@ -78,133 +81,211 @@ defmodule OrganizerWeb.DashboardLive.Components.AnalyticsPanel do
         </div>
       </div>
 
-      <%!-- Panel content --%>
+      <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <article class="micro-surface rounded-xl p-3">
+          <p class="text-xs uppercase tracking-wide text-base-content/65">Entrega no período</p>
+          <p class="mt-1 text-lg font-semibold text-base-content">
+            {highlight_value(@analytics_highlights, :tasks_completed_window)}/{highlight_value(
+              @analytics_highlights,
+              :tasks_created_window
+            )}
+          </p>
+          <p class="text-xs text-base-content/65">
+            {highlight_value(@analytics_highlights, :tasks_completion_rate)}% de ritmo de conclusão
+          </p>
+        </article>
+
+        <article class="micro-surface rounded-xl p-3">
+          <p class="text-xs uppercase tracking-wide text-base-content/65">Backlog crítico</p>
+          <p class="mt-1 text-lg font-semibold text-warning-content">
+            {highlight_value(@analytics_highlights, :open_high_priority)} alta prioridade
+          </p>
+          <p class="text-xs text-base-content/65">
+            {highlight_value(@analytics_highlights, :overdue_open)} tarefa(s) atrasada(s)
+          </p>
+        </article>
+
+        <article class="micro-surface rounded-xl p-3">
+          <p class="text-xs uppercase tracking-wide text-base-content/65">Saldo no período</p>
+          <p class={[
+            "mt-1 text-lg font-semibold",
+            balance_value_class(highlight_value(@analytics_highlights, :net_cents))
+          ]}>
+            {format_money(highlight_value(@analytics_highlights, :net_cents))}
+          </p>
+          <p class="text-xs text-base-content/65">
+            Rec: {format_money(highlight_value(@analytics_highlights, :income_cents))} • Desp: {format_money(
+              highlight_value(@analytics_highlights, :expense_cents)
+            )}
+          </p>
+        </article>
+
+        <article class="micro-surface rounded-xl p-3">
+          <p class="text-xs uppercase tracking-wide text-base-content/65">Ticket médio despesa</p>
+          <p class="mt-1 text-lg font-semibold text-base-content">
+            {format_money(highlight_value(@analytics_highlights, :avg_expense_ticket_cents))}
+          </p>
+          <p class="text-xs text-base-content/65">
+            {highlight_value(@analytics_highlights, :expense_entries_window)} lançamento(s) de despesa
+          </p>
+        </article>
+
+        <article class="micro-surface rounded-xl p-3">
+          <p class="text-xs uppercase tracking-wide text-base-content/65">Categoria dominante</p>
+          <p class="mt-1 truncate text-sm font-semibold text-base-content">
+            {dominant_category_label(@analytics_highlights)}
+          </p>
+          <p class="text-xs text-base-content/65">
+            {highlight_value(@analytics_highlights, :dominant_expense_share)}% do total de despesas
+          </p>
+        </article>
+      </div>
+
       <div id="analytics-panel-content">
-        <div class="grid gap-3 mt-4">
-          <article class="micro-surface min-h-[20rem] rounded-xl p-3">
+        <div class="mt-4 grid gap-3 xl:grid-cols-2">
+          <article class="micro-surface min-h-[15rem] overflow-x-auto rounded-xl p-3 sm:min-h-[18rem]">
             <div class="flex items-center justify-between gap-2">
               <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
-                Execução por período
+                Tarefas: criadas x concluídas
               </h3>
               <span class="text-[0.65rem] text-base-content/60">
-                executado vs planejado
+                tendência
               </span>
             </div>
             <AsyncChartLoader.async_chart_loader
               chart_id="chart-progress"
-              chart_type={:progress}
+              chart_type={:task_delivery}
               loading={@progress_chart.loading}
               chart_svg={@progress_chart.chart_svg}
             />
             <p
-              :if={!@progress_chart.loading && !progress_chart_has_data?(@insights_overview)}
+              :if={
+                !@progress_chart.loading &&
+                  highlight_value(@analytics_highlights, :tasks_created_window) == 0 &&
+                  highlight_value(@analytics_highlights, :tasks_completed_window) == 0
+              }
               class="mt-2 text-xs text-base-content/65"
             >
-              Sem dados suficientes neste intervalo. Ajuste a janela para visualizar tendências.
+              Sem atividade de tarefas no período selecionado.
             </p>
           </article>
 
-          <div class="grid gap-3 xl:grid-cols-2">
-            <article class="micro-surface min-h-[20rem] rounded-xl p-3">
-              <div class="flex items-center justify-between gap-2">
-                <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
-                  Saldo semanal
-                </h3>
-                <span class="text-[0.65rem] text-base-content/60">
-                  tendência financeira
-                </span>
-              </div>
-              <AsyncChartLoader.async_chart_loader
-                chart_id="chart-finance-trend"
-                chart_type={:finance_trend}
-                loading={@finance_trend_chart.loading}
-                chart_svg={@finance_trend_chart.chart_svg}
-              />
-              <p
-                :if={!@finance_trend_chart.loading && @ops_counts.finances_total == 0}
-                class="mt-2 text-xs text-base-content/65"
-              >
-                Sem lançamentos financeiros no período para montar tendência.
-              </p>
-            </article>
-
-            <article class="micro-surface min-h-[20rem] rounded-xl p-3">
-              <div class="flex items-center justify-between gap-2">
-                <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
-                  Despesas por categoria
-                </h3>
-                <span class="text-[0.65rem] text-base-content/60">
-                  top 5
-                </span>
-              </div>
-              <AsyncChartLoader.async_chart_loader
-                chart_id="chart-finance-category"
-                chart_type={:finance_category}
-                loading={@finance_category_chart.loading}
-                chart_svg={@finance_category_chart.chart_svg}
-              />
-              <p
-                :if={!@finance_category_chart.loading && @ops_counts.finances_total == 0}
-                class="mt-2 text-xs text-base-content/65"
-              >
-                Cadastre despesas para identificar categorias com maior impacto.
-              </p>
-            </article>
-          </div>
+          <article class="micro-surface min-h-[15rem] overflow-x-auto rounded-xl p-3 sm:min-h-[18rem]">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
+                Receitas x despesas no tempo
+              </h3>
+              <span class="text-[0.65rem] text-base-content/60">
+                barras empilhadas
+              </span>
+            </div>
+            <AsyncChartLoader.async_chart_loader
+              chart_id="chart-finance-trend"
+              chart_type={:finance_flow}
+              loading={@finance_trend_chart.loading}
+              chart_svg={@finance_trend_chart.chart_svg}
+            />
+            <p
+              :if={
+                !@finance_trend_chart.loading &&
+                  highlight_value(@analytics_highlights, :finance_entries_window) == 0
+              }
+              class="mt-2 text-xs text-base-content/65"
+            >
+              Sem lançamentos financeiros no período para montar o fluxo.
+            </p>
+          </article>
         </div>
 
-        <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <article class="micro-surface rounded-xl p-3">
-            <p class="text-xs uppercase tracking-wide text-base-content/65">Semanal</p>
-            <p class="mt-1 text-lg font-semibold text-base-content">
-              {@insights_overview.progress_by_period.weekly.executed}/{@insights_overview.progress_by_period.weekly.planned}
-            </p>
-            <p class="text-xs text-base-content/65">
-              {format_percent(@insights_overview.progress_by_period.weekly.completion_rate)}% de conclusão
-            </p>
-            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-base-content/15">
-              <div
-                class="h-full rounded-full bg-cyan-300"
-                style={"width: #{metric_bar_width(@insights_overview.progress_by_period.weekly.completion_rate)}%;"}
-              >
-              </div>
+        <div class="mt-3 grid gap-3 2xl:grid-cols-3">
+          <article class="micro-surface min-h-[15rem] overflow-x-auto rounded-xl p-3 sm:min-h-[18rem]">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
+                Top despesas por categoria
+              </h3>
+              <span class="text-[0.65rem] text-base-content/60">
+                ranking
+              </span>
             </div>
+            <AsyncChartLoader.async_chart_loader
+              chart_id="chart-finance-category"
+              chart_type={:finance_category}
+              loading={@finance_category_chart.loading}
+              chart_svg={@finance_category_chart.chart_svg}
+            />
+            <p
+              :if={
+                !@finance_category_chart.loading &&
+                  highlight_value(@analytics_highlights, :expense_entries_window) == 0
+              }
+              class="mt-2 text-xs text-base-content/65"
+            >
+              Cadastre despesas para identificar categorias com maior impacto.
+            </p>
           </article>
 
-          <article class="micro-surface rounded-xl p-3">
-            <p class="text-xs uppercase tracking-wide text-base-content/65">Mensal</p>
-            <p class="mt-1 text-lg font-semibold text-base-content">
-              {@insights_overview.progress_by_period.monthly.executed}/{@insights_overview.progress_by_period.monthly.planned}
-            </p>
-            <p class="text-xs text-base-content/65">
-              {format_percent(@insights_overview.progress_by_period.monthly.completion_rate)}% de conclusão
-            </p>
-            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-base-content/15">
-              <div
-                class="h-full rounded-full bg-emerald-300"
-                style={"width: #{metric_bar_width(@insights_overview.progress_by_period.monthly.completion_rate)}%;"}
-              >
-              </div>
+          <article class="micro-surface min-h-[15rem] overflow-x-auto rounded-xl p-3 sm:min-h-[18rem]">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
+                Backlog por prioridade
+              </h3>
+              <span class="text-[0.65rem] text-base-content/60">
+                comparação
+              </span>
             </div>
+            <AsyncChartLoader.async_chart_loader
+              chart_id="chart-task-priority"
+              chart_type={:task_priority}
+              loading={@task_priority_chart.loading}
+              chart_svg={@task_priority_chart.chart_svg}
+            />
+            <p
+              :if={
+                !@task_priority_chart.loading &&
+                  highlight_value(@analytics_highlights, :tasks_total_window) == 0
+              }
+              class="mt-2 text-xs text-base-content/65"
+            >
+              Sem tarefas relevantes no período para comparar prioridades.
+            </p>
           </article>
 
-          <article class="micro-surface rounded-xl p-3">
-            <p class="text-xs uppercase tracking-wide text-base-content/65">Anual</p>
-            <p class="mt-1 text-lg font-semibold text-base-content">
-              {@insights_overview.progress_by_period.annual.executed}/{@insights_overview.progress_by_period.annual.planned}
-            </p>
-            <p class="text-xs text-base-content/65">
-              {format_percent(@insights_overview.progress_by_period.annual.completion_rate)}% de conclusão
-            </p>
-            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-base-content/15">
-              <div
-                class="h-full rounded-full bg-violet-300"
-                style={"width: #{metric_bar_width(@insights_overview.progress_by_period.annual.completion_rate)}%;"}
-              >
-              </div>
+          <article class="micro-surface min-h-[15rem] overflow-x-auto rounded-xl p-3 sm:min-h-[18rem]">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
+                Mix de despesas por natureza
+              </h3>
+              <span class="text-[0.65rem] text-base-content/60">
+                parte do todo
+              </span>
             </div>
+            <AsyncChartLoader.async_chart_loader
+              chart_id="chart-finance-mix"
+              chart_type={:finance_mix}
+              loading={@finance_mix_chart.loading}
+              chart_svg={@finance_mix_chart.chart_svg}
+            />
+            <div :if={expense_mix_present?(@analytics_highlights)} class="mt-2 space-y-1">
+              <p class="text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-base-content/62">
+                Maiores componentes
+              </p>
+              <p
+                :for={item <- Map.get(@analytics_highlights, :expense_mix_top, [])}
+                class="text-xs text-base-content/72"
+              >
+                {item.label}: {item.share}% ({format_money(item.amount_cents)})
+              </p>
+            </div>
+            <p
+              :if={!@finance_mix_chart.loading && !expense_mix_present?(@analytics_highlights)}
+              class="mt-2 text-xs text-base-content/65"
+            >
+              Sem despesas no período para montar composição.
+            </p>
           </article>
+        </div>
 
+        <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <article class="micro-surface rounded-xl p-3">
             <p class="text-xs uppercase tracking-wide text-base-content/65">Capacidade 14d</p>
             <p class={[
@@ -231,21 +312,46 @@ defmodule OrganizerWeb.DashboardLive.Components.AnalyticsPanel do
                 else: Enum.join(@insights_overview.burnout_risk_assessment.signals, " | ")}
             </p>
           </article>
+
+          <article class="micro-surface rounded-xl p-3">
+            <p class="text-xs uppercase tracking-wide text-base-content/65">Contexto operacional</p>
+            <p class="mt-1 text-sm font-semibold text-base-content">
+              {Map.get(@ops_counts, :tasks_open, 0)} tarefas abertas • {Map.get(
+                @ops_counts,
+                :finances_total,
+                0
+              )} lançamentos
+            </p>
+            <p class="mt-2 text-xs text-base-content/65">
+              Combine filtros de período e capacidade para comparar execução com fluxo financeiro.
+            </p>
+          </article>
         </div>
-        <%!-- End of metrics grid --%>
       </div>
-      <%!-- End of panel content --%>
     </section>
     """
   end
 
-  defp progress_chart_has_data?(insights_overview) do
-    progress = insights_overview.progress_by_period
-
-    progress.weekly.executed + progress.weekly.planned +
-      progress.monthly.executed + progress.monthly.planned +
-      progress.annual.executed + progress.annual.planned > 0
+  defp dominant_category_label(analytics_highlights) do
+    case Map.get(analytics_highlights, :dominant_expense_category) do
+      nil -> "Sem predominância"
+      value when is_binary(value) and value != "" -> value
+      _ -> "Sem predominância"
+    end
   end
+
+  defp highlight_value(highlights, key) when is_map(highlights) do
+    Map.get(highlights, key, 0)
+  end
+
+  defp highlight_value(_highlights, _key), do: 0
+
+  defp expense_mix_present?(analytics_highlights) when is_map(analytics_highlights) do
+    Map.get(analytics_highlights, :expense_entries_window, 0) > 0 and
+      Map.get(analytics_highlights, :expense_mix_top, []) != []
+  end
+
+  defp expense_mix_present?(_analytics_highlights), do: false
 
   defp analytics_days_label("365"), do: "365d"
   defp analytics_days_label(days), do: days <> "d"

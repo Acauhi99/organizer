@@ -200,6 +200,8 @@ defmodule OrganizerWeb.DashboardLive do
      |> assign(:progress_chart, %{loading: true, chart_svg: nil})
      |> assign(:finance_trend_chart, %{loading: true, chart_svg: nil})
      |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})
+     |> assign(:task_priority_chart, %{loading: true, chart_svg: nil})
+     |> assign(:finance_mix_chart, %{loading: true, chart_svg: nil})
      |> refresh_dashboard_insights()
      |> load_chart_svgs()}
   end
@@ -218,6 +220,8 @@ defmodule OrganizerWeb.DashboardLive do
      |> assign(:progress_chart, %{loading: true, chart_svg: nil})
      |> assign(:finance_trend_chart, %{loading: true, chart_svg: nil})
      |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})
+     |> assign(:task_priority_chart, %{loading: true, chart_svg: nil})
+     |> assign(:finance_mix_chart, %{loading: true, chart_svg: nil})
      |> refresh_dashboard_insights()
      |> load_chart_svgs()}
   end
@@ -236,6 +240,8 @@ defmodule OrganizerWeb.DashboardLive do
      |> assign(:progress_chart, %{loading: true, chart_svg: nil})
      |> assign(:finance_trend_chart, %{loading: true, chart_svg: nil})
      |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})
+     |> assign(:task_priority_chart, %{loading: true, chart_svg: nil})
+     |> assign(:finance_mix_chart, %{loading: true, chart_svg: nil})
      |> refresh_dashboard_insights()
      |> load_chart_svgs()}
   end
@@ -724,6 +730,9 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:progress_chart, %{loading: true, chart_svg: nil})
     |> assign(:finance_trend_chart, %{loading: true, chart_svg: nil})
     |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})
+    |> assign(:task_priority_chart, %{loading: true, chart_svg: nil})
+    |> assign(:finance_mix_chart, %{loading: true, chart_svg: nil})
+    |> assign(:analytics_highlights, Insights.default_analytics_highlights())
     |> load_operation_collections()
     |> refresh_dashboard_insights()
   end
@@ -1210,7 +1219,7 @@ defmodule OrganizerWeb.DashboardLive do
 
       <div
         id="dashboard-keyboard-shortcuts"
-        class="flex flex-col gap-4 lg:gap-6"
+        class="dashboard-shell flex flex-col gap-4 lg:gap-6"
         phx-window-keydown="global_shortcut"
       >
         <DashboardHeader.dashboard_header
@@ -1274,6 +1283,9 @@ defmodule OrganizerWeb.DashboardLive do
           progress_chart={@progress_chart}
           finance_trend_chart={@finance_trend_chart}
           finance_category_chart={@finance_category_chart}
+          task_priority_chart={@task_priority_chart}
+          finance_mix_chart={@finance_mix_chart}
+          analytics_highlights={@analytics_highlights}
           ops_counts={@ops_counts}
         />
       </div>
