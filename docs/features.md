@@ -1,46 +1,42 @@
 # Features
 
-## Núcleo do produto
+## Área pública (não logada)
 
-- Dashboard diário em `/dashboard` com hierarquia visual em três blocos:
-  - Bulk Import Hero
-  - Operations Panel
-  - Analytics Panel
-- Captura e gestão de:
-  - Tarefas
-  - Lançamentos financeiros
-  - Metas
+- Página inicial em `/` com resumo dos fluxos ativos do produto:
+  - Importação rápida por texto
+  - Operação diária (tarefas + lançamentos financeiros)
+  - Colaboração financeira por convite entre contas
+- Fluxos de autenticação:
+  - Cadastro em `/users/register`
+  - Login em `/users/log-in`
+  - Contexto especial quando há convite pendente de vínculo
 
-## Importação em lote
+## Dashboard autenticado (`/dashboard`)
 
-- Entrada por texto estruturado
-- Templates rápidos por tipo de entidade
-- Pré-visualização antes de persistir
-- Correções automáticas e fluxo incremental por bloco
-- Histórico de payloads e favoritos
-- Modo estrito (bloqueia importação com erros)
-- Desfazer última importação
-
-## Analytics e capacidade
-
-- Comparativos semanal/mensal/anual
-- Burndown e capacidade planejada
-- Indicadores de risco de sobrecarga/burnout
-- Gráficos SVG gerados no servidor (Contex)
+- Cabeçalho com KPIs de burndown e saldo financeiro.
+- Painéis de lançamento rápido:
+  - Formulário de tarefas
+  - Formulário de renda/gastos (com opção de compartilhamento em vínculo ativo)
+- Painel de vínculo entre contas:
+  - Criação de convite
+  - Acesso à área de finanças compartilhadas e acerto
+- Importação em lote por texto:
+  - Pré-visualização por linha
+  - Correções guiadas
+  - Importação por bloco ou total
+  - Modo estrito
+  - Histórico de payloads e favoritos
+  - Desfazer última importação
+- Operação diária com listas filtráveis de tarefas e lançamentos.
+- Analytics com comparativos semanal/mensal/anual, tendência de saldo e categorias de despesa.
 
 ## Colaboração financeira
 
-- Fluxo de convite e vínculo entre contas
-- Visualização de finanças compartilhadas
-- Fluxo de acerto (settlement)
+- Vínculo entre duas contas por convite (`/account-links`).
+- Visão de finanças compartilhadas por vínculo (`/account-links/:link_id`).
+- Fluxo de acerto com registros de transferência e confirmação bilateral (`/account-links/:link_id/settlement`).
 
-## Autenticação e segurança
-
-- Fluxo de registro/login/logout
-- Sessão autenticada com escopo de usuário
-- Isolamento de dados por `current_scope`
-
-## API REST (`/api/v1`)
+## Domínio e API REST (`/api/v1`)
 
 Recursos disponíveis:
 
@@ -50,4 +46,13 @@ Recursos disponíveis:
 - `fixed-costs`
 - `important-dates`
 
-Todas as rotas exigem autenticação e escopo válido.
+Notas:
+
+- As rotas da API exigem autenticação e escopo válido.
+- O dashboard atual prioriza tarefas e finanças; `goals`, `fixed-costs` e `important-dates` estão disponíveis no domínio e na API.
+
+## Autenticação e segurança
+
+- Registro, login e logout com sessão autenticada.
+- Isolamento de dados por `current_scope`.
+- Redirecionamentos de proteção em rotas autenticadas.

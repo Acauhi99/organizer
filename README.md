@@ -4,7 +4,7 @@ Aplicação de organização pessoal construída com **Elixir + Phoenix 1.8 + Li
 
 ## Objetivo
 
-Centralizar tarefas, metas e finanças em um painel operacional único, com fluxo rápido de captura, análise e colaboração entre contas.
+Centralizar tarefas e finanças em um painel operacional único, com importação rápida por texto, análise contínua e colaboração entre contas por convite.
 
 ## Stack
 
