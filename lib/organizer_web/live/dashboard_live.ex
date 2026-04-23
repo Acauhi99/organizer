@@ -252,6 +252,23 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   @impl true
+  def handle_event("open_task_details", %{"id" => id}, socket) do
+    {:noreply,
+     socket
+     |> assign(:ops_tab, "tasks")
+     |> assign(:task_details_modal_task_id, id)
+     |> load_operation_collections()}
+  end
+
+  @impl true
+  def handle_event("close_task_details", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:task_details_modal_task_id, nil)
+     |> assign(:task_details_modal_task, nil)}
+  end
+
+  @impl true
   def handle_event("next_onboarding_step", _params, socket) do
     current_step = socket.assigns.onboarding_step
     new_step = min(current_step + 1, 6)
@@ -454,6 +471,8 @@ defmodule OrganizerWeb.DashboardLive do
      socket
      |> assign(:ops_tab, "tasks")
      |> assign(:editing_task_id, id)
+     |> assign(:task_details_modal_task_id, nil)
+     |> assign(:task_details_modal_task, nil)
      |> load_operation_collections()}
   end
 
@@ -790,6 +809,8 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:analytics_filters, Filters.default_analytics_filters())
     |> assign(:editing_task_id, nil)
     |> assign(:editing_finance_id, nil)
+    |> assign(:task_details_modal_task_id, nil)
+    |> assign(:task_details_modal_task, nil)
     |> assign(:onboarding_active, onboarding_active)
     |> assign(:onboarding_step, onboarding_progress.current_step)
     |> assign(:has_any_imports, has_any_imports)
@@ -807,6 +828,7 @@ defmodule OrganizerWeb.DashboardLive do
   defp load_operation_collections(socket) do
     {:ok, tasks} = Planning.list_tasks(socket.assigns.current_scope, socket.assigns.task_filters)
     {tasks_todo, tasks_in_progress, tasks_done} = split_tasks_by_status(tasks)
+    selected_task = selected_task_for_modal(tasks, socket.assigns.task_details_modal_task_id)
 
     {:ok, finances} =
       Planning.list_finance_entries(socket.assigns.current_scope, socket.assigns.finance_filters)
@@ -824,6 +846,8 @@ defmodule OrganizerWeb.DashboardLive do
     )
     |> stream(:tasks_done, tasks_done, reset: true, dom_id: &"tasks-done-#{&1.id}")
     |> stream(:finances, finances, reset: true)
+    |> assign(:task_details_modal_task, selected_task)
+    |> assign(:task_details_modal_task_id, selected_task && selected_task.id)
     |> assign(:ops_counts, %{
       tasks_total: length(tasks),
       tasks_open: Enum.count(tasks, &(&1.status != :done)),
@@ -843,6 +867,13 @@ defmodule OrganizerWeb.DashboardLive do
     in_progress = Enum.filter(tasks, &(&1.status == :in_progress))
     done = Enum.filter(tasks, &(&1.status == :done))
     {todo, in_progress, done}
+  end
+
+  defp selected_task_for_modal(_tasks, nil), do: nil
+
+  defp selected_task_for_modal(tasks, selected_id) do
+    normalized_selected_id = to_string(selected_id)
+    Enum.find(tasks, &(to_string(&1.id) == normalized_selected_id))
   end
 
   defp maybe_push_task_focus_target(socket, "in_progress", task) when is_map(task) do
@@ -1445,6 +1476,7 @@ defmodule OrganizerWeb.DashboardLive do
           current_user_id={@current_scope.user.id}
           editing_task_id={@editing_task_id}
           editing_finance_id={@editing_finance_id}
+          task_details_modal_task={@task_details_modal_task}
           ops_counts={@ops_counts}
         />
 

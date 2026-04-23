@@ -549,6 +549,77 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert {:error, :not_found} = Planning.get_task(scope, task.id)
     end
 
+    test "opens and closes task details modal from kanban card", %{conn: conn, scope: scope} do
+      assert {:ok, task} =
+               Planning.create_task(scope, %{
+                 "title" => "Tarefa com detalhes",
+                 "priority" => "high",
+                 "notes" => "Primeira linha\nSegunda linha completa"
+               })
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      refute has_element?(view, "#task-details-modal")
+
+      view
+      |> element("#task-details-btn-#{task.id}")
+      |> render_click()
+
+      assert has_element?(view, "#task-details-modal")
+      assert has_element?(view, "#task-details-title")
+      assert has_element?(view, "#task-details-edit-btn-#{task.id}")
+      assert has_element?(view, "#task-details-modal-backdrop")
+      assert render(view) =~ "Segunda linha completa"
+
+      refute render(view) =~ ~r/id="task-details-modal-backdrop"[^>]*phx-click=/
+
+      view
+      |> element("#task-details-close-btn")
+      |> render_click()
+
+      refute has_element?(view, "#task-details-modal")
+    end
+
+    test "auto-detects task note links as clickable anchors in card and modal", %{
+      conn: conn,
+      scope: scope
+    } do
+      notes = "Links: https://grafana.example.com/dashboard e www.claude.ai/share/abc123"
+
+      assert {:ok, task} =
+               Planning.create_task(scope, %{
+                 "title" => "Links clicáveis",
+                 "priority" => "medium",
+                 "notes" => notes
+               })
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      assert has_element?(
+               view,
+               "#tasks-todo-#{task.id} a[href=\"https://grafana.example.com/dashboard\"]"
+             )
+
+      assert has_element?(
+               view,
+               "#tasks-todo-#{task.id} a[href=\"https://www.claude.ai/share/abc123\"]"
+             )
+
+      view
+      |> element("#task-details-btn-#{task.id}")
+      |> render_click()
+
+      assert has_element?(
+               view,
+               "#task-details-notes a[href=\"https://grafana.example.com/dashboard\"]"
+             )
+
+      assert has_element?(
+               view,
+               "#task-details-notes a[href=\"https://www.claude.ai/share/abc123\"]"
+             )
+    end
+
     test "moves task status quickly through kanban actions", %{conn: conn, scope: scope} do
       assert {:ok, task} =
                Planning.create_task(scope, %{"title" => "Mover status", "priority" => "medium"})

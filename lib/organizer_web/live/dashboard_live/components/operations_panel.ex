@@ -11,6 +11,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
   attr :current_user_id, :integer, default: nil
   attr :editing_task_id, :any, default: nil
   attr :editing_finance_id, :any, default: nil
+  attr :task_details_modal_task, :any, default: nil
   attr :ops_counts, :map, required: true
 
   def operations_panel(assigns) do
@@ -723,6 +724,8 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
               </article>
             </div>
           </section>
+
+          <.task_details_modal task={@task_details_modal_task} />
         </div>
       </div>
     </section>
@@ -793,12 +796,12 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
               <p :if={total_items > 0} class="mt-1 text-xs font-medium text-info/80">
                 Checklist: {checked_items}/{total_items} itens concluídos
               </p>
-              <p
+              <.task_notes_text
                 :if={task.notes && String.trim(task.notes) != ""}
-                class="mt-2 line-clamp-2 text-xs text-base-content/72"
-              >
-                {task.notes}
-              </p>
+                notes={task.notes}
+                class="mt-2 text-xs text-base-content/72"
+                truncate={true}
+              />
             </div>
 
             <div class="flex shrink-0 flex-wrap gap-1.5">
@@ -906,6 +909,15 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
           </form>
 
           <div class="mt-3 flex flex-wrap gap-2">
+            <button
+              id={"task-details-btn-#{task.id}"}
+              type="button"
+              phx-click="open_task_details"
+              phx-value-id={task.id}
+              class="btn btn-ghost btn-xs border border-base-content/18 hover:border-info/34 hover:bg-info/10"
+            >
+              <.icon name="hero-eye" class="size-3.5" /> Detalhes
+            </button>
             <button
               id={"task-status-quick-btn-#{task.id}"}
               type="button"
@@ -1108,6 +1120,169 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
     """
   end
 
+  attr :task, :any, default: nil
+
+  defp task_details_modal(assigns) do
+    ~H"""
+    <div
+      :if={is_map(@task)}
+      id="task-details-modal"
+      class="fixed inset-0 z-[80] flex items-end justify-center p-3 sm:items-center sm:p-6"
+      phx-window-keydown="close_task_details"
+      phx-key="escape"
+      aria-hidden="false"
+    >
+      <div
+        id="task-details-modal-backdrop"
+        aria-hidden="true"
+        class="absolute inset-0 h-full w-full"
+      >
+      </div>
+
+      <% checklist_items = task_checklist_items(@task) %>
+      <% {checked_items, total_items} = task_checklist_totals(@task) %>
+
+      <section
+        id="task-details-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="task-details-title"
+        class="relative z-10 w-full max-w-2xl rounded-2xl border border-base-content/16 bg-base-100 p-5 shadow-[0_24px_70px_rgba(23,33,47,0.34)] sm:p-6"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-wide text-base-content/65">
+              Detalhes da tarefa
+            </p>
+            <h2
+              id="task-details-title"
+              class="mt-1 break-words text-xl font-semibold text-base-content"
+            >
+              {@task.title}
+            </h2>
+          </div>
+
+          <button
+            id="task-details-close-btn"
+            type="button"
+            phx-click="close_task_details"
+            class="btn btn-ghost btn-sm border border-base-content/16"
+          >
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </div>
+
+        <div class="mt-3 flex flex-wrap gap-1.5">
+          <span class={task_priority_badge_class(@task.priority)}>
+            {task_priority_label(@task.priority)}
+          </span>
+          <span class={task_status_badge_class(@task.status)}>
+            {task_status_label(@task.status)}
+          </span>
+          <span class={task_privacy_badge_class(@task)}>
+            {task_privacy_label(@task)}
+          </span>
+        </div>
+
+        <div class="mt-3 rounded-xl border border-base-content/12 bg-base-100/65 px-3 py-2.5">
+          <p class="flex items-center gap-1.5 text-xs text-base-content/76">
+            <.icon name="hero-calendar-days" class="size-3.5" /> Prazo: {task_due_label(@task.due_on)}
+          </p>
+          <p :if={total_items > 0} class="mt-1 text-xs font-medium text-info/80">
+            Checklist: {checked_items}/{total_items} itens concluídos
+          </p>
+        </div>
+
+        <div class="mt-4">
+          <p class="text-xs font-semibold uppercase tracking-wide text-base-content/65">Descrição</p>
+          <div
+            id="task-details-notes"
+            class="mt-1 rounded-xl border border-base-content/12 bg-base-100/65 px-3 py-2.5"
+          >
+            <.task_notes_text
+              :if={@task.notes && String.trim(@task.notes) != ""}
+              notes={@task.notes}
+              class="text-sm leading-6 text-base-content/80 break-words"
+            />
+            <p
+              :if={!@task.notes || String.trim(@task.notes) == ""}
+              class="text-sm text-base-content/60"
+            >
+              Sem descrição informada.
+            </p>
+          </div>
+        </div>
+
+        <div :if={checklist_items != []} class="mt-4">
+          <p class="text-xs font-semibold uppercase tracking-wide text-base-content/65">Checklist</p>
+          <ul class="mt-1 space-y-1.5 rounded-xl border border-base-content/12 bg-base-100/65 p-2.5">
+            <li :for={item <- checklist_items} class="flex items-start gap-2">
+              <.icon
+                name={if(item.checked, do: "hero-check-circle", else: "hero-minus-circle")}
+                class={task_checklist_state_icon_class(item.checked)}
+              />
+              <span class={[
+                item.checked && "line-through text-base-content/45",
+                "text-sm break-words"
+              ]}>
+                {item.label}
+              </span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            id={"task-details-edit-btn-#{@task.id}"}
+            type="button"
+            phx-click="start_edit_task"
+            phx-value-id={@task.id}
+            class="btn btn-soft btn-sm border-base-content/18"
+          >
+            Editar tarefa
+          </button>
+          <button
+            id="task-details-close-footer-btn"
+            type="button"
+            phx-click="close_task_details"
+            class="btn btn-primary btn-sm"
+          >
+            Fechar
+          </button>
+        </div>
+      </section>
+    </div>
+    """
+  end
+
+  attr :notes, :string, required: true
+  attr :class, :string, default: nil
+  attr :truncate, :boolean, default: false
+
+  defp task_notes_text(assigns) do
+    assigns = assign(assigns, :lines, notes_lines_with_links(assigns.notes))
+
+    ~H"""
+    <p class={[@class, @truncate && "line-clamp-2"]}>
+      <span :for={{line, line_index} <- Enum.with_index(@lines)}>
+        <span :for={segment <- line}>
+          <a
+            :if={segment.type == :link}
+            href={segment.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="font-medium text-info/85 underline decoration-info/45 underline-offset-2 break-all hover:text-info"
+          >
+            {segment.text}
+          </a>
+          <span :if={segment.type == :text}>{segment.text}</span>
+        </span>
+        <br :if={line_index < length(@lines) - 1} />
+      </span>
+    </p>
+    """
+  end
+
   defp finance_balance_cents(ops_counts) do
     Map.get(ops_counts, :finances_income_cents, 0) -
       Map.get(ops_counts, :finances_expense_cents, 0)
@@ -1123,6 +1298,70 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
   defp task_checklist_totals(task) do
     items = task_checklist_items(task)
     {Enum.count(items, & &1.checked), length(items)}
+  end
+
+  @notes_url_regex ~r/((?:https?:\/\/|www\.)[^\s<>"']+)/iu
+  @url_with_scheme_regex ~r/^https?:\/\//i
+  @url_trailing_punctuation_regex ~r/[.,!?;:]+$/u
+
+  defp notes_lines_with_links(notes) when is_binary(notes) do
+    notes
+    |> String.split(~r/\R/u, trim: false)
+    |> Enum.map(&line_segments_with_links/1)
+  end
+
+  defp notes_lines_with_links(_notes), do: []
+
+  defp line_segments_with_links(line) do
+    line
+    |> then(&Regex.split(@notes_url_regex, &1, include_captures: true, trim: false))
+    |> Enum.flat_map(&segment_to_note_parts/1)
+  end
+
+  defp segment_to_note_parts(""), do: []
+
+  defp segment_to_note_parts(segment) do
+    if Regex.match?(@notes_url_regex, segment) do
+      {url, trailing_punctuation} = split_trailing_url_punctuation(segment)
+
+      if url == "" do
+        [%{type: :text, text: segment}]
+      else
+        url_part = [%{type: :link, text: url, href: normalize_note_url(url)}]
+
+        if trailing_punctuation == "" do
+          url_part
+        else
+          url_part ++ [%{type: :text, text: trailing_punctuation}]
+        end
+      end
+    else
+      [%{type: :text, text: segment}]
+    end
+  end
+
+  defp split_trailing_url_punctuation(url) do
+    trailing_punctuation =
+      case Regex.run(@url_trailing_punctuation_regex, url) do
+        [match] -> match
+        _ -> ""
+      end
+
+    if trailing_punctuation == "" do
+      {url, ""}
+    else
+      {String.trim_trailing(url, trailing_punctuation), trailing_punctuation}
+    end
+  end
+
+  defp normalize_note_url(url) do
+    normalized_url = String.trim(url)
+
+    if Regex.match?(@url_with_scheme_regex, normalized_url) do
+      normalized_url
+    else
+      "https://#{normalized_url}"
+    end
   end
 
   defp task_due_label(nil), do: "sem prazo"
@@ -1158,6 +1397,9 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
   defp task_status_border_class(:done), do: "border-success/25"
   defp task_status_border_class(:in_progress), do: "border-info/25"
   defp task_status_border_class(_), do: "border-base-content/15"
+
+  defp task_checklist_state_icon_class(true), do: "mt-0.5 size-4 shrink-0 text-success"
+  defp task_checklist_state_icon_class(false), do: "mt-0.5 size-4 shrink-0 text-base-content/40"
 
   defp task_linked_sync?(task) do
     Map.get(task, :shared_sync_mode) == :sync and is_integer(Map.get(task, :shared_with_link_id))
