@@ -2,6 +2,7 @@ defmodule Organizer.PlanningTest do
   use Organizer.DataCase
 
   alias Organizer.Planning
+  alias Organizer.SharedFinance
 
   import Organizer.AccountsFixtures
 
@@ -103,6 +104,133 @@ defmodule Organizer.PlanningTest do
 
       assert {:error, :not_found} =
                Planning.delete_task_checklist_item(scope_b, task_a.id, item.id)
+    end
+  end
+
+  describe "task sharing with linked accounts" do
+    test "duplicates task and checklist for the linked partner account" do
+      owner_scope = user_scope_fixture()
+      partner_user = user_fixture()
+      partner_scope = user_scope_fixture(partner_user)
+      {:ok, invite} = SharedFinance.create_invite(owner_scope)
+      {:ok, link} = SharedFinance.accept_invite(partner_scope, invite.token)
+
+      assert {:ok, source_task} =
+               Planning.create_task(owner_scope, %{
+                 "title" => "Fechar relatório semanal",
+                 "priority" => "high",
+                 "status" => "in_progress",
+                 "notes" => "Enviar versão final para revisão"
+               })
+
+      assert {:ok, _item_a} =
+               Planning.add_task_checklist_item(owner_scope, source_task.id, %{
+                 "label" => "Consolidar métricas"
+               })
+
+      assert {:ok, _item_b} =
+               Planning.add_task_checklist_item(owner_scope, source_task.id, %{
+                 "label" => "Revisar pendências"
+               })
+
+      assert {:ok, shared_task} =
+               Planning.share_task_with_link(owner_scope, source_task.id, link.id)
+
+      assert shared_task.user_id == partner_scope.user.id
+      assert shared_task.title == "Fechar relatório semanal"
+      assert shared_task.priority == :high
+      assert shared_task.status == :todo
+      assert shared_task.notes =~ "Compartilhada por"
+
+      assert {:ok, reloaded_shared_task} = Planning.get_task(partner_scope, shared_task.id)
+      assert length(reloaded_shared_task.checklist_items) == 2
+      assert Enum.all?(reloaded_shared_task.checklist_items, &(!&1.checked))
+
+      assert Enum.map(reloaded_shared_task.checklist_items, & &1.label) == [
+               "Consolidar métricas",
+               "Revisar pendências"
+             ]
+    end
+
+    test "requires task ownership and valid link participation" do
+      owner_scope = user_scope_fixture()
+      partner_user = user_fixture()
+      partner_scope = user_scope_fixture(partner_user)
+      outsider_scope = user_scope_fixture()
+
+      {:ok, invite} = SharedFinance.create_invite(owner_scope)
+      {:ok, link} = SharedFinance.accept_invite(partner_scope, invite.token)
+
+      assert {:ok, source_task} =
+               Planning.create_task(owner_scope, %{
+                 "title" => "Task privada",
+                 "priority" => "medium"
+               })
+
+      assert {:error, :not_found} =
+               Planning.share_task_with_link(partner_scope, source_task.id, link.id)
+
+      assert {:error, :not_found} =
+               Planning.share_task_with_link(owner_scope, source_task.id, 999_999)
+
+      assert {:error, :not_found} =
+               Planning.share_task_with_link(outsider_scope, source_task.id, link.id)
+    end
+
+    test "sync mode mirrors status and checklist between linked accounts" do
+      owner_scope = user_scope_fixture()
+      partner_user = user_fixture()
+      partner_scope = user_scope_fixture(partner_user)
+      {:ok, invite} = SharedFinance.create_invite(owner_scope)
+      {:ok, link} = SharedFinance.accept_invite(partner_scope, invite.token)
+
+      assert {:ok, source_task} =
+               Planning.create_task(owner_scope, %{
+                 "title" => "Checklist sincronizada",
+                 "priority" => "high",
+                 "status" => "todo"
+               })
+
+      assert {:ok, _item_a} =
+               Planning.add_task_checklist_item(owner_scope, source_task.id, %{
+                 "label" => "Item A"
+               })
+
+      assert {:ok, _item_b} =
+               Planning.add_task_checklist_item(owner_scope, source_task.id, %{
+                 "label" => "Item B"
+               })
+
+      assert {:ok, shared_task} =
+               Planning.share_task_with_link(owner_scope, source_task.id, link.id, %{
+                 "mode" => "sync"
+               })
+
+      assert {:ok, partner_task} = Planning.get_task(partner_scope, shared_task.id)
+      assert partner_task.status == :todo
+      assert length(partner_task.checklist_items) == 2
+      assert Enum.all?(partner_task.checklist_items, &(!&1.checked))
+
+      [partner_item_a | _] = partner_task.checklist_items
+
+      assert {:ok, _} =
+               Planning.toggle_task_checklist_item(
+                 partner_scope,
+                 partner_task.id,
+                 partner_item_a.id,
+                 "true"
+               )
+
+      assert {:ok, owner_after_toggle} = Planning.get_task(owner_scope, source_task.id)
+      assert owner_after_toggle.status == :in_progress
+      assert Enum.count(owner_after_toggle.checklist_items, & &1.checked) == 1
+
+      assert {:ok, _} =
+               Planning.update_task(owner_scope, source_task.id, %{"status" => "done"})
+
+      assert {:ok, partner_after_done} = Planning.get_task(partner_scope, partner_task.id)
+      assert partner_after_done.status == :done
+      refute is_nil(partner_after_done.completed_at)
     end
   end
 

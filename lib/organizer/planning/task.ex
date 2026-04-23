@@ -7,6 +7,7 @@ defmodule Organizer.Planning.Task do
 
   @statuses [:todo, :in_progress, :done]
   @priorities [:low, :medium, :high]
+  @shared_sync_modes [:copy, :sync]
 
   schema "tasks" do
     field :title, :string
@@ -15,6 +16,10 @@ defmodule Organizer.Planning.Task do
     field :status, Ecto.Enum, values: @statuses, default: :todo
     field :priority, Ecto.Enum, values: @priorities, default: :medium
     field :completed_at, :utc_datetime
+    field :shared_pair_uuid, :string
+    field :shared_origin_task_id, :integer
+    field :shared_sync_mode, Ecto.Enum, values: @shared_sync_modes
+    field :shared_with_link_id, :integer
 
     belongs_to :user, User
     has_many :checklist_items, TaskChecklistItem, on_delete: :delete_all
@@ -24,6 +29,7 @@ defmodule Organizer.Planning.Task do
 
   def statuses, do: @statuses
   def priorities, do: @priorities
+  def shared_sync_modes, do: @shared_sync_modes
 
   def changeset(task, attrs) do
     task

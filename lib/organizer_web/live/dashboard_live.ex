@@ -491,6 +491,73 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   @impl true
+  def handle_event("set_task_status", %{"id" => id, "status" => status}, socket) do
+    with normalized when normalized in ["todo", "in_progress", "done"] <- to_string(status),
+         {:ok, task} <-
+           Planning.update_task(socket.assigns.current_scope, id, %{"status" => normalized}) do
+      {:noreply,
+       socket
+       |> assign(:ops_tab, "tasks")
+       |> load_operation_collections()
+       |> refresh_dashboard_insights()
+       |> maybe_push_task_focus_target(normalized, task)}
+    else
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Tarefa não encontrada.")}
+
+      {:error, {:validation, _details}} ->
+        {:noreply, put_flash(socket, :error, "Status de tarefa inválido.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Não foi possível atualizar o status da tarefa.")}
+    end
+  end
+
+  @impl true
+  def handle_event(
+        "share_task_with_link",
+        %{"task_id" => task_id, "share_task" => share_task_params},
+        socket
+      ) do
+    link_id = Map.get(share_task_params, "link_id")
+    attach_to_link? = truthy_task_share_value?(Map.get(share_task_params, "attach_to_link"))
+
+    if !attach_to_link? do
+      {:noreply, put_flash(socket, :info, "Tarefa privada mantida.")}
+    else
+      case parse_quick_share_link_id(link_id) do
+        {:ok, parsed_link_id} ->
+          case Planning.share_task_with_link(
+                 socket.assigns.current_scope,
+                 task_id,
+                 parsed_link_id,
+                 %{"mode" => "sync"}
+               ) do
+            {:ok, _shared_task} ->
+              {:noreply,
+               socket
+               |> assign(:ops_tab, "tasks")
+               |> put_flash(:info, "Tarefa atrelada ao vínculo em modo sincronizado.")
+               |> load_operation_collections()}
+
+            {:error, :not_found} ->
+              {:noreply, put_flash(socket, :error, "Tarefa ou vínculo não encontrado.")}
+
+            {:error, {:validation, details}} ->
+              {:noreply, put_flash(socket, :error, task_share_validation_message(details))}
+
+            _ ->
+              {:noreply,
+               put_flash(socket, :error, "Não foi possível atrelar a tarefa ao vínculo.")}
+          end
+
+        :error ->
+          {:noreply, put_flash(socket, :error, "Selecione um vínculo válido para compartilhar.")}
+      end
+    end
+  end
+
+  @impl true
   def handle_event(
         "add_task_checklist_item",
         %{"task_id" => task_id, "checklist_item" => %{"label" => label}},
@@ -739,6 +806,7 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp load_operation_collections(socket) do
     {:ok, tasks} = Planning.list_tasks(socket.assigns.current_scope, socket.assigns.task_filters)
+    {tasks_todo, tasks_in_progress, tasks_done} = split_tasks_by_status(tasks)
 
     {:ok, finances} =
       Planning.list_finance_entries(socket.assigns.current_scope, socket.assigns.finance_filters)
@@ -747,11 +815,21 @@ defmodule OrganizerWeb.DashboardLive do
     finance_expenses = Enum.filter(finances, &(&1.kind == :expense))
 
     socket
-    |> stream(:tasks, tasks, reset: true)
+    |> stream(:tasks_todo, tasks_todo, reset: true, dom_id: &"tasks-todo-#{&1.id}")
+    |> stream(
+      :tasks_in_progress,
+      tasks_in_progress,
+      reset: true,
+      dom_id: &"tasks-in-progress-#{&1.id}"
+    )
+    |> stream(:tasks_done, tasks_done, reset: true, dom_id: &"tasks-done-#{&1.id}")
     |> stream(:finances, finances, reset: true)
     |> assign(:ops_counts, %{
       tasks_total: length(tasks),
       tasks_open: Enum.count(tasks, &(&1.status != :done)),
+      tasks_todo: length(tasks_todo),
+      tasks_in_progress: length(tasks_in_progress),
+      tasks_done: length(tasks_done),
       finances_total: length(finances),
       finances_income_total: length(finance_income),
       finances_expense_total: length(finance_expenses),
@@ -759,6 +837,22 @@ defmodule OrganizerWeb.DashboardLive do
       finances_expense_cents: Enum.reduce(finance_expenses, 0, &(&1.amount_cents + &2))
     })
   end
+
+  defp split_tasks_by_status(tasks) do
+    todo = Enum.filter(tasks, &(&1.status == :todo))
+    in_progress = Enum.filter(tasks, &(&1.status == :in_progress))
+    done = Enum.filter(tasks, &(&1.status == :done))
+    {todo, in_progress, done}
+  end
+
+  defp maybe_push_task_focus_target(socket, "in_progress", task) when is_map(task) do
+    push_event(socket, "task_focus_sync_target", %{
+      task_id: task.id,
+      task_title: task.title
+    })
+  end
+
+  defp maybe_push_task_focus_target(socket, _normalized_status, _task), do: socket
 
   defp refresh_dashboard_insights(socket) do
     Insights.refresh_dashboard_insights(socket)
@@ -1132,6 +1226,24 @@ defmodule OrganizerWeb.DashboardLive do
     end
   end
 
+  defp truthy_task_share_value?(value), do: truthy_quick_finance_value?(value)
+
+  defp task_share_validation_message(details) when is_map(details) do
+    cond do
+      Map.has_key?(details, :mode) ->
+        "Essa tarefa já está atrelada a um vínculo em modo sincronizado."
+
+      Map.has_key?(details, :link_id) ->
+        "Selecione um vínculo válido para atrelar a tarefa."
+
+      true ->
+        "Verifique os dados para atrelar a tarefa ao vínculo."
+    end
+  end
+
+  defp task_share_validation_message(_details),
+    do: "Verifique os dados para atrelar a tarefa ao vínculo."
+
   defp string_key_map(attrs) do
     Enum.reduce(attrs, %{}, fn {key, value}, acc ->
       Map.put(acc, to_string(key), value)
@@ -1329,6 +1441,8 @@ defmodule OrganizerWeb.DashboardLive do
           ops_tab={@ops_tab}
           task_filters={@task_filters}
           finance_filters={@finance_filters}
+          account_links={@account_links}
+          current_user_id={@current_scope.user.id}
           editing_task_id={@editing_task_id}
           editing_finance_id={@editing_finance_id}
           ops_counts={@ops_counts}
