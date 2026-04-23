@@ -8,7 +8,9 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanelTest do
   defp base_assigns do
     %{
       streams: %{
-        tasks: [],
+        tasks_todo: [],
+        tasks_in_progress: [],
+        tasks_done: [],
         finances: []
       },
       ops_tab: "tasks",
@@ -28,6 +30,9 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanelTest do
       ops_counts: %{
         tasks_open: 0,
         tasks_total: 0,
+        tasks_todo: 0,
+        tasks_in_progress: 0,
+        tasks_done: 0,
         finances_total: 0,
         finances_income_total: 0,
         finances_expense_total: 0,
@@ -60,6 +65,9 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanelTest do
           %{
             tasks_open: tasks_open,
             tasks_total: tasks_total,
+            tasks_todo: 0,
+            tasks_in_progress: 0,
+            tasks_done: 0,
             finances_total: finances_total,
             finances_income_total: finance_income_total,
             finances_expense_total: finance_expense_total,
@@ -103,6 +111,22 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanelTest do
       assert html =~ ~s(phx-change="filter_tasks")
     end
 
+    test "renders task focus timer controls" do
+      html = render_component(&OperationsPanel.operations_panel/1, base_assigns())
+
+      assert html =~ ~s(id="task-focus-timer")
+      assert html =~ ~s(phx-hook="TaskFocusTimer")
+      assert html =~ ~s(id="task-focus-task")
+      assert html =~ ~s(id="task-focus-duration")
+      assert html =~ ~s(id="task-focus-duration-custom")
+      assert html =~ ~s(id="task-focus-apply-custom")
+      assert html =~ ~s(id="task-focus-start")
+      assert html =~ ~s(id="task-focus-pause")
+      assert html =~ ~s(id="task-focus-reset")
+      assert html =~ ~s(id="task-focus-progress")
+      assert html =~ ~s(id="task-focus-request-notification")
+    end
+
     test "finances tab is visible when ops_tab is finances" do
       assigns = Map.put(base_assigns(), :ops_tab, "finances")
       html = render_component(&OperationsPanel.operations_panel/1, assigns)
@@ -110,8 +134,17 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanelTest do
     end
 
     test "tasks stream container has phx-update=stream" do
-      html = render_component(&OperationsPanel.operations_panel/1, base_assigns())
-      assert html =~ ~s(id="tasks" phx-update="stream")
+      assigns =
+        Map.put(base_assigns(), :ops_counts, %{
+          base_assigns().ops_counts
+          | tasks_total: 1,
+            tasks_todo: 1
+        })
+
+      html = render_component(&OperationsPanel.operations_panel/1, assigns)
+      assert html =~ ~s(id="tasks-column-todo-stream" phx-update="stream")
+      assert html =~ ~s(id="tasks-column-in-progress-stream" phx-update="stream")
+      assert html =~ ~s(id="tasks-column-done-stream" phx-update="stream")
     end
 
     test "finances stream container has phx-update=stream" do
@@ -124,6 +157,9 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanelTest do
         Map.put(base_assigns(), :ops_counts, %{
           tasks_open: 5,
           tasks_total: 12,
+          tasks_todo: 4,
+          tasks_in_progress: 3,
+          tasks_done: 5,
           finances_total: 8,
           finances_income_total: 3,
           finances_expense_total: 5,
@@ -167,7 +203,17 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanelTest do
 
       assigns =
         base_assigns()
-        |> Map.put(:streams, %{tasks: [{"tasks-1", task}], finances: []})
+        |> Map.put(:ops_counts, %{
+          base_assigns().ops_counts
+          | tasks_total: 1,
+            tasks_in_progress: 1
+        })
+        |> Map.put(:streams, %{
+          tasks_todo: [],
+          tasks_in_progress: [{"tasks-in-progress-1", task}],
+          tasks_done: [],
+          finances: []
+        })
 
       html = render_component(&OperationsPanel.operations_panel/1, assigns)
 
@@ -175,6 +221,11 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanelTest do
       assert html =~ ~s(id="task-checklist-add-form-1")
       assert html =~ ~s(id="task-checklist-toggle-1-10")
       assert html =~ ~s(id="task-checklist-toggle-1-11")
+      assert html =~ ~s(id="task-share-form-1")
+      assert html =~ ~s(id="task-share-check-1")
+      assert html =~ ~s(id="task-share-link-1")
+      assert html =~ ~s(id="task-share-btn-1")
+      assert html =~ "Tarefa privada por padrão"
       assert html =~ "line-through"
     end
   end

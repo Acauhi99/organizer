@@ -545,6 +545,112 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert {:error, :not_found} = Planning.get_task(scope, task.id)
     end
 
+    test "moves task status quickly through kanban actions", %{conn: conn, scope: scope} do
+      assert {:ok, task} =
+               Planning.create_task(scope, %{"title" => "Mover status", "priority" => "medium"})
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      view
+      |> element("#task-status-quick-btn-#{task.id}")
+      |> render_click()
+
+      task_id = task.id
+      task_title = task.title
+
+      assert_push_event(view, "task_focus_sync_target", %{
+        task_id: ^task_id,
+        task_title: ^task_title
+      })
+
+      assert {:ok, task_in_progress} = Planning.get_task(scope, task.id)
+      assert task_in_progress.status == :in_progress
+
+      view
+      |> element("#task-status-quick-btn-#{task.id}")
+      |> render_click()
+
+      assert {:ok, task_done} = Planning.get_task(scope, task.id)
+      assert task_done.status == :done
+      refute is_nil(task_done.completed_at)
+    end
+
+    test "shares a task with linked account from kanban card", %{conn: conn, scope: scope} do
+      linked_user = user_fixture()
+      linked_scope = user_scope_fixture(linked_user)
+      {:ok, invite} = SharedFinance.create_invite(scope)
+      {:ok, link} = SharedFinance.accept_invite(linked_scope, invite.token)
+
+      assert {:ok, task} =
+               Planning.create_task(scope, %{
+                 "title" => "Compartilhar no vínculo",
+                 "priority" => "high",
+                 "notes" => "Validar com a outra conta"
+               })
+
+      assert {:ok, _check_item} =
+               Planning.add_task_checklist_item(scope, task.id, %{"label" => "Primeira etapa"})
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      view
+      |> form("#task-share-form-#{task.id}", %{
+        "task_id" => to_string(task.id),
+        "share_task" => %{
+          "attach_to_link" => "true",
+          "link_id" => to_string(link.id)
+        }
+      })
+      |> render_submit()
+
+      {:ok, linked_tasks} = Planning.list_tasks(linked_scope, %{"days" => "30"})
+
+      assert Enum.any?(linked_tasks, fn linked_task ->
+               linked_task.title == "Compartilhar no vínculo" and linked_task.status == :todo and
+                 linked_task.notes =~ "Compartilhada por"
+             end)
+
+      view
+      |> element("#task-status-quick-btn-#{task.id}")
+      |> render_click()
+
+      {:ok, linked_tasks_after_status_change} =
+        Planning.list_tasks(linked_scope, %{"days" => "30"})
+
+      assert Enum.any?(linked_tasks_after_status_change, fn linked_task ->
+               linked_task.title == "Compartilhar no vínculo" and
+                 linked_task.status == :in_progress
+             end)
+    end
+
+    test "keeps task private when share checkbox is not checked", %{conn: conn, scope: scope} do
+      linked_user = user_fixture()
+      linked_scope = user_scope_fixture(linked_user)
+      {:ok, invite} = SharedFinance.create_invite(scope)
+      {:ok, link} = SharedFinance.accept_invite(linked_scope, invite.token)
+
+      assert {:ok, task} =
+               Planning.create_task(scope, %{
+                 "title" => "Permanecer privada",
+                 "priority" => "medium"
+               })
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      view
+      |> form("#task-share-form-#{task.id}", %{
+        "task_id" => to_string(task.id),
+        "share_task" => %{
+          "attach_to_link" => "false",
+          "link_id" => to_string(link.id)
+        }
+      })
+      |> render_submit()
+
+      {:ok, linked_tasks} = Planning.list_tasks(linked_scope, %{"days" => "30"})
+      refute Enum.any?(linked_tasks, &(&1.title == "Permanecer privada"))
+    end
+
     test "manages checklist items and auto-completes task", %{conn: conn, scope: scope} do
       assert {:ok, task} =
                Planning.create_task(scope, %{"title" => "Compras", "priority" => "medium"})

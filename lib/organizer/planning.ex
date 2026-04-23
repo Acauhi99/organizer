@@ -4,7 +4,7 @@ defmodule Organizer.Planning do
   """
 
   import Ecto.Query, warn: false
-
+  alias Organizer.Accounts.User
   alias Organizer.Accounts.Scope
   alias Organizer.Planning.Analytics
   alias Organizer.Planning.AttributeValidation
@@ -15,6 +15,7 @@ defmodule Organizer.Planning do
   alias Organizer.Planning.ImportantDate
   alias Organizer.Planning.Task
   alias Organizer.Planning.TaskChecklistItem
+  alias Organizer.SharedFinance
   alias Organizer.Repo
 
   def list_tasks(%Scope{} = scope, params \\ %{}) do
@@ -120,8 +121,9 @@ defmodule Organizer.Planning do
         {:error, _reason} = error -> error
       end
 
-    with {:ok, _task} <- result do
-      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
+    with {:ok, updated_task} <- result do
+      synced_user_ids = sync_task_pair_status(updated_task)
+      invalidate_analytics_for_user_ids([scope.user.id | synced_user_ids])
     end
 
     result
@@ -145,13 +147,61 @@ defmodule Organizer.Planning do
     result
   end
 
+  def share_task_with_link(%Scope{} = scope, task_id, link_id, attrs \\ %{}) do
+    share_mode = parse_task_share_mode(attrs)
+
+    result =
+      with {:ok, user_id} <- scope_user_id(scope),
+           {:ok, normalized_link_id} <- parse_positive_id(link_id),
+           %Task{} = source_task <-
+             task_with_checklist_items_query(user_id, task_id) |> Repo.one(),
+           :ok <- validate_sync_share_availability(source_task, share_mode),
+           {:ok, link} <- SharedFinance.get_account_link(scope, normalized_link_id),
+           {:ok, recipient_user_id} <- linked_partner_user_id(link, user_id),
+           {:ok, shared_task} <-
+             duplicate_task_for_partner(
+               source_task,
+               recipient_user_id,
+               normalized_link_id,
+               share_mode,
+               scope
+             ) do
+        {:ok, shared_task, recipient_user_id}
+      else
+        nil ->
+          {:error, :not_found}
+
+        :error ->
+          {:error, :not_found}
+
+        {:error, :invalid_id} ->
+          {:error, {:validation, %{link_id: ["is invalid"]}}}
+
+        {:error, :already_synchronized} ->
+          {:error, {:validation, %{mode: ["task already has an active sync link"]}}}
+
+        {:error, _reason} = error ->
+          error
+      end
+
+    with {:ok, _shared_task, recipient_user_id} <- result do
+      invalidate_analytics_for_user_ids([scope.user.id, recipient_user_id])
+    end
+
+    case result do
+      {:ok, shared_task, _recipient_user_id} -> {:ok, shared_task}
+      error -> error
+    end
+  end
+
   def add_task_checklist_item(%Scope{} = scope, task_id, attrs) when is_map(attrs) do
     with {:ok, user_id} <- scope_user_id(scope),
          %Task{} = task <- Repo.get_by(Task, id: task_id, user_id: user_id),
          {:ok, label} <- validate_checklist_label(attrs),
          {:ok, item} <- create_task_checklist_item(task, label),
          {:ok, _task} <- sync_task_status_with_checklist(scope, task.id) do
-      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
+      synced_user_ids = sync_task_pair_status_and_checklist(task.id)
+      invalidate_analytics_for_user_ids([scope.user.id | synced_user_ids])
       {:ok, item}
     else
       nil ->
@@ -170,7 +220,8 @@ defmodule Organizer.Planning do
          {:ok, label} <- validate_checklist_label(attrs),
          {:ok, item} <-
            item |> TaskChecklistItem.changeset(%{label: label}) |> persist_changeset() do
-      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
+      synced_user_ids = sync_task_pair_status_and_checklist(task.id)
+      invalidate_analytics_for_user_ids([scope.user.id | synced_user_ids])
       {:ok, item}
     else
       nil ->
@@ -189,7 +240,8 @@ defmodule Organizer.Planning do
          {:ok, checked?} <- parse_checked_flag(checked_value),
          {:ok, item} <- update_checklist_item_checked(item, checked?),
          {:ok, _task} <- sync_task_status_with_checklist(scope, task.id) do
-      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
+      synced_user_ids = sync_task_pair_status_and_checklist(task.id)
+      invalidate_analytics_for_user_ids([scope.user.id | synced_user_ids])
       {:ok, item}
     else
       nil ->
@@ -207,7 +259,8 @@ defmodule Organizer.Planning do
            Repo.get_by(TaskChecklistItem, id: item_id, task_id: task.id),
          {:ok, _deleted} <- Repo.delete(item),
          {:ok, _task} <- sync_task_status_with_checklist(scope, task.id) do
-      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
+      synced_user_ids = sync_task_pair_status_and_checklist(task.id)
+      invalidate_analytics_for_user_ids([scope.user.id | synced_user_ids])
       :ok
     else
       nil ->
@@ -711,6 +764,278 @@ defmodule Organizer.Planning do
     Map.merge(defaults, normalize_string_keys(attrs))
   end
 
+  defp duplicate_task_for_partner(
+         source_task,
+         recipient_user_id,
+         link_id,
+         share_mode,
+         scope
+       ) do
+    pair_uuid = Ecto.UUID.generate()
+    sync_mode = if share_mode == :sync, do: :sync, else: :copy
+
+    task_attrs =
+      source_task
+      |> build_shared_task_attrs(scope, share_mode)
+      |> Map.put(:shared_pair_uuid, pair_uuid)
+      |> Map.put(:shared_origin_task_id, source_task.id)
+      |> Map.put(:shared_sync_mode, sync_mode)
+      |> Map.put(:shared_with_link_id, link_id)
+
+    Repo.transaction(fn ->
+      with {:ok, shared_task} <-
+             %Task{user_id: recipient_user_id}
+             |> Task.changeset(task_attrs)
+             |> Ecto.Changeset.put_change(:shared_pair_uuid, pair_uuid)
+             |> Ecto.Changeset.put_change(:shared_origin_task_id, source_task.id)
+             |> Ecto.Changeset.put_change(:shared_sync_mode, sync_mode)
+             |> Ecto.Changeset.put_change(:shared_with_link_id, link_id)
+             |> persist_changeset(),
+           {:ok, _shared_items} <-
+             copy_task_checklist_for_shared_task(
+               Map.get(source_task, :checklist_items, []),
+               shared_task.id,
+               share_mode
+             ),
+           {:ok, _source_task} <-
+             maybe_mark_source_task_as_sync_source(source_task, pair_uuid, link_id, share_mode) do
+        shared_task
+      else
+        {:error, _reason} = error -> Repo.rollback(error)
+      end
+    end)
+    |> case do
+      {:ok, shared_task} ->
+        {:ok, shared_task}
+
+      {:error, {:validation, _details} = error} ->
+        error
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp build_shared_task_attrs(source_task, scope, :sync) do
+    %{
+      title: source_task.title,
+      notes: shared_task_notes(scope, source_task.notes),
+      due_on: source_task.due_on,
+      priority: source_task.priority,
+      status: source_task.status,
+      completed_at: source_task.completed_at
+    }
+  end
+
+  defp build_shared_task_attrs(source_task, scope, _share_mode) do
+    %{
+      title: source_task.title,
+      notes: shared_task_notes(scope, source_task.notes),
+      due_on: source_task.due_on,
+      priority: source_task.priority,
+      status: :todo,
+      completed_at: nil
+    }
+  end
+
+  defp copy_task_checklist_for_shared_task(checklist_items, shared_task_id, :sync) do
+    checklist_items
+    |> Enum.with_index()
+    |> Enum.reduce_while({:ok, []}, fn {item, index}, {:ok, inserted_items} ->
+      case %TaskChecklistItem{task_id: shared_task_id}
+           |> TaskChecklistItem.changeset(%{
+             label: item.label,
+             position: index,
+             checked: item.checked,
+             checked_at: item.checked_at
+           })
+           |> persist_changeset() do
+        {:ok, inserted_item} ->
+          {:cont, {:ok, [inserted_item | inserted_items]}}
+
+        {:error, {:validation, _details} = error} ->
+          {:halt, {:error, error}}
+      end
+    end)
+    |> case do
+      {:ok, inserted_items} -> {:ok, Enum.reverse(inserted_items)}
+      {:error, {:validation, _details} = error} -> {:error, error}
+    end
+  end
+
+  defp copy_task_checklist_for_shared_task(checklist_items, shared_task_id, _share_mode) do
+    checklist_items
+    |> Enum.with_index()
+    |> Enum.reduce_while({:ok, []}, fn {item, index}, {:ok, inserted_items} ->
+      case %TaskChecklistItem{task_id: shared_task_id}
+           |> TaskChecklistItem.changeset(%{
+             label: item.label,
+             position: index,
+             checked: false,
+             checked_at: nil
+           })
+           |> persist_changeset() do
+        {:ok, inserted_item} ->
+          {:cont, {:ok, [inserted_item | inserted_items]}}
+
+        {:error, {:validation, _details} = error} ->
+          {:halt, {:error, error}}
+      end
+    end)
+    |> case do
+      {:ok, inserted_items} -> {:ok, Enum.reverse(inserted_items)}
+      {:error, {:validation, _details} = error} -> {:error, error}
+    end
+  end
+
+  defp maybe_mark_source_task_as_sync_source(source_task, pair_uuid, link_id, :sync) do
+    source_task
+    |> Ecto.Changeset.change(%{
+      shared_pair_uuid: pair_uuid,
+      shared_origin_task_id: nil,
+      shared_sync_mode: :sync,
+      shared_with_link_id: link_id
+    })
+    |> persist_changeset()
+  end
+
+  defp maybe_mark_source_task_as_sync_source(_source_task, _pair_uuid, _link_id, _share_mode),
+    do: {:ok, :not_synced}
+
+  defp linked_partner_user_id(link, owner_user_id) do
+    cond do
+      owner_user_id == link.user_a_id -> {:ok, link.user_b_id}
+      owner_user_id == link.user_b_id -> {:ok, link.user_a_id}
+      true -> :error
+    end
+  end
+
+  defp shared_task_notes(scope, notes) do
+    owner_label =
+      case scope do
+        %Scope{user: %{email: email}} when is_binary(email) and email != "" -> email
+        _ -> "conta vinculada"
+      end
+
+    prefix = "Compartilhada por #{owner_label} em #{Date.to_iso8601(Date.utc_today())}."
+
+    notes =
+      case notes do
+        value when is_binary(value) and value != "" ->
+          prefix <> "\n\n" <> String.trim(value)
+
+        _ ->
+          prefix
+      end
+
+    String.slice(notes, 0, 1000)
+  end
+
+  defp validate_sync_share_availability(source_task, :sync) do
+    if is_binary(source_task.shared_pair_uuid) and source_task.shared_pair_uuid != "" and
+         source_task.shared_sync_mode == :sync do
+      {:error, :already_synchronized}
+    else
+      :ok
+    end
+  end
+
+  defp validate_sync_share_availability(_source_task, _share_mode), do: :ok
+
+  defp sync_task_pair_status(%Task{} = source_task) do
+    with :sync <- source_task.shared_sync_mode,
+         true <- is_binary(source_task.shared_pair_uuid),
+         true <- is_integer(source_task.shared_with_link_id),
+         {:ok, counterpart} <- get_sync_counterpart_task(source_task),
+         {:ok, updated_counterpart} <- mirror_task_status(source_task, counterpart) do
+      [updated_counterpart.user_id]
+    else
+      _ -> []
+    end
+  end
+
+  defp sync_task_pair_status_and_checklist(task_id) do
+    with %Task{} = source_task <- task_with_checklist_by_id(task_id),
+         :sync <- source_task.shared_sync_mode,
+         true <- is_binary(source_task.shared_pair_uuid),
+         true <- is_integer(source_task.shared_with_link_id),
+         {:ok, counterpart} <- get_sync_counterpart_task(source_task),
+         {:ok, updated_counterpart} <- mirror_task_status_and_checklist(source_task, counterpart) do
+      [updated_counterpart.user_id]
+    else
+      _ -> []
+    end
+  end
+
+  defp task_with_checklist_by_id(task_id) do
+    checklist_query =
+      from i in TaskChecklistItem,
+        order_by: [asc: i.position, asc: i.inserted_at]
+
+    from(t in Task,
+      where: t.id == ^task_id,
+      preload: [checklist_items: ^checklist_query]
+    )
+    |> Repo.one()
+  end
+
+  defp get_sync_counterpart_task(source_task) do
+    checklist_query =
+      from i in TaskChecklistItem,
+        order_by: [asc: i.position, asc: i.inserted_at]
+
+    query =
+      from t in Task,
+        where:
+          t.id != ^source_task.id and
+            t.shared_pair_uuid == ^source_task.shared_pair_uuid and
+            t.shared_with_link_id == ^source_task.shared_with_link_id and
+            t.shared_sync_mode == :sync,
+        preload: [checklist_items: ^checklist_query]
+
+    case Repo.one(query) do
+      %Task{} = counterpart -> {:ok, counterpart}
+      _ -> :error
+    end
+  end
+
+  defp mirror_task_status(source_task, counterpart) do
+    completed_at =
+      if source_task.status == :done,
+        do: source_task.completed_at || DateTime.utc_now() |> DateTime.truncate(:second),
+        else: nil
+
+    counterpart
+    |> Ecto.Changeset.change(%{
+      status: source_task.status,
+      completed_at: completed_at
+    })
+    |> persist_changeset()
+  end
+
+  defp mirror_task_status_and_checklist(source_task, counterpart) do
+    Repo.transaction(fn ->
+      with {:ok, updated_counterpart} <- mirror_task_status(source_task, counterpart),
+           {_, _deleted} <-
+             Repo.delete_all(from i in TaskChecklistItem, where: i.task_id == ^counterpart.id),
+           {:ok, _inserted_items} <-
+             copy_task_checklist_for_shared_task(
+               Map.get(source_task, :checklist_items, []),
+               counterpart.id,
+               :sync
+             ) do
+        updated_counterpart
+      else
+        {:error, _reason} = error -> Repo.rollback(error)
+      end
+    end)
+    |> case do
+      {:ok, updated_counterpart} -> {:ok, updated_counterpart}
+      {:error, {:validation, _details} = error} -> error
+      {:error, _reason} = error -> error
+    end
+  end
+
   defp create_task_checklist_item(task, label) do
     next_position = next_task_checklist_item_position(task.id)
 
@@ -813,6 +1138,42 @@ defmodule Organizer.Planning do
   defp normalize_string_keys(attrs) do
     Enum.into(attrs, %{}, fn {k, v} -> {to_string(k), v} end)
   end
+
+  defp parse_task_share_mode(attrs) when is_map(attrs) do
+    attrs
+    |> Map.get("mode", Map.get(attrs, :mode, "copy"))
+    |> to_string()
+    |> String.trim()
+    |> case do
+      "sync" -> :sync
+      _ -> :copy
+    end
+  end
+
+  defp parse_task_share_mode(_attrs), do: :copy
+
+  defp invalidate_analytics_for_user_ids(user_ids) do
+    user_ids
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.each(fn user_id ->
+      Organizer.Planning.AnalyticsCache.invalidate_for_user(%Scope{user: %User{id: user_id}})
+    end)
+  end
+
+  defp parse_positive_id(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_positive_id(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> Integer.parse()
+    |> case do
+      {parsed, ""} when parsed > 0 -> {:ok, parsed}
+      _ -> {:error, :invalid_id}
+    end
+  end
+
+  defp parse_positive_id(_value), do: {:error, :invalid_id}
 
   defp persist_changeset(changeset) do
     case Repo.insert_or_update(changeset) do
