@@ -96,6 +96,20 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanelTest do
       assert html =~ ~s(id="ops-card-finances-balance")
     end
 
+    test "renders timer controls for task notifications" do
+      html = render_component(&OperationsPanel.operations_panel/1, base_assigns())
+
+      assert html =~ ~s(id="task-timer-box")
+      assert html =~ ~s(id="task-timer-task-select")
+      assert html =~ ~s(id="task-timer-preset")
+      assert html =~ ~s(id="task-timer-minutes")
+      assert html =~ ~s(id="task-timer-start")
+      assert html =~ ~s(id="task-timer-pause")
+      assert html =~ ~s(id="task-timer-reset")
+      assert html =~ ~s(id="task-timer-status")
+      assert html =~ ~s(id="task-timer-feedback")
+    end
+
     test "tasks tab is visible when ops_tab is tasks" do
       assigns = Map.put(base_assigns(), :ops_tab, "tasks")
       html = render_component(&OperationsPanel.operations_panel/1, assigns)

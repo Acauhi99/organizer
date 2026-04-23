@@ -1218,6 +1218,64 @@ defmodule OrganizerWeb.DashboardLive do
       />
 
       <div
+        id="notification-permission-modal"
+        phx-hook="NotificationPermissionModal"
+        phx-update="ignore"
+        data-remind-after-days="7"
+        class="fixed inset-0 z-[75] hidden items-end justify-center bg-base-content/45 p-3 backdrop-blur-[1px] sm:items-center sm:p-6"
+        aria-hidden="true"
+      >
+        <section
+          id="notification-permission-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="notification-permission-title"
+          class="w-full max-w-lg rounded-2xl border border-base-content/15 bg-base-100 p-5 shadow-[0_24px_70px_rgba(23,33,47,0.34)] sm:p-6"
+        >
+          <div class="flex items-start gap-3">
+            <div class="mt-0.5 rounded-xl border border-info/30 bg-info/10 p-2 text-info">
+              <.icon name="hero-bell-alert" class="size-5" />
+            </div>
+
+            <div class="space-y-1">
+              <h2
+                id="notification-permission-title"
+                class="text-lg font-semibold leading-tight text-base-content"
+              >
+                Ativar notificações de foco
+              </h2>
+              <p class="text-sm leading-6 text-base-content/75">
+                Queremos te avisar quando o Time Box concluir, mesmo com a aba em segundo plano.
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-4 rounded-xl border border-base-content/12 bg-base-100/65 px-3 py-2.5">
+            <p id="notification-permission-status" class="text-xs text-base-content/70">
+              Clique em "Ativar notificações" para permitir alertas no navegador.
+            </p>
+          </div>
+
+          <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              id="notification-permission-later"
+              type="button"
+              class="btn btn-ghost btn-sm sm:btn-md"
+            >
+              Agora não
+            </button>
+            <button
+              id="notification-permission-allow"
+              type="button"
+              class="btn btn-primary btn-sm sm:btn-md"
+            >
+              Ativar notificações
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <div
         id="dashboard-keyboard-shortcuts"
         class="dashboard-shell flex flex-col gap-4 lg:gap-6"
         phx-window-keydown="global_shortcut"

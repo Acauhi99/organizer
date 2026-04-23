@@ -22,6 +22,10 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert has_element?(view, "#quick-bulk")
       assert has_element?(view, "#bulk-capture-form")
       assert has_element?(view, "#analytics-panel")
+      assert has_element?(view, "#notification-permission-modal")
+      assert has_element?(view, "#notification-permission-allow")
+      assert has_element?(view, "#task-timer-box")
+      assert has_element?(view, "#task-timer-start")
       assert has_element?(view, "#chart-progress")
       assert has_element?(view, "#chart-finance-trend")
     end

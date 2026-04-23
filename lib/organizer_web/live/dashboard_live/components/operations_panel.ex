@@ -51,6 +51,106 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
         </div>
       </div>
 
+      <section
+        id="task-timer-box"
+        phx-hook="TaskTimerBox"
+        phx-update="ignore"
+        data-default-minutes="30"
+        data-complete-label="Tempo concluído"
+        class="mt-3 rounded-xl border border-base-content/12 bg-base-100/35 p-4"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-wide text-base-content/72">
+              Time Box
+            </h3>
+            <p class="text-xs text-base-content/65">
+              Timer de foco para tarefa em execução.
+            </p>
+          </div>
+          <span
+            id="task-timer-status"
+            class="inline-flex items-center rounded-full border border-base-content/20 bg-base-100/80 px-2.5 py-1 text-xs font-semibold text-base-content/72"
+          >
+            Pronto
+          </span>
+        </div>
+
+        <div class="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_126px_110px_auto]">
+          <select
+            id="task-timer-task-select"
+            class="select select-bordered select-sm w-full"
+            aria-label="Selecionar tarefa para timer"
+          >
+            <option value="">Selecione uma tarefa em andamento</option>
+            <option
+              :for={{_dom_id, task} <- @streams.tasks}
+              :if={task.status == :in_progress}
+              value={task.id}
+            >
+              {task.title}
+            </option>
+          </select>
+
+          <select
+            id="task-timer-preset"
+            class="select select-bordered select-sm w-full"
+            aria-label="Preset de duração do timer"
+          >
+            <option value="15">15 min</option>
+            <option value="25">25 min</option>
+            <option value="30" selected>30 min</option>
+            <option value="45">45 min</option>
+            <option value="60">60 min</option>
+          </select>
+
+          <input
+            id="task-timer-minutes"
+            type="number"
+            value="30"
+            min="1"
+            max="720"
+            step="1"
+            inputmode="numeric"
+            class="input input-bordered input-sm w-full"
+            aria-label="Minutos customizados do timer"
+          />
+
+          <button
+            id="task-timer-apply"
+            type="button"
+            class="btn btn-soft btn-sm whitespace-nowrap"
+          >
+            Aplicar
+          </button>
+        </div>
+
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button id="task-timer-start" type="button" class="btn btn-primary btn-sm">Iniciar</button>
+          <button id="task-timer-pause" type="button" class="btn btn-soft btn-sm">Pausar</button>
+          <button id="task-timer-reset" type="button" class="btn btn-ghost btn-sm">Resetar</button>
+        </div>
+
+        <div class="mt-3">
+          <p id="task-timer-remaining" class="text-sm font-semibold text-base-content/80">
+            Restante: 30:00
+          </p>
+
+          <div class="mt-2 h-2 overflow-hidden rounded-full bg-base-content/14">
+            <div
+              id="task-timer-progress"
+              class="h-full rounded-full bg-success transition-[width] duration-300 ease-out"
+              style="width: 0%;"
+            >
+            </div>
+          </div>
+
+          <p id="task-timer-feedback" class="mt-2 text-xs text-base-content/65">
+            Ative as notificações para ser avisado quando o timer terminar.
+          </p>
+        </div>
+      </section>
+
       <div id="operations-panel-content">
         <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <article
