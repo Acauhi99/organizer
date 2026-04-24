@@ -39,7 +39,9 @@ defmodule OrganizerWeb.AuthFlowLiveTest do
                live(recycle(logout_conn), ~p"/finances")
     end
 
-    test "forces reauthentication and restores intended path", %{conn: conn} do
+    test "settings page opens with stale auth but password update requires reauthentication", %{
+      conn: conn
+    } do
       user = user_fixture() |> set_password()
 
       stale_conn =
@@ -47,7 +49,18 @@ defmodule OrganizerWeb.AuthFlowLiveTest do
           token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute)
         )
 
-      redirected_conn = get(stale_conn, ~p"/users/settings")
+      settings_conn = get(stale_conn, ~p"/users/settings")
+      assert html_response(settings_conn, 200) =~ "Configurações da conta"
+
+      redirected_conn =
+        put(recycle(settings_conn), ~p"/users/settings", %{
+          "action" => "update_password",
+          "user" => %{
+            "password" => "new valid password",
+            "password_confirmation" => "new valid password"
+          }
+        })
+
       assert redirected_to(redirected_conn) == ~p"/users/log-in"
 
       assert Phoenix.Flash.get(redirected_conn.assigns.flash, :error) ==
@@ -61,11 +74,8 @@ defmodule OrganizerWeb.AuthFlowLiveTest do
           }
         })
 
-      assert redirected_to(reauth_conn) == ~p"/users/settings"
+      assert redirected_to(reauth_conn) == ~p"/finances"
       assert Phoenix.Flash.get(reauth_conn.assigns.flash, :info) =~ "Que bom ter você de volta!"
-
-      settings_conn = get(recycle(reauth_conn), ~p"/users/settings")
-      assert html_response(settings_conn, 200) =~ "Configurações da conta"
     end
 
     test "rejects invalid credentials and keeps user logged out", %{conn: conn} do

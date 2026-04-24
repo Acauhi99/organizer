@@ -4,6 +4,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
 
   attr :quick_finance_form, :any, required: true
   attr :quick_finance_kind, :string, required: true
+  attr :quick_finance_preset, :string, default: nil
   attr :account_links, :list, default: []
   attr :current_user_id, :integer, default: 0
   attr :category_suggestions, :map, default: %{}
@@ -33,7 +34,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           type="button"
           phx-click="quick_finance_preset"
           phx-value-preset="income_salary"
-          class={preset_class(@quick_finance_kind == "income")}
+          class={preset_class(@quick_finance_preset == "income_salary")}
         >
           Renda: salário
         </button>
@@ -42,7 +43,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           type="button"
           phx-click="quick_finance_preset"
           phx-value-preset="income_extra"
-          class={preset_class(@quick_finance_kind == "income")}
+          class={preset_class(@quick_finance_preset == "income_extra")}
         >
           Renda: extra
         </button>
@@ -51,7 +52,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           type="button"
           phx-click="quick_finance_preset"
           phx-value-preset="expense_fixed"
-          class={preset_class(@quick_finance_kind == "expense")}
+          class={preset_class(@quick_finance_preset == "expense_fixed")}
         >
           Gasto fixo
         </button>
@@ -60,7 +61,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           type="button"
           phx-click="quick_finance_preset"
           phx-value-preset="expense_variable"
-          class={preset_class(@quick_finance_kind == "expense")}
+          class={preset_class(@quick_finance_preset == "expense_variable")}
         >
           Gasto variável
         </button>

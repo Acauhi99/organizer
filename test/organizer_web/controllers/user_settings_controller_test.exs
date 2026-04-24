@@ -19,16 +19,31 @@ defmodule OrganizerWeb.UserSettingsControllerTest do
     end
 
     @tag token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute)
-    test "redirects if user is not in sudo mode", %{conn: conn} do
+    test "renders settings page even when user is outside sudo mode", %{conn: conn} do
       conn = get(conn, ~p"/users/settings")
+      response = html_response(conn, 200)
+      assert response =~ "Configurações da conta"
+    end
+  end
+
+  describe "PUT /users/settings (change password form)" do
+    @tag token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute)
+    test "redirects to login when updating password outside sudo mode", %{conn: conn} do
+      conn =
+        put(conn, ~p"/users/settings", %{
+          "action" => "update_password",
+          "user" => %{
+            "password" => "new valid password",
+            "password_confirmation" => "new valid password"
+          }
+        })
+
       assert redirected_to(conn) == ~p"/users/log-in"
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
                "Você precisa se reautenticar para acessar esta página."
     end
-  end
 
-  describe "PUT /users/settings (change password form)" do
     test "updates the user password and resets tokens", %{conn: conn, user: user} do
       new_password_conn =
         put(conn, ~p"/users/settings", %{

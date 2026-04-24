@@ -7,7 +7,6 @@ defmodule OrganizerWeb.DashboardLive.Insights do
   """
 
   alias Contex.{Dataset, Plot}
-  alias Contex.PieChart
   alias Organizer.Planning
   alias Organizer.Planning.AnalyticsCache
 
@@ -16,13 +15,13 @@ defmodule OrganizerWeb.DashboardLive.Insights do
     analytics_result =
       AnalyticsCache.get_analytics(
         socket.assigns.current_scope,
-        days: socket.assigns.analytics_filters.days,
-        planned_capacity: socket.assigns.analytics_filters.planned_capacity
+        days: socket.assigns.task_metrics_filters.days,
+        planned_capacity: socket.assigns.task_metrics_filters.planned_capacity
       )
 
     {:ok, workload_capacity_snapshot} =
       Planning.burndown_snapshot(socket.assigns.current_scope, %{
-        planned_capacity: socket.assigns.analytics_filters.planned_capacity
+        planned_capacity: socket.assigns.task_metrics_filters.planned_capacity
       })
 
     {:ok, finance_summary} = Planning.finance_summary(socket.assigns.current_scope, 30)
@@ -57,15 +56,36 @@ defmodule OrganizerWeb.DashboardLive.Insights do
     |> Phoenix.Component.assign(:finance_summary, finance_summary)
   end
 
-  @spec default_analytics_highlights() :: map()
-  def default_analytics_highlights do
+  @spec default_task_highlights() :: map()
+  def default_task_highlights do
     %{
       tasks_created_window: 0,
       tasks_completed_window: 0,
       tasks_total_window: 0,
       tasks_completion_rate: 0.0,
       open_high_priority: 0,
-      overdue_open: 0,
+      overdue_open: 0
+    }
+  end
+
+  @spec default_finance_highlights() :: map()
+  def default_finance_highlights do
+    %{
+      finance_entries_window: 0,
+      expense_entries_window: 0,
+      income_cents: 0,
+      expense_cents: 0,
+      net_cents: 0,
+      avg_expense_ticket_cents: 0,
+      dominant_expense_category: nil,
+      dominant_expense_share: 0.0,
+      expense_composition_top: []
+    }
+  end
+
+  @spec default_analytics_highlights() :: map()
+  def default_analytics_highlights do
+    Map.merge(default_task_highlights(), %{
       finance_entries_window: 0,
       expense_entries_window: 0,
       income_cents: 0,
@@ -75,44 +95,47 @@ defmodule OrganizerWeb.DashboardLive.Insights do
       dominant_expense_category: nil,
       dominant_expense_share: 0.0,
       expense_mix_top: []
-    }
+    })
   end
 
   @spec load_chart_svgs(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   def load_chart_svgs(socket) do
-    analytics_days = parse_days(socket.assigns.analytics_filters.days, 30)
-    start_on = Date.add(Date.utc_today(), -(analytics_days - 1))
+    task_days = parse_days(socket.assigns.task_metrics_filters.days, 30)
+    finance_days = parse_days(socket.assigns.finance_metrics_filters.days, 30)
+
+    task_start_on = Date.add(Date.utc_today(), -(task_days - 1))
 
     {:ok, tasks} =
       Planning.list_tasks(socket.assigns.current_scope, %{
-        days: analytics_days,
+        days: task_days,
         status: "all",
         priority: "all"
       })
 
+    tasks_window =
+      Enum.filter(tasks, fn task ->
+        task_relevant_for_window?(task, task_start_on)
+      end)
+
     {:ok, finance_entries} =
       Planning.list_finance_entries(socket.assigns.current_scope, %{
-        days: analytics_days,
+        days: finance_days,
         kind: "all",
         expense_profile: "all",
         payment_method: "all"
       })
 
-    tasks_window =
-      Enum.filter(tasks, fn task ->
-        task_relevant_for_window?(task, start_on)
-      end)
-
-    analytics_highlights = build_analytics_highlights(tasks_window, finance_entries, start_on)
+    task_highlights = build_task_highlights(tasks_window, task_start_on)
+    finance_highlights = build_finance_highlights(finance_entries)
 
     socket
-    |> Phoenix.Component.assign(:progress_chart, %{
+    |> Phoenix.Component.assign(:task_delivery_chart, %{
       loading: false,
-      chart_svg: task_delivery_chart_svg(tasks_window, analytics_days)
+      chart_svg: task_delivery_chart_svg(tasks_window, task_days)
     })
-    |> Phoenix.Component.assign(:finance_trend_chart, %{
+    |> Phoenix.Component.assign(:finance_flow_chart, %{
       loading: false,
-      chart_svg: finance_flow_chart_svg(finance_entries, analytics_days)
+      chart_svg: finance_flow_chart_svg(finance_entries, finance_days)
     })
     |> Phoenix.Component.assign(:finance_category_chart, %{
       loading: false,
@@ -122,11 +145,12 @@ defmodule OrganizerWeb.DashboardLive.Insights do
       loading: false,
       chart_svg: task_priority_comparison_chart_svg(tasks_window)
     })
-    |> Phoenix.Component.assign(:finance_mix_chart, %{
+    |> Phoenix.Component.assign(:finance_composition_chart, %{
       loading: false,
-      chart_svg: finance_mix_chart_svg(finance_entries)
+      chart_svg: finance_composition_chart_svg(finance_entries)
     })
-    |> Phoenix.Component.assign(:analytics_highlights, analytics_highlights)
+    |> Phoenix.Component.assign(:task_highlights, task_highlights)
+    |> Phoenix.Component.assign(:finance_highlights, finance_highlights)
   end
 
   @doc """
@@ -157,6 +181,8 @@ defmodule OrganizerWeb.DashboardLive.Insights do
   end
 
   @spec task_delivery_chart_svg(list(), pos_integer()) :: Phoenix.HTML.safe() | nil
+  def task_delivery_chart_svg([], _days), do: nil
+
   def task_delivery_chart_svg(tasks, days)
       when is_list(tasks) and is_integer(days) and days > 0 do
     buckets = timeline_buckets(days)
@@ -188,9 +214,11 @@ defmodule OrganizerWeb.DashboardLive.Insights do
     |> Plot.to_svg()
   end
 
-  def task_delivery_chart_svg(_tasks, _days), do: task_delivery_chart_svg([], 30)
+  def task_delivery_chart_svg(_tasks, _days), do: nil
 
   @spec finance_flow_chart_svg(list(), pos_integer()) :: Phoenix.HTML.safe() | nil
+  def finance_flow_chart_svg(finance_entries, _days) when finance_entries == [], do: nil
+
   def finance_flow_chart_svg(finance_entries, days)
       when is_list(finance_entries) and is_integer(days) and days > 0 do
     data =
@@ -222,7 +250,7 @@ defmodule OrganizerWeb.DashboardLive.Insights do
     |> Plot.to_svg()
   end
 
-  def finance_flow_chart_svg(_finance_entries, _days), do: finance_flow_chart_svg([], 30)
+  def finance_flow_chart_svg(_finance_entries, _days), do: nil
 
   @spec finance_expense_categories_chart_svg(list()) :: Phoenix.HTML.safe() | nil
   def finance_expense_categories_chart_svg(finance_entries) when is_list(finance_entries) do
@@ -236,28 +264,27 @@ defmodule OrganizerWeb.DashboardLive.Insights do
       |> Enum.sort_by(fn {_category, total} -> -total end)
       |> merge_tail_categories(6)
 
-    data =
-      if data == [] do
-        [{"Sem despesas", 0}]
-      else
-        data
-      end
+    if data == [] do
+      nil
+    else
+      dataset = Dataset.new(data, ["categoria", "valor"])
 
-    dataset = Dataset.new(data, ["categoria", "valor"])
-
-    Plot.new(dataset, Contex.BarChart, 620, 280,
-      mapping: %{category_col: "categoria", value_cols: ["valor"]},
-      orientation: :horizontal,
-      data_labels: false,
-      title: "Top categorias de despesa",
-      custom_value_formatter: &money_axis_formatter/1
-    )
-    |> Plot.to_svg()
+      Plot.new(dataset, Contex.BarChart, 620, 280,
+        mapping: %{category_col: "categoria", value_cols: ["valor"]},
+        orientation: :horizontal,
+        data_labels: false,
+        title: "Top categorias de despesa",
+        custom_value_formatter: &money_axis_formatter/1
+      )
+      |> Plot.to_svg()
+    end
   end
 
-  def finance_expense_categories_chart_svg(_), do: finance_expense_categories_chart_svg([])
+  def finance_expense_categories_chart_svg(_), do: nil
 
   @spec task_priority_comparison_chart_svg(list()) :: Phoenix.HTML.safe() | nil
+  def task_priority_comparison_chart_svg([]), do: nil
+
   def task_priority_comparison_chart_svg(tasks) when is_list(tasks) do
     data = [
       priority_bar_row(tasks, :high, "Alta"),
@@ -277,10 +304,10 @@ defmodule OrganizerWeb.DashboardLive.Insights do
     |> Plot.to_svg()
   end
 
-  def task_priority_comparison_chart_svg(_), do: task_priority_comparison_chart_svg([])
+  def task_priority_comparison_chart_svg(_), do: nil
 
-  @spec finance_mix_chart_svg(list()) :: Phoenix.HTML.safe() | nil
-  def finance_mix_chart_svg(finance_entries) when is_list(finance_entries) do
+  @spec finance_composition_chart_svg(list()) :: Phoenix.HTML.safe() | nil
+  def finance_composition_chart_svg(finance_entries) when is_list(finance_entries) do
     data =
       finance_entries
       |> Enum.filter(&(&1.kind == :expense))
@@ -291,26 +318,26 @@ defmodule OrganizerWeb.DashboardLive.Insights do
       |> Enum.sort_by(fn {_label, value} -> -value end)
       |> merge_tail_categories(5)
 
-    data =
-      if data == [] do
-        [{"Sem despesas", 1}]
-      else
-        data
-      end
+    if data == [] do
+      nil
+    else
+      dataset = Dataset.new(data, ["perfil", "valor"])
 
-    dataset = Dataset.new(data, ["perfil", "valor"])
-
-    Plot.new(dataset, PieChart, 560, 280,
-      mapping: %{category_col: "perfil", value_col: "valor"},
-      data_labels: false,
-      title: "Mix de despesas por natureza",
-      colour_palette: ["6bc5d2", "91d29e", "f8d98f", "f3a8a8", "b5b9f3", "cfcfcf"]
-    )
-    |> Plot.plot_options(%{legend_setting: :legend_right})
-    |> Plot.to_svg()
+      Plot.new(dataset, Contex.BarChart, 620, 280,
+        mapping: %{category_col: "perfil", value_cols: ["valor"]},
+        orientation: :horizontal,
+        data_labels: false,
+        title: "Composição de despesas por natureza",
+        custom_value_formatter: &money_axis_formatter/1
+      )
+      |> Plot.to_svg()
+    end
   end
 
-  def finance_mix_chart_svg(_), do: finance_mix_chart_svg([])
+  def finance_composition_chart_svg(_), do: nil
+
+  @spec finance_mix_chart_svg(list()) :: Phoenix.HTML.safe() | nil
+  def finance_mix_chart_svg(entries), do: finance_composition_chart_svg(entries)
 
   defp safe_period_metrics(insights_overview, period) do
     %{
@@ -323,7 +350,7 @@ defmodule OrganizerWeb.DashboardLive.Insights do
     }
   end
 
-  defp build_analytics_highlights(tasks, finance_entries, start_on) do
+  defp build_task_highlights(tasks, start_on) do
     created_window =
       Enum.count(tasks, fn task ->
         case task_created_on(task) do
@@ -351,6 +378,24 @@ defmodule OrganizerWeb.DashboardLive.Insights do
           Date.compare(task.due_on, Date.utc_today()) == :lt
       end)
 
+    completion_rate =
+      if created_window == 0 do
+        0.0
+      else
+        Float.round(completed_window / created_window * 100, 1)
+      end
+
+    %{
+      tasks_created_window: created_window,
+      tasks_completed_window: completed_window,
+      tasks_total_window: length(tasks),
+      tasks_completion_rate: completion_rate,
+      open_high_priority: open_high_priority,
+      overdue_open: overdue_open
+    }
+  end
+
+  defp build_finance_highlights(finance_entries) do
     income_cents =
       finance_entries
       |> Enum.filter(&(&1.kind == :income))
@@ -371,15 +416,16 @@ defmodule OrganizerWeb.DashboardLive.Insights do
       end)
       |> Enum.sort_by(fn {_category, total} -> -total end)
 
+    expense_by_profile =
+      expense_entries
+      |> Enum.group_by(&expense_profile_label(&1.expense_profile))
+      |> Enum.map(fn {label, entries} ->
+        {label, Enum.reduce(entries, 0, fn entry, acc -> acc + entry.amount_cents end)}
+      end)
+      |> Enum.sort_by(fn {_label, total} -> -total end)
+
     {dominant_expense_category, dominant_expense_cents} =
       List.first(expense_by_category) || {nil, 0}
-
-    completion_rate =
-      if created_window == 0 do
-        0.0
-      else
-        Float.round(completed_window / created_window * 100, 1)
-      end
 
     dominant_share =
       if expense_cents <= 0 do
@@ -388,8 +434,8 @@ defmodule OrganizerWeb.DashboardLive.Insights do
         Float.round(dominant_expense_cents / expense_cents * 100, 1)
       end
 
-    expense_mix_top =
-      expense_by_category
+    expense_composition_top =
+      expense_by_profile
       |> Enum.take(3)
       |> Enum.map(fn {label, value} ->
         %{
@@ -404,12 +450,6 @@ defmodule OrganizerWeb.DashboardLive.Insights do
       end)
 
     %{
-      tasks_created_window: created_window,
-      tasks_completed_window: completed_window,
-      tasks_total_window: length(tasks),
-      tasks_completion_rate: completion_rate,
-      open_high_priority: open_high_priority,
-      overdue_open: overdue_open,
       finance_entries_window: length(finance_entries),
       expense_entries_window: length(expense_entries),
       income_cents: income_cents,
@@ -422,7 +462,7 @@ defmodule OrganizerWeb.DashboardLive.Insights do
         ),
       dominant_expense_category: dominant_expense_category,
       dominant_expense_share: dominant_share,
-      expense_mix_top: expense_mix_top
+      expense_composition_top: expense_composition_top
     }
   end
 

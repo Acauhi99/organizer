@@ -29,8 +29,9 @@ defmodule OrganizerWeb.DashboardLive.Filters do
   @finance_weekday_filters ["all", "0", "1", "2", "3", "4", "5", "6"]
   @finance_sort_by_filters ["date_desc", "date_asc", "amount_desc", "amount_asc", "category_asc"]
 
-  @analytics_days_filters ["7", "15", "30", "90", "365"]
-  @analytics_capacity_filters ["5", "10", "15", "20", "30"]
+  @task_metrics_days_filters ["7", "15", "30", "90", "365"]
+  @task_metrics_capacity_filters ["5", "10", "15", "20", "30"]
+  @finance_metrics_days_filters ["7", "30", "90", "365"]
 
   @spec default_task_filters() :: map()
   def default_task_filters do
@@ -58,9 +59,14 @@ defmodule OrganizerWeb.DashboardLive.Filters do
     }
   end
 
-  @spec default_analytics_filters() :: map()
-  def default_analytics_filters do
+  @spec default_task_metrics_filters() :: map()
+  def default_task_metrics_filters do
     %{days: "30", planned_capacity: "10"}
+  end
+
+  @spec default_finance_metrics_filters() :: map()
+  def default_finance_metrics_filters do
+    %{days: "30"}
   end
 
   @spec normalize_task_filters(map()) :: map()
@@ -98,11 +104,20 @@ defmodule OrganizerWeb.DashboardLive.Filters do
     |> Map.new()
   end
 
-  @spec normalize_analytics_filters(map()) :: map()
-  def normalize_analytics_filters(filters) when is_map(filters) do
+  @spec normalize_task_metrics_filters(map()) :: map()
+  def normalize_task_metrics_filters(filters) when is_map(filters) do
     %{
       days: Map.get(filters, "days"),
       planned_capacity: Map.get(filters, "planned_capacity")
+    }
+    |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
+    |> Map.new()
+  end
+
+  @spec normalize_finance_metrics_filters(map()) :: map()
+  def normalize_finance_metrics_filters(filters) when is_map(filters) do
+    %{
+      days: Map.get(filters, "days")
     }
     |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
     |> Map.new()
@@ -171,16 +186,33 @@ defmodule OrganizerWeb.DashboardLive.Filters do
     |> Map.update(:max_amount_cents, "", &sanitize_non_negative_integer_string/1)
   end
 
-  @spec sanitize_analytics_filters(map()) :: map()
-  def sanitize_analytics_filters(filters) do
+  @spec sanitize_task_metrics_filters(map()) :: map()
+  def sanitize_task_metrics_filters(filters) do
     filters
     |> Map.update(:days, "30", fn value ->
-      if value in @analytics_days_filters, do: value, else: "30"
+      if value in @task_metrics_days_filters, do: value, else: "30"
     end)
     |> Map.update(:planned_capacity, "10", fn value ->
-      if value in @analytics_capacity_filters, do: value, else: "10"
+      if value in @task_metrics_capacity_filters, do: value, else: "10"
     end)
   end
+
+  @spec sanitize_finance_metrics_filters(map()) :: map()
+  def sanitize_finance_metrics_filters(filters) do
+    filters
+    |> Map.update(:days, "30", fn value ->
+      if value in @finance_metrics_days_filters, do: value, else: "30"
+    end)
+  end
+
+  @spec default_analytics_filters() :: map()
+  def default_analytics_filters, do: default_task_metrics_filters()
+
+  @spec normalize_analytics_filters(map()) :: map()
+  def normalize_analytics_filters(filters), do: normalize_task_metrics_filters(filters)
+
+  @spec sanitize_analytics_filters(map()) :: map()
+  def sanitize_analytics_filters(filters), do: sanitize_task_metrics_filters(filters)
 
   defp sanitize_non_negative_integer_string(value) do
     if is_binary(value) and String.trim(value) != "" do

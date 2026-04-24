@@ -159,7 +159,7 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
     %{
       title: "Áreas de operação",
       description:
-        "Use as áreas de Operação e Analytics para visualizar e gerenciar suas tarefas e finanças.",
+        "Use os painéis de métricas e operação em Tarefas e Finanças para agir sem misturar contextos.",
       example: nil
     }
   end
@@ -175,8 +175,8 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
 
   defp spotlight_target(1), do: "#quick-finance-hero"
   defp spotlight_target(2), do: "#quick-finance-form"
-  defp spotlight_target(3), do: "#operations-panel"
-  defp spotlight_target(4), do: "#operations-panel"
-  defp spotlight_target(5), do: "#operations-panel"
+  defp spotlight_target(3), do: "#finance-operations-panel, #task-operations-panel"
+  defp spotlight_target(4), do: "#finance-operations-panel, #task-operations-panel"
+  defp spotlight_target(5), do: "#finance-metrics-panel, #task-metrics-panel"
   defp spotlight_target(6), do: "a[href='/account-links']"
 end

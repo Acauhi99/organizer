@@ -17,12 +17,12 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       assert {:ok, view, _html} = live(conn, ~p"/finances")
       assert has_element?(view, "#quick-finance-form")
-      assert has_element?(view, "#analytics-panel")
+      assert has_element?(view, "#finance-metrics-panel")
+      assert has_element?(view, "#finance-operations-panel")
       assert has_element?(view, "#notification-permission-modal")
       assert has_element?(view, "#notification-permission-allow")
       refute has_element?(view, "#task-timer-box")
-      assert has_element?(view, "#chart-progress")
-      assert has_element?(view, "#chart-finance-trend")
+      refute has_element?(view, "#task-operations-panel")
     end
 
     test "renders modular authenticated routes", %{conn: conn} do
@@ -37,6 +37,15 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert has_element?(tasks, "#tasks-page-hero")
       assert has_element?(tasks, "#quick-task-form")
       assert has_element?(tasks, "#task-focus-timer")
+      assert has_element?(tasks, "#task-metrics-panel")
+      assert has_element?(tasks, "#task-operations-panel")
+    end
+
+    test "analytics route was removed", %{conn: conn} do
+      conn = log_in_user(conn, user_fixture())
+
+      conn = get(conn, "/analytics")
+      assert html_response(conn, 404)
     end
   end
 
@@ -206,6 +215,17 @@ defmodule OrganizerWeb.DashboardLiveTest do
              )
     end
 
+    test "highlights only selected expense preset", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/finances")
+
+      view
+      |> element("#quick-preset-expense-fixed")
+      |> render_click()
+
+      assert has_element?(view, "#quick-preset-expense-fixed.btn-primary")
+      refute has_element?(view, "#quick-preset-expense-variable.btn-primary")
+    end
+
     test "creates task through quick task form", %{conn: conn, scope: scope} do
       {:ok, view, _html} = live(conn, ~p"/tasks")
       today = Date.to_iso8601(Date.utc_today())
@@ -229,19 +249,6 @@ defmodule OrganizerWeb.DashboardLiveTest do
                  task.priority == :high and
                  task.status == :in_progress
              end)
-    end
-
-    test "applies quick preset for shopping list task", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/tasks")
-
-      view
-      |> element("#quick-task-preset-shopping-list")
-      |> render_click()
-
-      assert has_element?(
-               view,
-               "#quick-task-form input[name='quick_task[title]'][value='Lista de compras do mercado']"
-             )
     end
 
     test "edits and deletes a task inline", %{conn: conn, scope: scope} do
@@ -624,22 +631,34 @@ defmodule OrganizerWeb.DashboardLiveTest do
       refute has_element?(view, "#finance-edit-btn-#{old_entry.id}")
     end
 
-    test "updates analytics filters through chips", %{conn: conn} do
+    test "updates task metrics filters through chips", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/tasks")
+
+      assert has_element?(view, "#task-metrics-days-30.btn-primary")
+      assert has_element?(view, "#task-metrics-capacity-10.btn-primary")
+
+      view
+      |> element("#task-metrics-days-7")
+      |> render_click()
+
+      view
+      |> element("#task-metrics-capacity-20")
+      |> render_click()
+
+      assert has_element?(view, "#task-metrics-days-7.btn-primary")
+      assert has_element?(view, "#task-metrics-capacity-20.btn-primary")
+    end
+
+    test "updates finance metrics days through chips", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/finances")
 
-      assert has_element?(view, "#analytics-days-30.btn-primary")
-      assert has_element?(view, "#analytics-capacity-10.btn-primary")
+      assert has_element?(view, "#finance-metrics-days-30.btn-primary")
 
       view
-      |> element("#analytics-days-7")
+      |> element("#finance-metrics-days-7")
       |> render_click()
 
-      view
-      |> element("#analytics-capacity-20")
-      |> render_click()
-
-      assert has_element?(view, "#analytics-days-7.btn-primary")
-      assert has_element?(view, "#analytics-capacity-20.btn-primary")
+      assert has_element?(view, "#finance-metrics-days-7.btn-primary")
     end
 
     test "does not render onboarding card", %{conn: conn} do
@@ -654,14 +673,16 @@ defmodule OrganizerWeb.DashboardLiveTest do
       %{conn: log_in_user(conn, user), user: user}
     end
 
-    test "analytics panel is visible by default", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/finances")
-      assert has_element?(view, "#analytics-panel")
+    test "task panels are visible in tasks route", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/tasks")
+      assert has_element?(view, "#task-metrics-panel")
+      assert has_element?(view, "#task-operations-panel")
     end
 
-    test "operations panel is visible by default", %{conn: conn} do
+    test "finance panels are visible in finances route", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/finances")
-      assert has_element?(view, "#operations-panel")
+      assert has_element?(view, "#finance-metrics-panel")
+      assert has_element?(view, "#finance-operations-panel")
     end
   end
 
@@ -776,20 +797,20 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert has_element?(view, "#module-keyboard-shortcuts")
     end
 
-    test "operations panel is present", %{conn: conn} do
+    test "finance operation panel is present", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/finances")
-      assert has_element?(view, "#operations-panel")
+      assert has_element?(view, "#finance-operations-panel")
     end
 
-    test "analytics panel is present", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/finances")
-      assert has_element?(view, "#analytics-panel")
+    test "task metrics panel is present", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/tasks")
+      assert has_element?(view, "#task-metrics-panel")
     end
 
-    test "toggling analytics mobile expand event is handled", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/finances")
-      render_click(view, "set_analytics_days", %{"days" => "7"})
-      assert has_element?(view, "#analytics-panel")
+    test "toggling task metrics event is handled", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/tasks")
+      render_click(view, "set_task_metrics_days", %{"days" => "7"})
+      assert has_element?(view, "#task-metrics-panel")
     end
   end
 
@@ -799,14 +820,16 @@ defmodule OrganizerWeb.DashboardLiveTest do
       %{conn: log_in_user(conn, user)}
     end
 
-    test "skip link to operations panel is present", %{conn: conn} do
+    test "skip links to finance sections are present", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/finances")
-      assert has_element?(view, "a.skip-link[href='#operations-panel']")
+      assert has_element?(view, "a.skip-link[href='#finance-metrics-panel']")
+      assert has_element?(view, "a.skip-link[href='#finance-operations-panel']")
     end
 
-    test "skip link to analytics panel is present", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/finances")
-      assert has_element?(view, "a.skip-link[href='#analytics-panel']")
+    test "skip links to task sections are present", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/tasks")
+      assert has_element?(view, "a.skip-link[href='#task-metrics-panel']")
+      assert has_element?(view, "a.skip-link[href='#task-operations-panel']")
     end
 
     test "onboarding overlay has role dialog", %{conn: conn} do
@@ -848,16 +871,16 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert time_ms < 2000, "Finances took #{time_ms}ms to render (budget: 2000ms)"
     end
 
-    test "analytics filter change completes within 200ms budget", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/finances")
+    test "task metrics filter change completes within 200ms budget", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/tasks")
 
       {time_us, _result} =
         :timer.tc(fn ->
-          render_click(view, "set_analytics_days", %{"days" => "7"})
+          render_click(view, "set_task_metrics_days", %{"days" => "7"})
         end)
 
       time_ms = time_us / 1000
-      assert time_ms < 200, "Analytics filter took #{time_ms}ms (budget: 200ms)"
+      assert time_ms < 200, "Task metrics filter took #{time_ms}ms (budget: 200ms)"
     end
 
     test "tasks renders with large task list within budget", %{conn: conn, user: user} do
@@ -877,11 +900,12 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert time_ms < 2000, "Dashboard with 55 tasks took #{time_ms}ms (budget: 2000ms)"
     end
 
-    test "async chart loading state is shown on initial render", %{conn: conn} do
+    test "task chart containers are shown on initial render", %{conn: conn} do
       # Charts start in loading state and load asynchronously
       # We verify the chart containers are present (they may be loading or loaded)
-      {:ok, view, _html} = live(conn, ~p"/finances")
-      assert has_element?(view, "#analytics-panel")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
+      assert has_element?(view, "#task-metrics-panel")
+      assert has_element?(view, "#chart-task-delivery")
     end
 
     test "finances renders with large finance list within budget", %{conn: conn, user: user} do

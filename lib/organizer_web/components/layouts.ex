@@ -39,37 +39,6 @@ defmodule OrganizerWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class={["px-4 pb-2 pt-4 sm:px-6 lg:px-8", !@current_scope && "public-shell-header"]}>
-      <div class={[
-        "app-shell-header-card surface-card mx-auto flex w-full max-w-7xl flex-col gap-4 rounded-3xl p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6 2xl:max-w-[100rem]",
-        !@current_scope && "public-shell-header-card"
-      ]}>
-        <div class="space-y-1">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60">
-            Organizer
-          </p>
-          <p class="text-sm text-base-content/80">
-            Finanças, tarefas e compartilhamentos em áreas claras para reduzir atrito.
-          </p>
-        </div>
-
-        <div class="flex items-center gap-3">
-          <%= if @current_scope do %>
-            <.link href={~p"/finances"} class="btn btn-outline btn-sm header-cta tracking-[0.02em]">
-              Finanças
-            </.link>
-          <% else %>
-            <.link
-              href={~p"/users/register"}
-              class="btn btn-outline btn-sm header-cta tracking-[0.02em]"
-            >
-              Criar conta
-            </.link>
-          <% end %>
-        </div>
-      </div>
-    </header>
-
     <main id="main-content" class="app-shell-main px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
       <div class={[
         "app-shell-content mx-auto space-y-4",

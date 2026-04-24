@@ -23,45 +23,6 @@ defmodule OrganizerWeb.Components.QuickTaskHero do
         </p>
       </header>
 
-      <div class="mb-4 flex flex-wrap gap-2">
-        <button
-          id="quick-task-preset-today-focus"
-          type="button"
-          phx-click="quick_task_preset"
-          phx-value-preset="today_focus"
-          class="btn btn-sm btn-soft"
-        >
-          Foco de hoje
-        </button>
-        <button
-          id="quick-task-preset-next-action"
-          type="button"
-          phx-click="quick_task_preset"
-          phx-value-preset="next_action"
-          class="btn btn-sm btn-soft"
-        >
-          Próxima ação
-        </button>
-        <button
-          id="quick-task-preset-backlog"
-          type="button"
-          phx-click="quick_task_preset"
-          phx-value-preset="backlog"
-          class="btn btn-sm btn-soft"
-        >
-          Backlog
-        </button>
-        <button
-          id="quick-task-preset-shopping-list"
-          type="button"
-          phx-click="quick_task_preset"
-          phx-value-preset="shopping_list"
-          class="btn btn-sm btn-soft"
-        >
-          Lista de compras
-        </button>
-      </div>
-
       <.form
         for={@quick_task_form}
         id="quick-task-form"

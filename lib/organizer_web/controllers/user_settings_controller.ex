@@ -7,7 +7,7 @@ defmodule OrganizerWeb.UserSettingsController do
   import OrganizerWeb.UserAuth, only: [require_sudo_mode: 2]
   import Phoenix.Component, only: [to_form: 2]
 
-  plug :require_sudo_mode
+  plug :require_sudo_mode when action in [:update]
   plug :assign_password_form
 
   def edit(conn, _params) do

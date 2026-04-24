@@ -8,15 +8,17 @@ defmodule OrganizerWeb.DashboardLive do
   alias OrganizerWeb.DashboardLive.{Filters, Insights}
 
   alias OrganizerWeb.DashboardLive.Components.{
-    AnalyticsPanel,
-    OperationsPanel
+    FinanceMetricsPanel,
+    FinanceOperationsPanel,
+    TaskMetricsPanel,
+    TaskOperationsPanel
   }
 
   alias OrganizerWeb.Components.{QuickFinanceHero, QuickTaskHero}
 
-  @analytics_days_filters ["7", "15", "30", "90", "365"]
-  @analytics_capacity_filters ["5", "10", "15", "20", "30"]
-  @ops_tabs ["tasks", "finances"]
+  @task_metrics_days_filters ["7", "15", "30", "90", "365"]
+  @task_metrics_capacity_filters ["5", "10", "15", "20", "30"]
+  @finance_metrics_days_filters ["7", "30", "90", "365"]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -46,10 +48,7 @@ defmodule OrganizerWeb.DashboardLive do
   def handle_params(_params, _uri, socket) do
     live_action = socket.assigns.live_action || :finances
 
-    {:noreply,
-     socket
-     |> assign(:page_title, page_title(live_action))
-     |> maybe_set_route_ops_tab(live_action)}
+    {:noreply, assign(socket, :page_title, page_title(live_action))}
   end
 
   @impl true
@@ -59,6 +58,7 @@ defmodule OrganizerWeb.DashboardLive do
     {:noreply,
      socket
      |> assign(:quick_finance_kind, normalized["kind"])
+     |> assign(:quick_finance_preset, nil)
      |> assign(:quick_finance_form, to_form(normalized, as: :quick_finance))}
   end
 
@@ -70,6 +70,7 @@ defmodule OrganizerWeb.DashboardLive do
     {:noreply,
      socket
      |> assign(:quick_finance_kind, normalized["kind"])
+     |> assign(:quick_finance_preset, preset)
      |> assign(:quick_finance_form, to_form(normalized, as: :quick_finance))}
   end
 
@@ -104,6 +105,7 @@ defmodule OrganizerWeb.DashboardLive do
         {:noreply,
          socket
          |> assign(:quick_finance_kind, kind)
+         |> assign(:quick_finance_preset, default_quick_finance_preset(kind))
          |> assign(:quick_finance_form, to_form(reset_form, as: :quick_finance))
          |> put_flash(flash_level, flash_message)
          |> load_operation_collections()
@@ -128,14 +130,6 @@ defmodule OrganizerWeb.DashboardLive do
   @impl true
   def handle_event("quick_task_validate", %{"quick_task" => attrs}, socket) do
     normalized = normalize_quick_task_attrs(attrs)
-
-    {:noreply, assign(socket, :quick_task_form, to_form(normalized, as: :quick_task))}
-  end
-
-  @impl true
-  def handle_event("quick_task_preset", %{"preset" => preset}, socket) do
-    preset_attrs = quick_task_preset_attrs(preset)
-    normalized = normalize_quick_task_attrs(preset_attrs)
 
     {:noreply, assign(socket, :quick_task_form, to_form(normalized, as: :quick_task))}
   end
@@ -193,74 +187,61 @@ defmodule OrganizerWeb.DashboardLive do
      |> load_operation_collections()}
   end
 
-  def handle_event("filter_analytics", %{"filters" => filters}, socket) do
-    analytics_filters =
-      socket.assigns.analytics_filters
-      |> Map.merge(Filters.normalize_analytics_filters(filters))
-      |> Filters.sanitize_analytics_filters()
-
-    {:noreply,
-     socket
-     |> assign(:analytics_filters, analytics_filters)
-     |> assign(:progress_chart, %{loading: true, chart_svg: nil})
-     |> assign(:finance_trend_chart, %{loading: true, chart_svg: nil})
-     |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})
-     |> assign(:task_priority_chart, %{loading: true, chart_svg: nil})
-     |> assign(:finance_mix_chart, %{loading: true, chart_svg: nil})
-     |> refresh_dashboard_insights()
-     |> load_chart_svgs()}
-  end
-
   @impl true
-  def handle_event("set_analytics_days", %{"days" => days}, socket)
-      when days in @analytics_days_filters do
-    analytics_filters =
-      socket.assigns.analytics_filters
+  def handle_event("set_task_metrics_days", %{"days" => days}, socket)
+      when days in @task_metrics_days_filters do
+    task_metrics_filters =
+      socket.assigns.task_metrics_filters
       |> Map.put(:days, days)
-      |> Filters.sanitize_analytics_filters()
+      |> Filters.sanitize_task_metrics_filters()
 
     {:noreply,
      socket
-     |> assign(:analytics_filters, analytics_filters)
-     |> assign(:progress_chart, %{loading: true, chart_svg: nil})
-     |> assign(:finance_trend_chart, %{loading: true, chart_svg: nil})
-     |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})
+     |> assign(:task_metrics_filters, task_metrics_filters)
+     |> assign(:task_delivery_chart, %{loading: true, chart_svg: nil})
      |> assign(:task_priority_chart, %{loading: true, chart_svg: nil})
-     |> assign(:finance_mix_chart, %{loading: true, chart_svg: nil})
      |> refresh_dashboard_insights()
      |> load_chart_svgs()}
   end
 
   @impl true
-  def handle_event("set_analytics_capacity", %{"planned_capacity" => capacity}, socket)
-      when capacity in @analytics_capacity_filters do
-    analytics_filters =
-      socket.assigns.analytics_filters
+  def handle_event("set_task_metrics_capacity", %{"planned_capacity" => capacity}, socket)
+      when capacity in @task_metrics_capacity_filters do
+    task_metrics_filters =
+      socket.assigns.task_metrics_filters
       |> Map.put(:planned_capacity, capacity)
-      |> Filters.sanitize_analytics_filters()
+      |> Filters.sanitize_task_metrics_filters()
 
     {:noreply,
      socket
-     |> assign(:analytics_filters, analytics_filters)
-     |> assign(:progress_chart, %{loading: true, chart_svg: nil})
-     |> assign(:finance_trend_chart, %{loading: true, chart_svg: nil})
-     |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})
+     |> assign(:task_metrics_filters, task_metrics_filters)
+     |> assign(:task_delivery_chart, %{loading: true, chart_svg: nil})
      |> assign(:task_priority_chart, %{loading: true, chart_svg: nil})
-     |> assign(:finance_mix_chart, %{loading: true, chart_svg: nil})
      |> refresh_dashboard_insights()
      |> load_chart_svgs()}
   end
 
   @impl true
-  def handle_event("set_ops_tab", %{"tab" => tab}, socket) when tab in @ops_tabs do
-    {:noreply, assign(socket, :ops_tab, tab)}
+  def handle_event("set_finance_metrics_days", %{"days" => days}, socket)
+      when days in @finance_metrics_days_filters do
+    finance_metrics_filters =
+      socket.assigns.finance_metrics_filters
+      |> Map.put(:days, days)
+      |> Filters.sanitize_finance_metrics_filters()
+
+    {:noreply,
+     socket
+     |> assign(:finance_metrics_filters, finance_metrics_filters)
+     |> assign(:finance_flow_chart, %{loading: true, chart_svg: nil})
+     |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})
+     |> assign(:finance_composition_chart, %{loading: true, chart_svg: nil})
+     |> load_chart_svgs()}
   end
 
   @impl true
   def handle_event("open_task_details", %{"id" => id}, socket) do
     {:noreply,
      socket
-     |> assign(:ops_tab, "tasks")
      |> assign(:task_details_modal_task_id, id)
      |> load_operation_collections()}
   end
@@ -455,7 +436,6 @@ defmodule OrganizerWeb.DashboardLive do
   def handle_event("start_edit_task", %{"id" => id}, socket) do
     {:noreply,
      socket
-     |> assign(:ops_tab, "tasks")
      |> assign(:editing_task_id, id)
      |> assign(:task_details_modal_task_id, nil)
      |> assign(:task_details_modal_task, nil)
@@ -502,7 +482,6 @@ defmodule OrganizerWeb.DashboardLive do
            Planning.update_task(socket.assigns.current_scope, id, %{"status" => normalized}) do
       {:noreply,
        socket
-       |> assign(:ops_tab, "tasks")
        |> load_operation_collections()
        |> refresh_dashboard_insights()
        |> maybe_push_task_focus_target(normalized, task)}
@@ -541,7 +520,6 @@ defmodule OrganizerWeb.DashboardLive do
             {:ok, _shared_task} ->
               {:noreply,
                socket
-               |> assign(:ops_tab, "tasks")
                |> put_flash(:info, "Tarefa atrelada ao compartilhamento em modo sincronizado.")
                |> load_operation_collections()}
 
@@ -695,7 +673,6 @@ defmodule OrganizerWeb.DashboardLive do
   def handle_event("start_edit_finance", %{"id" => id}, socket) do
     {:noreply,
      socket
-     |> assign(:ops_tab, "finances")
      |> assign(:editing_finance_id, id)
      |> load_operation_collections()}
   end
@@ -765,17 +742,18 @@ defmodule OrganizerWeb.DashboardLive do
     socket
     |> assign(:current_scope, scope)
     |> assign(:quick_finance_kind, "expense")
+    |> assign(:quick_finance_preset, "expense_variable")
     |> assign(
       :quick_finance_form,
       to_form(quick_finance_defaults("expense", account_links), as: :quick_finance)
     )
     |> assign(:quick_task_form, to_form(quick_task_defaults(), as: :quick_task))
     |> assign(:account_links, account_links)
-    |> assign(:ops_tab, "tasks")
     |> assign(:task_filters, Filters.default_task_filters())
     |> assign(:finance_filters, Filters.default_finance_filters())
+    |> assign(:task_metrics_filters, Filters.default_task_metrics_filters())
+    |> assign(:finance_metrics_filters, Filters.default_finance_metrics_filters())
     |> assign(:finance_category_suggestions, %{income: [], expense: [], all: []})
-    |> assign(:analytics_filters, Filters.default_analytics_filters())
     |> assign(:editing_task_id, nil)
     |> assign(:editing_finance_id, nil)
     |> assign(:task_details_modal_task_id, nil)
@@ -783,12 +761,13 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:onboarding_active, onboarding_active)
     |> assign(:onboarding_step, onboarding_progress.current_step)
     |> assign(:help_menu_open, false)
-    |> assign(:progress_chart, %{loading: true, chart_svg: nil})
-    |> assign(:finance_trend_chart, %{loading: true, chart_svg: nil})
+    |> assign(:task_delivery_chart, %{loading: true, chart_svg: nil})
+    |> assign(:finance_flow_chart, %{loading: true, chart_svg: nil})
     |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})
     |> assign(:task_priority_chart, %{loading: true, chart_svg: nil})
-    |> assign(:finance_mix_chart, %{loading: true, chart_svg: nil})
-    |> assign(:analytics_highlights, Insights.default_analytics_highlights())
+    |> assign(:finance_composition_chart, %{loading: true, chart_svg: nil})
+    |> assign(:task_highlights, Insights.default_task_highlights())
+    |> assign(:finance_highlights, Insights.default_finance_highlights())
     |> load_operation_collections()
     |> refresh_dashboard_insights()
   end
@@ -809,6 +788,9 @@ defmodule OrganizerWeb.DashboardLive do
 
     finance_income = Enum.filter(finances, &(&1.kind == :income))
     finance_expenses = Enum.filter(finances, &(&1.kind == :expense))
+    shared_finances_total = Enum.count(finances, &is_integer(&1.shared_with_link_id))
+    shared_tasks_total = Enum.count(tasks, &is_integer(Map.get(&1, :shared_with_link_id)))
+    shared_links_active = length(socket.assigns.account_links)
 
     socket
     |> stream(:tasks_todo, tasks_todo, reset: true, dom_id: &"tasks-todo-#{&1.id}")
@@ -829,11 +811,15 @@ defmodule OrganizerWeb.DashboardLive do
       tasks_todo: length(tasks_todo),
       tasks_in_progress: length(tasks_in_progress),
       tasks_done: length(tasks_done),
+      tasks_shared_total: shared_tasks_total,
       finances_total: length(finances),
       finances_income_total: length(finance_income),
       finances_expense_total: length(finance_expenses),
+      finances_shared_total: shared_finances_total,
       finances_income_cents: Enum.reduce(finance_income, 0, &(&1.amount_cents + &2)),
-      finances_expense_cents: Enum.reduce(finance_expenses, 0, &(&1.amount_cents + &2))
+      finances_expense_cents: Enum.reduce(finance_expenses, 0, &(&1.amount_cents + &2)),
+      shared_links_active: shared_links_active,
+      shared_total: shared_tasks_total + shared_finances_total
     })
   end
 
@@ -934,45 +920,6 @@ defmodule OrganizerWeb.DashboardLive do
       "notes" => ""
     }
   end
-
-  defp quick_task_preset_attrs("today_focus") do
-    %{
-      "title" => "Foco do dia",
-      "priority" => "high",
-      "status" => "in_progress",
-      "due_on" => DateSupport.format_pt_br(Date.utc_today())
-    }
-  end
-
-  defp quick_task_preset_attrs("next_action") do
-    %{
-      "title" => "Próxima ação",
-      "priority" => "medium",
-      "status" => "todo",
-      "due_on" => DateSupport.format_pt_br(Date.utc_today())
-    }
-  end
-
-  defp quick_task_preset_attrs("backlog") do
-    %{
-      "title" => "Item de backlog",
-      "priority" => "low",
-      "status" => "todo",
-      "due_on" => Date.utc_today() |> Date.add(7) |> DateSupport.format_pt_br()
-    }
-  end
-
-  defp quick_task_preset_attrs("shopping_list") do
-    %{
-      "title" => "Lista de compras do mercado",
-      "priority" => "medium",
-      "status" => "todo",
-      "due_on" => DateSupport.format_pt_br(Date.utc_today()),
-      "notes" => "Após salvar, adicione itens na checklist desta tarefa."
-    }
-  end
-
-  defp quick_task_preset_attrs(_preset), do: quick_task_defaults()
 
   defp normalize_quick_task_attrs(attrs) when is_map(attrs) do
     defaults = quick_task_defaults()
@@ -1321,22 +1268,48 @@ defmodule OrganizerWeb.DashboardLive do
     end
   end
 
+  defp default_quick_finance_preset("income"), do: "income_salary"
+  defp default_quick_finance_preset(_kind), do: "expense_variable"
+
   defp page_title(:finances), do: "Finanças"
   defp page_title(:tasks), do: "Tarefas"
   defp page_title(_), do: "Finanças"
-
-  defp maybe_set_route_ops_tab(socket, :finances), do: assign(socket, :ops_tab, "finances")
-  defp maybe_set_route_ops_tab(socket, :tasks), do: assign(socket, :ops_tab, "tasks")
-  defp maybe_set_route_ops_tab(socket, _live_action), do: socket
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
       <nav aria-label="Atalhos de navegação">
-        <a href="#quick-finance-hero" class="skip-link">Ir para finanças</a>
-        <a href="#operations-panel" class="skip-link">Ir para operação diária</a>
-        <a href="#analytics-panel" class="skip-link">Ir para visão analítica</a>
+        <a :if={(@live_action || :finances) == :finances} href="#quick-finance-hero" class="skip-link">
+          Ir para finanças
+        </a>
+        <a :if={(@live_action || :finances) == :tasks} href="#quick-task-hero" class="skip-link">
+          Ir para tarefas
+        </a>
+        <a
+          :if={(@live_action || :finances) == :finances}
+          href="#finance-metrics-panel"
+          class="skip-link"
+        >
+          Ir para métricas financeiras
+        </a>
+        <a
+          :if={(@live_action || :finances) == :finances}
+          href="#finance-operations-panel"
+          class="skip-link"
+        >
+          Ir para operação financeira
+        </a>
+        <a :if={(@live_action || :finances) == :tasks} href="#task-metrics-panel" class="skip-link">
+          Ir para métricas de tarefas
+        </a>
+        <a
+          :if={(@live_action || :finances) == :tasks}
+          href="#task-operations-panel"
+          class="skip-link"
+        >
+          Ir para operação de tarefas
+        </a>
       </nav>
 
       <OrganizerWeb.Components.OnboardingOverlay.onboarding_overlay
@@ -1421,34 +1394,23 @@ defmodule OrganizerWeb.DashboardLive do
             <QuickFinanceHero.quick_finance_hero
               quick_finance_form={@quick_finance_form}
               quick_finance_kind={@quick_finance_kind}
+              quick_finance_preset={@quick_finance_preset}
               account_links={@account_links}
               current_user_id={@current_scope.user.id}
               category_suggestions={@finance_category_suggestions}
             />
-            <OperationsPanel.operations_panel
-              streams={@streams}
-              ops_tab="finances"
-              task_filters={@task_filters}
-              finance_filters={@finance_filters}
-              account_links={@account_links}
-              category_suggestions={@finance_category_suggestions}
-              current_user_id={@current_scope.user.id}
-              editing_task_id={@editing_task_id}
-              editing_finance_id={@editing_finance_id}
-              task_details_modal_task={@task_details_modal_task}
-              ops_counts={@ops_counts}
-              mode="finances"
-            />
-            <AnalyticsPanel.analytics_panel
-              analytics_filters={@analytics_filters}
-              insights_overview={@insights_overview}
-              workload_capacity_snapshot={@workload_capacity_snapshot}
-              progress_chart={@progress_chart}
-              finance_trend_chart={@finance_trend_chart}
+            <FinanceMetricsPanel.finance_metrics_panel
+              finance_metrics_filters={@finance_metrics_filters}
+              finance_highlights={@finance_highlights}
+              finance_flow_chart={@finance_flow_chart}
               finance_category_chart={@finance_category_chart}
-              task_priority_chart={@task_priority_chart}
-              finance_mix_chart={@finance_mix_chart}
-              analytics_highlights={@analytics_highlights}
+              finance_composition_chart={@finance_composition_chart}
+            />
+            <FinanceOperationsPanel.finance_operations_panel
+              streams={@streams}
+              finance_filters={@finance_filters}
+              category_suggestions={@finance_category_suggestions}
+              editing_finance_id={@editing_finance_id}
               ops_counts={@ops_counts}
             />
           <% :tasks -> %>
@@ -1460,19 +1422,22 @@ defmodule OrganizerWeb.DashboardLive do
               icon="hero-check-circle"
             />
             <QuickTaskHero.quick_task_hero quick_task_form={@quick_task_form} />
-            <OperationsPanel.operations_panel
+            <TaskMetricsPanel.task_metrics_panel
+              task_metrics_filters={@task_metrics_filters}
+              insights_overview={@insights_overview}
+              workload_capacity_snapshot={@workload_capacity_snapshot}
+              task_delivery_chart={@task_delivery_chart}
+              task_priority_chart={@task_priority_chart}
+              task_highlights={@task_highlights}
+            />
+            <TaskOperationsPanel.task_operations_panel
               streams={@streams}
-              ops_tab="tasks"
               task_filters={@task_filters}
-              finance_filters={@finance_filters}
               account_links={@account_links}
-              category_suggestions={@finance_category_suggestions}
               current_user_id={@current_scope.user.id}
               editing_task_id={@editing_task_id}
-              editing_finance_id={@editing_finance_id}
               task_details_modal_task={@task_details_modal_task}
               ops_counts={@ops_counts}
-              mode="tasks"
             />
         <% end %>
       </div>

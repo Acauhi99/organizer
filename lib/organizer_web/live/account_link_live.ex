@@ -1,6 +1,7 @@
 defmodule OrganizerWeb.AccountLinkLive do
   use OrganizerWeb, :live_view
 
+  alias Organizer.Planning
   alias Organizer.SharedFinance
 
   @impl true
@@ -12,11 +13,13 @@ defmodule OrganizerWeb.AccountLinkLive do
     end
 
     {:ok, links} = SharedFinance.list_account_links(scope)
+    sharing_metrics = load_sharing_metrics(scope, links)
 
     socket =
       socket
       |> assign(:current_scope, scope)
       |> assign(:account_links, links)
+      |> assign(:sharing_metrics, sharing_metrics)
       |> assign(:invite_url, nil)
       |> assign(:invite_token, nil)
       |> assign(:invite_accept_form, invite_accept_form())
@@ -108,10 +111,12 @@ defmodule OrganizerWeb.AccountLinkLive do
     with {:ok, link_id} <- parse_int(id),
          {:ok, _link} <- SharedFinance.deactivate_account_link(scope, link_id) do
       {:ok, links} = SharedFinance.list_account_links(scope)
+      sharing_metrics = load_sharing_metrics(scope, links)
 
       {:noreply,
        socket
        |> assign(:account_links, links)
+       |> assign(:sharing_metrics, sharing_metrics)
        |> put_flash(:info, "Compartilhamento desativado.")}
     else
       _ -> {:noreply, put_flash(socket, :error, "Não foi possível desativar o compartilhamento.")}
@@ -122,7 +127,10 @@ defmodule OrganizerWeb.AccountLinkLive do
   def handle_info({:account_link_updated, _}, socket) do
     scope = socket.assigns.current_scope
     {:ok, links} = SharedFinance.list_account_links(scope)
-    {:noreply, assign(socket, :account_links, links)}
+    sharing_metrics = load_sharing_metrics(scope, links)
+
+    {:noreply,
+     socket |> assign(:account_links, links) |> assign(:sharing_metrics, sharing_metrics)}
   end
 
   @impl true
@@ -155,27 +163,40 @@ defmodule OrganizerWeb.AccountLinkLive do
               </div>
             </header>
 
-            <section class="grid gap-3 sm:grid-cols-3">
+            <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <article class="micro-surface rounded-2xl p-4">
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
                   Compartilhamentos ativos
                 </p>
-                <p class="mt-1 text-2xl font-semibold text-base-content">{length(@account_links)}</p>
-              </article>
-
-              <article class="micro-surface rounded-2xl p-4">
-                <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">Ações rápidas</p>
-                <p class="mt-1 text-sm text-base-content/80">
-                  Crie convite e abra a área compartilhada em um clique.
+                <p class="mt-1 text-2xl font-semibold text-base-content">
+                  {@sharing_metrics.links_active}
                 </p>
               </article>
 
               <article class="micro-surface rounded-2xl p-4">
-                <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">Status</p>
-                <p class="mt-1 text-sm text-base-content/82">
-                  {if Enum.empty?(@account_links),
-                    do: "Sem compartilhamento no momento",
-                    else: "Pronto para colaborar"}
+                <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
+                  Tarefas vinculadas
+                </p>
+                <p class="mt-1 text-2xl font-semibold text-base-content">
+                  {@sharing_metrics.tasks_shared_total}
+                </p>
+              </article>
+
+              <article class="micro-surface rounded-2xl p-4">
+                <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
+                  Lançamentos vinculados
+                </p>
+                <p class="mt-1 text-2xl font-semibold text-base-content">
+                  {@sharing_metrics.finances_shared_total}
+                </p>
+              </article>
+
+              <article class="micro-surface rounded-2xl p-4">
+                <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
+                  Itens sincronizados
+                </p>
+                <p class="mt-1 text-2xl font-semibold text-base-content">
+                  {@sharing_metrics.shared_total}
                 </p>
               </article>
             </section>
@@ -342,6 +363,28 @@ defmodule OrganizerWeb.AccountLinkLive do
   end
 
   defp parse_int(_), do: :error
+
+  defp load_sharing_metrics(scope, links) do
+    {:ok, tasks} = Planning.list_tasks(scope, %{status: "all", priority: "all", days: "365"})
+
+    {:ok, finances} =
+      Planning.list_finance_entries(scope, %{
+        days: "365",
+        kind: "all",
+        expense_profile: "all",
+        payment_method: "all"
+      })
+
+    tasks_shared_total = Enum.count(tasks, &is_integer(Map.get(&1, :shared_with_link_id)))
+    finances_shared_total = Enum.count(finances, &is_integer(&1.shared_with_link_id))
+
+    %{
+      links_active: length(links),
+      tasks_shared_total: tasks_shared_total,
+      finances_shared_total: finances_shared_total,
+      shared_total: tasks_shared_total + finances_shared_total
+    }
+  end
 
   defp partner_email(user_id, link) do
     if user_id == link.user_a_id do

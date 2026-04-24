@@ -365,15 +365,18 @@ summary:focus-visible {
   fill: color-mix(in oklab, var(--color-base-content) 80%, transparent) !important;
 }
 
-#analytics-panel .contex-plot svg {
+#task-metrics-panel .contex-plot svg,
+#finance-metrics-panel .contex-plot svg {
   min-width: 240px;
 }
 
-#analytics-panel .contex-plot text {
+#task-metrics-panel .contex-plot text,
+#finance-metrics-panel .contex-plot text {
   font-size: 0.72rem;
 }
 
-#analytics-panel .contex-plot .exc-title {
+#task-metrics-panel .contex-plot .exc-title,
+#finance-metrics-panel .contex-plot .exc-title {
   font-size: 0.84rem;
 }
 
@@ -1026,7 +1029,8 @@ summary:focus-visible {
   }
 
   .contex-plot svg,
-  #analytics-panel .contex-plot svg {
+  #task-metrics-panel .contex-plot svg,
+  #finance-metrics-panel .contex-plot svg {
     min-width: 0;
   }
 }
@@ -1038,7 +1042,8 @@ summary:focus-visible {
   }
 
   .contex-plot svg,
-  #analytics-panel .contex-plot svg {
+  #task-metrics-panel .contex-plot svg,
+  #finance-metrics-panel .contex-plot svg {
     min-width: 0;
   }
 }

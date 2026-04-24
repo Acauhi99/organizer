@@ -15,6 +15,9 @@ defmodule OrganizerWeb.DashboardLive.FiltersTest do
   @valid_payment_methods ["all", "credit", "debit"]
   @valid_weekdays ["all", "0", "1", "2", "3", "4", "5", "6"]
   @valid_sortings ["date_desc", "date_asc", "amount_desc", "amount_asc", "category_asc"]
+  @valid_task_metrics_days ["7", "15", "30", "90", "365"]
+  @valid_task_metrics_capacity ["5", "10", "15", "20", "30"]
+  @valid_finance_metrics_days ["7", "30", "90", "365"]
 
   describe "defaults" do
     test "default_task_filters/0 returns expected map" do
@@ -46,7 +49,15 @@ defmodule OrganizerWeb.DashboardLive.FiltersTest do
              }
     end
 
-    test "default_analytics_filters/0 returns expected map" do
+    test "default_task_metrics_filters/0 returns expected map" do
+      assert Filters.default_task_metrics_filters() == %{days: "30", planned_capacity: "10"}
+    end
+
+    test "default_finance_metrics_filters/0 returns expected map" do
+      assert Filters.default_finance_metrics_filters() == %{days: "30"}
+    end
+
+    test "default_analytics_filters/0 remains compatible" do
       assert Filters.default_analytics_filters() == %{days: "30", planned_capacity: "10"}
     end
   end
@@ -172,6 +183,25 @@ defmodule OrganizerWeb.DashboardLive.FiltersTest do
       assert result.payment_method in @valid_payment_methods
       assert result.weekday in @valid_weekdays
       assert result.sort_by in @valid_sortings
+    end
+  end
+
+  property "sanitize_task_metrics_filters always produces valid values" do
+    check all(
+            days <- StreamData.string(:alphanumeric),
+            capacity <- StreamData.string(:alphanumeric)
+          ) do
+      result = Filters.sanitize_task_metrics_filters(%{days: days, planned_capacity: capacity})
+
+      assert result.days in @valid_task_metrics_days
+      assert result.planned_capacity in @valid_task_metrics_capacity
+    end
+  end
+
+  property "sanitize_finance_metrics_filters always produces valid values" do
+    check all(days <- StreamData.string(:alphanumeric)) do
+      result = Filters.sanitize_finance_metrics_filters(%{days: days})
+      assert result.days in @valid_finance_metrics_days
     end
   end
 end
