@@ -26,6 +26,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanelTest do
       },
       category_suggestions: %{income: [], expense: [], all: []},
       editing_finance_id: nil,
+      finance_edit_modal_entry: nil,
       ops_counts: %{
         finances_total: 0,
         finances_income_total: 0,
@@ -47,10 +48,70 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanelTest do
     assert html =~ ~s(id="finance-operations-panel")
     assert html =~ ~s(id="finance-filters")
     assert html =~ ~s(id="finances" phx-update="stream")
+    assert html =~ ~s(id="finances-scroll-area")
+    assert html =~ ~s(phx-hook="InfiniteScroll")
+    assert html =~ "Exibindo 0 de 0 lançamentos"
   end
 
   test "renders finance empty state" do
     html = render_component(&FinanceOperationsPanel.finance_operations_panel/1, base_assigns())
     assert html =~ ~s(id="empty-state-finances")
+  end
+
+  test "renders fixed guidance and installment progress badge" do
+    entry = %{
+      id: 99,
+      kind: :expense,
+      expense_profile: :fixed,
+      payment_method: :credit,
+      installment_number: 6,
+      installments_count: 10,
+      amount_cents: 33_000,
+      category: "Serviços compartilhados",
+      description: "Internet e utilidades",
+      occurred_on: Date.utc_today()
+    }
+
+    html =
+      render_component(
+        &FinanceOperationsPanel.finance_operations_panel/1,
+        base_assigns()
+        |> Map.put(:streams, %{finances: [{"finances-99", entry}]})
+        |> Map.put(:ops_counts, %{base_assigns().ops_counts | finances_total: 1})
+        |> Map.put(:finance_visible_count, 1)
+      )
+
+    assert html =~ ~s(id="finance-fixed-guidance")
+    assert html =~ "Parcela 6/10"
+    assert html =~ "Ativa até cancelar"
+  end
+
+  test "formats amount input with decimal places while editing" do
+    entry = %{
+      id: 101,
+      kind: :expense,
+      expense_profile: :variable,
+      payment_method: :credit,
+      installment_number: 1,
+      installments_count: 2,
+      amount_cents: 33_000,
+      category: "Serviços compartilhados",
+      description: "Internet e utilidades",
+      occurred_on: Date.utc_today()
+    }
+
+    html =
+      render_component(
+        &FinanceOperationsPanel.finance_operations_panel/1,
+        base_assigns()
+        |> Map.put(:streams, %{finances: [{"finances-101", entry}]})
+        |> Map.put(:editing_finance_id, 101)
+        |> Map.put(:finance_edit_modal_entry, entry)
+      )
+
+    assert html =~ ~s(id="finance-edit-modal")
+    assert html =~ ~s(name="finance[amount_cents]")
+    assert html =~ ~s(value="330,00")
+    assert html =~ ~s(name="finance[installment_number]")
   end
 end

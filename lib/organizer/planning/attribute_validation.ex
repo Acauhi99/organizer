@@ -37,7 +37,7 @@ defmodule Organizer.Planning.AttributeValidation do
 
     {kind, errors} = validate_enum(attrs, :kind, @finance_kinds, nil, %{})
 
-    {expense_profile, payment_method, installments_count, errors} =
+    {expense_profile, payment_method, installment_number, installments_count, errors} =
       validate_expense_classification_attrs(attrs, kind, errors)
 
     {amount_cents, errors} = validate_positive_int(attrs, :amount_cents, errors)
@@ -51,6 +51,7 @@ defmodule Organizer.Planning.AttributeValidation do
       kind: safe_existing_atom(kind),
       expense_profile: safe_existing_atom(expense_profile),
       payment_method: safe_existing_atom(payment_method),
+      installment_number: installment_number,
       installments_count: installments_count,
       amount_cents: amount_cents,
       category: category,
@@ -223,23 +224,39 @@ defmodule Organizer.Planning.AttributeValidation do
     {payment_method, errors} =
       validate_optional_enum(attrs, :payment_method, @finance_payment_methods, errors)
 
+    {installment_number, errors} =
+      validate_optional_positive_int(attrs, :installment_number, @max_installments_count, errors)
+
     {installments_count, errors} =
       validate_optional_positive_int(attrs, :installments_count, @max_installments_count, errors)
 
     normalized_payment_method = payment_method || "debit"
 
-    normalized_installments_count =
+    {normalized_installment_number, normalized_installments_count} =
       if normalized_payment_method == "credit" do
-        installments_count || 1
+        {installment_number || 1, installments_count || 1}
       else
-        nil
+        {nil, nil}
       end
 
-    {expense_profile || "variable", normalized_payment_method, normalized_installments_count,
-     errors}
+    errors =
+      if is_integer(normalized_installment_number) and is_integer(normalized_installments_count) and
+           normalized_installment_number > normalized_installments_count do
+        add_error(
+          errors,
+          :installment_number,
+          "must be less than or equal to installments_count"
+        )
+      else
+        errors
+      end
+
+    {expense_profile || "variable", normalized_payment_method, normalized_installment_number,
+     normalized_installments_count, errors}
   end
 
-  defp validate_expense_classification_attrs(_attrs, _kind, errors), do: {nil, nil, nil, errors}
+  defp validate_expense_classification_attrs(_attrs, _kind, errors),
+    do: {nil, nil, nil, nil, errors}
 
   defp validate_optional_date(attrs, field, errors) do
     case Map.get(attrs, field) do

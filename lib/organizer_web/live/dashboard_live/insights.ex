@@ -10,6 +10,14 @@ defmodule OrganizerWeb.DashboardLive.Insights do
   alias Organizer.Planning
   alias Organizer.Planning.AnalyticsCache
 
+  @finance_horizontal_chart_width 900
+  @finance_horizontal_chart_height 220
+  @finance_composition_chart_width 760
+  @finance_composition_chart_height 280
+  @finance_horizontal_chart_left_margin 150
+  @finance_horizontal_chart_right_margin 46
+  @finance_horizontal_chart_bottom_margin 78
+
   @spec refresh_dashboard_insights(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   def refresh_dashboard_insights(socket) do
     analytics_result =
@@ -269,13 +277,22 @@ defmodule OrganizerWeb.DashboardLive.Insights do
     else
       dataset = Dataset.new(data, ["categoria", "valor"])
 
-      Plot.new(dataset, Contex.BarChart, 620, 280,
+      Plot.new(
+        dataset,
+        Contex.BarChart,
+        @finance_horizontal_chart_width,
+        @finance_horizontal_chart_height,
         mapping: %{category_col: "categoria", value_cols: ["valor"]},
         orientation: :horizontal,
         data_labels: false,
         title: "Top categorias de despesa",
         custom_value_formatter: &money_axis_formatter/1
       )
+      |> Plot.plot_options(%{
+        left_margin: @finance_horizontal_chart_left_margin,
+        right_margin: @finance_horizontal_chart_right_margin,
+        bottom_margin: @finance_horizontal_chart_bottom_margin
+      })
       |> Plot.to_svg()
     end
   end
@@ -323,13 +340,22 @@ defmodule OrganizerWeb.DashboardLive.Insights do
     else
       dataset = Dataset.new(data, ["perfil", "valor"])
 
-      Plot.new(dataset, Contex.BarChart, 620, 280,
+      Plot.new(
+        dataset,
+        Contex.BarChart,
+        @finance_composition_chart_width,
+        @finance_composition_chart_height,
         mapping: %{category_col: "perfil", value_cols: ["valor"]},
         orientation: :horizontal,
         data_labels: false,
         title: "Composição de despesas por natureza",
         custom_value_formatter: &money_axis_formatter/1
       )
+      |> Plot.plot_options(%{
+        left_margin: @finance_horizontal_chart_left_margin,
+        right_margin: @finance_horizontal_chart_right_margin,
+        bottom_margin: @finance_horizontal_chart_bottom_margin
+      })
       |> Plot.to_svg()
     end
   end

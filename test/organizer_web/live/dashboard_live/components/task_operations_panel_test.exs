@@ -29,13 +29,26 @@ defmodule OrganizerWeb.DashboardLive.Components.TaskOperationsPanelTest do
   end
 
   test "renders panel, timer controls and filters" do
-    html = render_component(&TaskOperationsPanel.task_operations_panel/1, base_assigns())
+    assigns =
+      base_assigns()
+      |> Map.put(:ops_counts, %{
+        tasks_open: 1,
+        tasks_total: 1,
+        tasks_todo: 1,
+        tasks_in_progress: 0,
+        tasks_done: 0
+      })
+
+    html = render_component(&TaskOperationsPanel.task_operations_panel/1, assigns)
     assert html =~ ~s(id="task-operations-panel")
     assert html =~ ~s(id="task-filters")
     assert html =~ ~s(id="task-focus-timer")
     assert html =~ ~s(id="task-focus-task")
     assert html =~ ~s(id="task-focus-duration")
     assert html =~ ~s(id="task-focus-start")
+    assert html =~ ~s(id="tasks-column-todo-scroll-area")
+    assert html =~ ~s(phx-hook="InfiniteScroll")
+    assert html =~ "Exibindo 0 de 0"
   end
 
   test "renders tasks empty state" do

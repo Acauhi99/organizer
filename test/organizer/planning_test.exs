@@ -277,6 +277,7 @@ defmodule Organizer.PlanningTest do
 
       assert default_expense.expense_profile == :variable
       assert default_expense.payment_method == :debit
+      assert is_nil(default_expense.installment_number)
       assert is_nil(default_expense.installments_count)
 
       assert {:ok, classified_expense} =
@@ -290,6 +291,7 @@ defmodule Organizer.PlanningTest do
 
       assert classified_expense.expense_profile == :fixed
       assert classified_expense.payment_method == :credit
+      assert classified_expense.installment_number == 1
       assert classified_expense.installments_count == 1
 
       assert {:ok, income_entry} =
@@ -301,7 +303,25 @@ defmodule Organizer.PlanningTest do
 
       assert is_nil(income_entry.expense_profile)
       assert is_nil(income_entry.payment_method)
+      assert is_nil(income_entry.installment_number)
       assert is_nil(income_entry.installments_count)
+    end
+
+    test "rejects installment number greater than total installments" do
+      scope = user_scope_fixture()
+
+      assert {:error, {:validation, details}} =
+               Planning.create_finance_entry(scope, %{
+                 "kind" => "expense",
+                 "expense_profile" => "variable",
+                 "payment_method" => "credit",
+                 "installment_number" => "6",
+                 "installments_count" => "4",
+                 "amount_cents" => 9_900,
+                 "category" => "Curso"
+               })
+
+      assert Map.has_key?(details, :installment_number)
     end
 
     test "returns category suggestions including linked account categories" do
@@ -360,6 +380,49 @@ defmodule Organizer.PlanningTest do
       assert hd(filtered).title == "Task feita"
     end
 
+    test "applies task pagination with limit and offset" do
+      scope = user_scope_fixture()
+
+      tasks_by_offset =
+        for idx <- 0..11 do
+          {:ok, task} =
+            Planning.create_task(scope, %{
+              "title" => "Task paginada #{idx}",
+              "status" => "todo",
+              "priority" => "medium",
+              "due_on" => Date.to_iso8601(Date.add(Date.utc_today(), idx))
+            })
+
+          {idx, task}
+        end
+
+      assert {:ok, first_page} =
+               Planning.list_tasks(scope, %{
+                 "status" => "todo",
+                 "days" => "30",
+                 "limit" => "10"
+               })
+
+      assert length(first_page) == 10
+
+      assert {:ok, second_page} =
+               Planning.list_tasks(scope, %{
+                 "status" => "todo",
+                 "days" => "30",
+                 "limit" => "10",
+                 "offset" => "10"
+               })
+
+      assert length(second_page) == 2
+
+      eleventh_task =
+        tasks_by_offset
+        |> Enum.find(fn {idx, _task} -> idx == 10 end)
+        |> elem(1)
+
+      assert Enum.any?(second_page, &(&1.id == eleventh_task.id))
+    end
+
     test "returns validation error for invalid task filter values" do
       scope = user_scope_fixture()
 
@@ -414,6 +477,41 @@ defmodule Organizer.PlanningTest do
                })
 
       assert Enum.any?(weekday_entries, &(&1.id == target_entry.id))
+    end
+
+    test "applies finance pagination with limit and offset" do
+      scope = user_scope_fixture()
+
+      entries_by_offset =
+        for day_offset <- 0..11 do
+          {:ok, entry} =
+            Planning.create_finance_entry(scope, %{
+              "kind" => "expense",
+              "amount_cents" => (day_offset + 1) * 100,
+              "category" => "Paginacao #{day_offset}",
+              "occurred_on" => Date.to_iso8601(Date.add(Date.utc_today(), -day_offset))
+            })
+
+          {day_offset, entry}
+        end
+
+      assert {:ok, first_page} = Planning.list_finance_entries(scope, %{"limit" => "10"})
+      assert length(first_page) == 10
+
+      assert {:ok, second_page} =
+               Planning.list_finance_entries(scope, %{
+                 "limit" => "10",
+                 "offset" => "10"
+               })
+
+      assert length(second_page) == 2
+
+      eleventh_day_entry =
+        entries_by_offset
+        |> Enum.find(fn {day_offset, _entry} -> day_offset == 10 end)
+        |> elem(1)
+
+      assert Enum.any?(second_page, &(&1.id == eleventh_day_entry.id))
     end
   end
 

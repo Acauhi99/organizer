@@ -29,6 +29,18 @@ defmodule Organizer.Planning do
 
       query_text = Map.get(params, "q") || Map.get(params, :q) || ""
 
+      pagination_limit =
+        parse_positive_integer_or_default(
+          Map.get(params, "limit") || Map.get(params, :limit),
+          nil
+        )
+
+      pagination_offset =
+        parse_non_negative_integer_or_default(
+          Map.get(params, "offset") || Map.get(params, :offset),
+          0
+        )
+
       with {:ok, status_filter} <-
              parse_enum_filter_value(status_filter, Task.statuses(), :status),
            {:ok, priority_filter} <-
@@ -76,6 +88,9 @@ defmodule Organizer.Planning do
         query =
           from t in query,
             preload: [checklist_items: ^checklist_query]
+
+        query =
+          maybe_paginate_task_query(query, pagination_limit, pagination_offset)
 
         {:ok, Repo.all(query)}
       end
@@ -324,6 +339,18 @@ defmodule Organizer.Planning do
           nil
         )
 
+      pagination_limit =
+        parse_positive_integer_or_default(
+          Map.get(params, "limit") || Map.get(params, :limit),
+          nil
+        )
+
+      pagination_offset =
+        parse_non_negative_integer_or_default(
+          Map.get(params, "offset") || Map.get(params, :offset),
+          0
+        )
+
       with {:ok, kind_filter} <-
              parse_enum_filter_value(kind_filter, FinanceEntry.kinds(), :kind),
            {:ok, expense_profile_filter} <-
@@ -406,7 +433,10 @@ defmodule Organizer.Planning do
             query
           end
 
-        query = apply_finance_sorting(query, sort_by)
+        query =
+          query
+          |> apply_finance_sorting(sort_by)
+          |> maybe_paginate_finance_query(pagination_limit, pagination_offset)
 
         {:ok, Repo.all(query)}
       end
@@ -1307,6 +1337,20 @@ defmodule Organizer.Planning do
 
   defp apply_finance_sorting(query, _sort_by) do
     from f in query, order_by: [desc: f.occurred_on, desc: f.inserted_at]
+  end
+
+  defp maybe_paginate_task_query(query, nil, _offset), do: query
+
+  defp maybe_paginate_task_query(query, limit, offset)
+       when is_integer(limit) and is_integer(offset) do
+    from t in query, limit: ^limit, offset: ^offset
+  end
+
+  defp maybe_paginate_finance_query(query, nil, _offset), do: query
+
+  defp maybe_paginate_finance_query(query, limit, offset)
+       when is_integer(limit) and is_integer(offset) do
+    from f in query, limit: ^limit, offset: ^offset
   end
 
   defp sanitize_filter_query(query_text) when is_binary(query_text) do

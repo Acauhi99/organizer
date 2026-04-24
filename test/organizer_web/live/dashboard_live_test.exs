@@ -526,6 +526,9 @@ defmodule OrganizerWeb.DashboardLiveTest do
       |> element("#finance-edit-btn-#{entry.id}")
       |> render_click()
 
+      assert has_element?(view, "#finance-edit-modal")
+      assert has_element?(view, "#finance-edit-form-#{entry.id}")
+
       view
       |> form("#finance-edit-form-#{entry.id}", %{
         "_id" => to_string(entry.id),
@@ -533,7 +536,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
           "kind" => "income",
           "expense_profile" => "",
           "payment_method" => "",
-          "amount_cents" => 9000,
+          "amount_cents" => "90,00",
           "category" => "freela",
           "occurred_on" => Date.to_iso8601(Date.utc_today()),
           "description" => "projeto extra"
@@ -545,6 +548,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert updated_entry.kind == :income
       assert updated_entry.category == "freela"
       assert updated_entry.amount_cents == 9000
+      refute has_element?(view, "#finance-edit-modal")
 
       view
       |> element("#finance-edit-btn-#{entry.id}")
@@ -557,7 +561,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
           "kind" => "expense",
           "expense_profile" => "fixed",
           "payment_method" => "credit",
-          "amount_cents" => 9500,
+          "amount_cents" => "95,00",
           "category" => "assinatura",
           "occurred_on" => Date.to_iso8601(Date.utc_today()),
           "description" => "plano anual"
@@ -569,6 +573,8 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert expense_entry.kind == :expense
       assert expense_entry.expense_profile == :fixed
       assert expense_entry.payment_method == :credit
+      assert expense_entry.installment_number == 1
+      assert expense_entry.installments_count == 1
 
       view
       |> element("#finance-delete-btn-#{entry.id}")
@@ -602,6 +608,36 @@ defmodule OrganizerWeb.DashboardLiveTest do
       refute has_element?(view, "#task-edit-btn-#{open_task.id}")
     end
 
+    test "loads tasks in batches of 10 per kanban column", %{conn: conn, scope: scope} do
+      tasks_by_offset =
+        for day_offset <- 0..11 do
+          {:ok, task} =
+            Planning.create_task(scope, %{
+              "title" => "Task batch #{day_offset}",
+              "status" => "todo",
+              "priority" => "medium",
+              "due_on" => Date.to_iso8601(Date.add(Date.utc_today(), day_offset))
+            })
+
+          {day_offset, task}
+        end
+
+      eleventh_task =
+        tasks_by_offset
+        |> Enum.find(fn {day_offset, _task} -> day_offset == 10 end)
+        |> elem(1)
+
+      {:ok, view, _html} = live(conn, ~p"/tasks")
+
+      assert has_element?(view, "#tasks-column-todo-visible-counter", "Exibindo 10 de 12")
+      refute has_element?(view, "#task-edit-btn-#{eleventh_task.id}")
+
+      render_hook(view, "load_more_tasks", %{"status" => "todo"})
+
+      assert has_element?(view, "#task-edit-btn-#{eleventh_task.id}")
+      assert has_element?(view, "#tasks-column-todo-visible-counter", "Exibindo 12 de 12")
+    end
+
     test "filters finance entries by period", %{conn: conn, scope: scope} do
       assert {:ok, recent_entry} =
                Planning.create_finance_entry(scope, %{
@@ -629,6 +665,39 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       assert has_element?(view, "#finance-edit-btn-#{recent_entry.id}")
       refute has_element?(view, "#finance-edit-btn-#{old_entry.id}")
+    end
+
+    test "loads finance entries in batches of 10 and appends on load event", %{
+      conn: conn,
+      scope: scope
+    } do
+      entries_by_offset =
+        for day_offset <- 0..11 do
+          {:ok, entry} =
+            Planning.create_finance_entry(scope, %{
+              "kind" => "expense",
+              "amount_cents" => (day_offset + 1) * 100,
+              "category" => "Paginacao #{day_offset}",
+              "occurred_on" => Date.to_iso8601(Date.add(Date.utc_today(), -day_offset))
+            })
+
+          {day_offset, entry}
+        end
+
+      eleventh_day_entry =
+        entries_by_offset
+        |> Enum.find(fn {day_offset, _entry} -> day_offset == 10 end)
+        |> elem(1)
+
+      {:ok, view, _html} = live(conn, ~p"/finances")
+
+      assert has_element?(view, "#finance-visible-counter", "Exibindo 10 de 12 lançamentos")
+      refute has_element?(view, "#finance-edit-btn-#{eleventh_day_entry.id}")
+
+      render_hook(view, "load_more_finances", %{})
+
+      assert has_element?(view, "#finance-edit-btn-#{eleventh_day_entry.id}")
+      assert has_element?(view, "#finance-visible-counter", "Exibindo 12 de 12 lançamentos")
     end
 
     test "updates task metrics filters through chips", %{conn: conn} do

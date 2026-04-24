@@ -117,19 +117,21 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
           </p>
         </article>
 
-        <article class="micro-surface min-h-[15rem] overflow-x-auto rounded-xl p-3 sm:min-h-[18rem]">
+        <article class="micro-surface min-h-[14rem] overflow-hidden rounded-xl p-3 sm:min-h-[16rem]">
           <div class="flex items-center justify-between gap-2">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
               Composição por natureza
             </h3>
             <span class="text-[0.65rem] text-base-content/60">distribuição</span>
           </div>
-          <AsyncChartLoader.async_chart_loader
-            chart_id="chart-finance-composition"
-            chart_type={:finance_composition}
-            loading={@finance_composition_chart.loading}
-            chart_svg={@finance_composition_chart.chart_svg}
-          />
+          <div class="mx-auto mt-2 w-full max-w-[56rem]">
+            <AsyncChartLoader.async_chart_loader
+              chart_id="chart-finance-composition"
+              chart_type={:finance_composition}
+              loading={@finance_composition_chart.loading}
+              chart_svg={@finance_composition_chart.chart_svg}
+            />
+          </div>
           <p
             :if={
               !@finance_composition_chart.loading &&
@@ -142,19 +144,21 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
         </article>
       </div>
 
-      <article class="micro-surface mt-3 min-h-[15rem] overflow-x-auto rounded-xl p-3 sm:min-h-[18rem]">
+      <article class="micro-surface mt-3 min-h-[13rem] overflow-hidden rounded-xl p-3 sm:min-h-[15rem]">
         <div class="flex items-center justify-between gap-2">
           <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
             Top despesas por categoria
           </h3>
           <span class="text-[0.65rem] text-base-content/60">ranking</span>
         </div>
-        <AsyncChartLoader.async_chart_loader
-          chart_id="chart-finance-category"
-          chart_type={:finance_category}
-          loading={@finance_category_chart.loading}
-          chart_svg={@finance_category_chart.chart_svg}
-        />
+        <div class="mx-auto mt-2 w-full max-w-[74rem]">
+          <AsyncChartLoader.async_chart_loader
+            chart_id="chart-finance-category"
+            chart_type={:finance_category}
+            loading={@finance_category_chart.loading}
+            chart_svg={@finance_category_chart.chart_svg}
+          />
+        </div>
         <p
           :if={
             !@finance_category_chart.loading &&

@@ -19,6 +19,8 @@ defmodule OrganizerWeb.DashboardLive do
   @task_metrics_days_filters ["7", "15", "30", "90", "365"]
   @task_metrics_capacity_filters ["5", "10", "15", "20", "30"]
   @finance_metrics_days_filters ["7", "30", "90", "365"]
+  @task_page_size 10
+  @finance_page_size 10
 
   @impl true
   def mount(_params, _session, socket) do
@@ -185,6 +187,84 @@ defmodule OrganizerWeb.DashboardLive do
      socket
      |> assign(:finance_filters, finance_filters)
      |> load_operation_collections()}
+  end
+
+  @impl true
+  def handle_event("load_more_tasks", %{"status" => status}, socket) do
+    with {:ok, status_key, status_filter, stream_key} <- task_pagination_status(status),
+         true <- task_column_has_more?(socket.assigns, status_key) do
+      offset = task_column_visible_count(socket.assigns, status_key)
+
+      paged_filters =
+        socket.assigns.task_filters
+        |> Map.put(:status, status_filter)
+        |> Map.put(:offset, offset)
+        |> Map.put(:limit, @task_page_size)
+
+      case Planning.list_tasks(socket.assigns.current_scope, paged_filters) do
+        {:ok, next_tasks} ->
+          loaded_count = offset + length(next_tasks)
+          total_count = task_column_total_count(socket.assigns, status_key)
+
+          {:noreply,
+           socket
+           |> stream(stream_key, next_tasks, dom_id: &task_stream_dom_id(stream_key, &1))
+           |> assign(
+             :task_visible_count,
+             Map.put(socket.assigns.task_visible_count, status_key, loaded_count)
+           )
+           |> assign(
+             :task_has_more?,
+             Map.put(socket.assigns.task_has_more?, status_key, loaded_count < total_count)
+           )
+           |> assign(
+             :task_loading_more?,
+             Map.put(socket.assigns.task_loading_more?, status_key, false)
+           )}
+
+        _ ->
+          {:noreply,
+           assign(
+             socket,
+             :task_loading_more?,
+             Map.put(socket.assigns.task_loading_more?, status_key, false)
+           )}
+      end
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("load_more_finances", _params, socket) do
+    cond do
+      not Map.get(socket.assigns, :finance_has_more?, false) ->
+        {:noreply, socket}
+
+      true ->
+        offset = Map.get(socket.assigns, :finance_visible_count, 0)
+
+        paged_filters =
+          socket.assigns.finance_filters
+          |> Map.put(:offset, offset)
+          |> Map.put(:limit, @finance_page_size)
+
+        case Planning.list_finance_entries(socket.assigns.current_scope, paged_filters) do
+          {:ok, next_finances} ->
+            loaded_count = offset + length(next_finances)
+            total_count = get_in(socket.assigns, [:ops_counts, :finances_total]) || 0
+
+            {:noreply,
+             socket
+             |> stream(:finances, next_finances)
+             |> assign(:finance_visible_count, loaded_count)
+             |> assign(:finance_has_more?, loaded_count < total_count)
+             |> assign(:finance_loading_more?, false)}
+
+          _ ->
+            {:noreply, assign(socket, :finance_loading_more?, false)}
+        end
+    end
   end
 
   @impl true
@@ -591,10 +671,19 @@ defmodule OrganizerWeb.DashboardLive do
 
   @impl true
   def handle_event("start_edit_finance", %{"id" => id}, socket) do
-    {:noreply,
-     socket
-     |> assign(:editing_finance_id, id)
-     |> load_operation_collections()}
+    case Planning.get_finance_entry(socket.assigns.current_scope, id) do
+      {:ok, entry} ->
+        {:noreply,
+         socket
+         |> assign(:editing_finance_id, id)
+         |> assign(:finance_edit_modal_entry, entry)}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Lançamento não encontrado.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Não foi possível carregar o lançamento.")}
+    end
   end
 
   @impl true
@@ -602,17 +691,20 @@ defmodule OrganizerWeb.DashboardLive do
     {:noreply,
      socket
      |> assign(:editing_finance_id, nil)
-     |> load_operation_collections()}
+     |> assign(:finance_edit_modal_entry, nil)}
   end
 
   @impl true
   def handle_event("save_finance", %{"_id" => id, "finance" => attrs}, socket) do
-    case Planning.update_finance_entry(socket.assigns.current_scope, id, attrs) do
+    normalized = normalize_finance_edit_attrs(attrs)
+
+    case Planning.update_finance_entry(socket.assigns.current_scope, id, normalized) do
       {:ok, _entry} ->
         {:noreply,
          socket
          |> put_flash(:info, "Lançamento atualizado.")
          |> assign(:editing_finance_id, nil)
+         |> assign(:finance_edit_modal_entry, nil)
          |> load_operation_collections()
          |> refresh_dashboard_insights()}
 
@@ -623,7 +715,8 @@ defmodule OrganizerWeb.DashboardLive do
         {:noreply,
          socket
          |> put_flash(:error, "Lançamento não encontrado.")
-         |> assign(:editing_finance_id, nil)}
+         |> assign(:editing_finance_id, nil)
+         |> assign(:finance_edit_modal_entry, nil)}
 
       _ ->
         {:noreply, put_flash(socket, :error, "Não foi possível atualizar o lançamento.")}
@@ -638,6 +731,7 @@ defmodule OrganizerWeb.DashboardLive do
          socket
          |> put_flash(:info, "Lançamento removido.")
          |> assign(:editing_finance_id, nil)
+         |> assign(:finance_edit_modal_entry, nil)
          |> load_operation_collections()
          |> refresh_dashboard_insights()}
 
@@ -676,6 +770,7 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:finance_category_suggestions, %{income: [], expense: [], all: []})
     |> assign(:editing_task_id, nil)
     |> assign(:editing_finance_id, nil)
+    |> assign(:finance_edit_modal_entry, nil)
     |> assign(:task_details_modal_task_id, nil)
     |> assign(:task_details_modal_task, nil)
     |> assign(:onboarding_active, onboarding_active)
@@ -694,6 +789,9 @@ defmodule OrganizerWeb.DashboardLive do
   defp load_operation_collections(socket) do
     {:ok, tasks} = Planning.list_tasks(socket.assigns.current_scope, socket.assigns.task_filters)
     {tasks_todo, tasks_in_progress, tasks_done} = split_tasks_by_status(tasks)
+    visible_tasks_todo = Enum.take(tasks_todo, @task_page_size)
+    visible_tasks_in_progress = Enum.take(tasks_in_progress, @task_page_size)
+    visible_tasks_done = Enum.take(tasks_done, @task_page_size)
     selected_task = selected_task_for_modal(tasks, socket.assigns.task_details_modal_task_id)
 
     {:ok, finances} =
@@ -707,21 +805,43 @@ defmodule OrganizerWeb.DashboardLive do
 
     finance_income = Enum.filter(finances, &(&1.kind == :income))
     finance_expenses = Enum.filter(finances, &(&1.kind == :expense))
+    visible_finances = Enum.take(finances, @finance_page_size)
+    finance_total = length(finances)
     shared_finances_total = Enum.count(finances, &is_integer(&1.shared_with_link_id))
     shared_tasks_total = Enum.count(tasks, &is_integer(Map.get(&1, :shared_with_link_id)))
     shared_links_active = length(socket.assigns.account_links)
 
     socket
-    |> stream(:tasks_todo, tasks_todo, reset: true, dom_id: &"tasks-todo-#{&1.id}")
+    |> stream(:tasks_todo, visible_tasks_todo,
+      reset: true,
+      dom_id: &task_stream_dom_id(:tasks_todo, &1)
+    )
     |> stream(
       :tasks_in_progress,
-      tasks_in_progress,
+      visible_tasks_in_progress,
       reset: true,
-      dom_id: &"tasks-in-progress-#{&1.id}"
+      dom_id: &task_stream_dom_id(:tasks_in_progress, &1)
     )
-    |> stream(:tasks_done, tasks_done, reset: true, dom_id: &"tasks-done-#{&1.id}")
-    |> stream(:finances, finances, reset: true)
+    |> stream(:tasks_done, visible_tasks_done,
+      reset: true,
+      dom_id: &task_stream_dom_id(:tasks_done, &1)
+    )
+    |> stream(:finances, visible_finances, reset: true)
+    |> assign(:task_visible_count, %{
+      todo: length(visible_tasks_todo),
+      in_progress: length(visible_tasks_in_progress),
+      done: length(visible_tasks_done)
+    })
+    |> assign(:task_has_more?, %{
+      todo: length(tasks_todo) > length(visible_tasks_todo),
+      in_progress: length(tasks_in_progress) > length(visible_tasks_in_progress),
+      done: length(tasks_done) > length(visible_tasks_done)
+    })
+    |> assign(:task_loading_more?, %{todo: false, in_progress: false, done: false})
     |> assign(:finance_category_suggestions, finance_category_suggestions)
+    |> assign(:finance_visible_count, length(visible_finances))
+    |> assign(:finance_has_more?, finance_total > length(visible_finances))
+    |> assign(:finance_loading_more?, false)
     |> assign(:task_details_modal_task, selected_task)
     |> assign(:task_details_modal_task_id, selected_task && selected_task.id)
     |> assign(:ops_counts, %{
@@ -731,7 +851,7 @@ defmodule OrganizerWeb.DashboardLive do
       tasks_in_progress: length(tasks_in_progress),
       tasks_done: length(tasks_done),
       tasks_shared_total: shared_tasks_total,
-      finances_total: length(finances),
+      finances_total: finance_total,
       finances_income_total: length(finance_income),
       finances_expense_total: length(finance_expenses),
       finances_shared_total: shared_finances_total,
@@ -748,6 +868,39 @@ defmodule OrganizerWeb.DashboardLive do
     done = Enum.filter(tasks, &(&1.status == :done))
     {todo, in_progress, done}
   end
+
+  defp task_pagination_status("todo"), do: {:ok, :todo, "todo", :tasks_todo}
+
+  defp task_pagination_status("in_progress"),
+    do: {:ok, :in_progress, "in_progress", :tasks_in_progress}
+
+  defp task_pagination_status("done"), do: {:ok, :done, "done", :tasks_done}
+  defp task_pagination_status(_status), do: :error
+
+  defp task_column_has_more?(assigns, status_key) do
+    assigns
+    |> Map.get(:task_has_more?, %{})
+    |> Map.get(status_key, false)
+  end
+
+  defp task_column_visible_count(assigns, status_key) do
+    assigns
+    |> Map.get(:task_visible_count, %{})
+    |> Map.get(status_key, 0)
+  end
+
+  defp task_column_total_count(assigns, :todo),
+    do: get_in(assigns, [:ops_counts, :tasks_todo]) || 0
+
+  defp task_column_total_count(assigns, :in_progress),
+    do: get_in(assigns, [:ops_counts, :tasks_in_progress]) || 0
+
+  defp task_column_total_count(assigns, :done),
+    do: get_in(assigns, [:ops_counts, :tasks_done]) || 0
+
+  defp task_stream_dom_id(:tasks_todo, task), do: "tasks-todo-#{task.id}"
+  defp task_stream_dom_id(:tasks_in_progress, task), do: "tasks-in-progress-#{task.id}"
+  defp task_stream_dom_id(:tasks_done, task), do: "tasks-done-#{task.id}"
 
   defp selected_task_for_modal(_tasks, nil), do: nil
 
@@ -787,6 +940,7 @@ defmodule OrganizerWeb.DashboardLive do
       "occurred_on" => DateSupport.format_pt_br(Date.utc_today()),
       "expense_profile" => default_quick_expense_profile(kind),
       "payment_method" => default_quick_payment_method(kind),
+      "installment_number" => default_quick_installment_number(kind),
       "installments_count" => default_quick_installments_count(kind),
       "share_with_link" => "false",
       "shared_with_link_id" => if(kind == "expense", do: default_shared_with_link_id, else: ""),
@@ -885,6 +1039,7 @@ defmodule OrganizerWeb.DashboardLive do
       merged
       |> Map.put("expense_profile", "")
       |> Map.put("payment_method", "")
+      |> Map.put("installment_number", "")
       |> Map.put("installments_count", "")
     else
       merged
@@ -893,7 +1048,7 @@ defmodule OrganizerWeb.DashboardLive do
         &default_if_blank(&1, default_quick_expense_profile(kind))
       )
       |> Map.update!("payment_method", &default_if_blank(&1, default_quick_payment_method(kind)))
-      |> normalize_quick_finance_installments_count()
+      |> normalize_quick_finance_installments_fields()
     end
   end
 
@@ -928,7 +1083,7 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp parse_quick_finance_amount_cents(_value), do: :error
 
-  defp normalize_quick_finance_installments_count(attrs) do
+  defp normalize_quick_finance_installments_fields(attrs) do
     payment_method =
       attrs
       |> Map.get("payment_method", "debit")
@@ -936,7 +1091,17 @@ defmodule OrganizerWeb.DashboardLive do
       |> String.trim()
 
     if payment_method == "credit" do
-      installments =
+      installment_number =
+        attrs
+        |> Map.get("installment_number", "1")
+        |> to_string()
+        |> String.trim()
+        |> case do
+          "" -> "1"
+          value -> value
+        end
+
+      installments_count =
         attrs
         |> Map.get("installments_count", "1")
         |> to_string()
@@ -946,9 +1111,28 @@ defmodule OrganizerWeb.DashboardLive do
           value -> value
         end
 
-      Map.put(attrs, "installments_count", installments)
+      attrs
+      |> Map.put("installment_number", installment_number)
+      |> Map.put("installments_count", installments_count)
     else
-      Map.put(attrs, "installments_count", "")
+      attrs
+      |> Map.put("installment_number", "")
+      |> Map.put("installments_count", "")
+    end
+  end
+
+  defp normalize_finance_edit_attrs(attrs) when is_map(attrs) do
+    attrs
+    |> string_key_map()
+    |> maybe_parse_finance_edit_amount()
+  end
+
+  defp normalize_finance_edit_attrs(attrs), do: attrs
+
+  defp maybe_parse_finance_edit_amount(attrs) do
+    case parse_quick_finance_amount_cents(Map.get(attrs, "amount_cents")) do
+      {:ok, cents} -> Map.put(attrs, "amount_cents", Integer.to_string(cents))
+      :error -> attrs
     end
   end
 
@@ -1168,6 +1352,9 @@ defmodule OrganizerWeb.DashboardLive do
   defp default_quick_payment_method("income"), do: ""
   defp default_quick_payment_method(_kind), do: "debit"
 
+  defp default_quick_installment_number("income"), do: ""
+  defp default_quick_installment_number(_kind), do: "1"
+
   defp default_quick_installments_count("income"), do: ""
   defp default_quick_installments_count(_kind), do: "1"
 
@@ -1330,7 +1517,11 @@ defmodule OrganizerWeb.DashboardLive do
               finance_filters={@finance_filters}
               category_suggestions={@finance_category_suggestions}
               editing_finance_id={@editing_finance_id}
+              finance_edit_modal_entry={@finance_edit_modal_entry}
               ops_counts={@ops_counts}
+              finance_visible_count={@finance_visible_count}
+              finance_has_more?={@finance_has_more?}
+              finance_loading_more?={@finance_loading_more?}
             />
           <% :tasks -> %>
             <.module_hero
@@ -1357,6 +1548,9 @@ defmodule OrganizerWeb.DashboardLive do
               editing_task_id={@editing_task_id}
               task_details_modal_task={@task_details_modal_task}
               ops_counts={@ops_counts}
+              task_visible_count={@task_visible_count}
+              task_has_more?={@task_has_more?}
+              task_loading_more?={@task_loading_more?}
             />
         <% end %>
       </div>

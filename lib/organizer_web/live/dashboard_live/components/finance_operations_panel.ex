@@ -1,13 +1,18 @@
 defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   use Phoenix.Component
 
+  import OrganizerWeb.CoreComponents, only: [icon: 1]
   import OrganizerWeb.DashboardLive.Formatters
 
   attr :streams, :map, required: true
   attr :finance_filters, :map, required: true
   attr :category_suggestions, :map, default: %{}
   attr :editing_finance_id, :any, default: nil
+  attr :finance_edit_modal_entry, :any, default: nil
   attr :ops_counts, :map, required: true
+  attr :finance_visible_count, :integer, default: 0
+  attr :finance_has_more?, :boolean, default: false
+  attr :finance_loading_more?, :boolean, default: false
 
   def finance_operations_panel(assigns) do
     assigns =
@@ -28,6 +33,9 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           Operação diária financeira
         </h2>
       </div>
+      <p id="finance-fixed-guidance" class="mt-2 text-xs text-base-content/68">
+        Lançamentos com perfil fixo permanecem ativos até cancelamento para refletir melhor seu fluxo real.
+      </p>
 
       <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         <article
@@ -116,7 +124,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           class="input input-bordered input-sm"
           inputmode="numeric"
           maxlength="10"
-          pattern="^\\d{2}/\\d{2}/\\d{4}$"
+          pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
         />
         <input
           type="text"
@@ -126,7 +134,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           class="input input-bordered input-sm"
           inputmode="numeric"
           maxlength="7"
-          pattern="^\\d{2}/\\d{4}$"
+          pattern="^[0-9]{2}/[0-9]{4}$"
         />
         <input
           type="text"
@@ -136,7 +144,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           class="input input-bordered input-sm"
           inputmode="numeric"
           maxlength="10"
-          pattern="^\\d{2}/\\d{2}/\\d{4}$"
+          pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
         />
         <input
           type="text"
@@ -146,7 +154,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           class="input input-bordered input-sm"
           inputmode="numeric"
           maxlength="10"
-          pattern="^\\d{2}/\\d{2}/\\d{4}$"
+          pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
         />
         <select name="filters[weekday]" class="select select-bordered select-sm">
           <option value="all" selected={@finance_filters.weekday == "all"}>Todos os dias</option>
@@ -253,244 +261,383 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
         </option>
       </datalist>
 
-      <div id="finances" phx-update="stream" class="mt-3 space-y-2">
-        <div id="finances-empty-wrapper" class="hidden only:block">
-          <div
-            id="empty-state-finances"
-            class="rounded-xl border border-dashed border-base-content/25 px-4 py-6 text-center"
-          >
-            <p class="text-sm font-semibold text-base-content/85">Nenhum lançamento financeiro</p>
-            <p class="mt-1 text-xs leading-5 text-base-content/65">
-              Registre rendas e gastos no card de lançamento rápido para começar seu histórico.
-            </p>
+      <div class="mt-3 flex items-center justify-between gap-2">
+        <p id="finance-visible-counter" class="text-[11px] font-medium text-base-content/68">
+          Exibindo {@finance_visible_count} de {Map.get(@ops_counts, :finances_total, 0)} lançamentos
+        </p>
+        <p :if={@finance_has_more?} class="text-[11px] text-base-content/58">
+          Role para carregar mais
+        </p>
+      </div>
+
+      <div
+        id="finances-scroll-area"
+        phx-hook="InfiniteScroll"
+        data-event="load_more_finances"
+        data-has-more={to_string(@finance_has_more?)}
+        data-loading={to_string(@finance_loading_more?)}
+        data-threshold-px="120"
+        class="mt-2 h-[26rem] overflow-y-auto rounded-xl border border-base-content/12 bg-base-100/28 p-2.5 sm:h-[30rem]"
+      >
+        <div id="finances" phx-update="stream" class="space-y-2">
+          <div id="finances-empty-wrapper" class="hidden only:block">
+            <div
+              id="empty-state-finances"
+              class="rounded-xl border border-dashed border-base-content/25 px-4 py-6 text-center"
+            >
+              <p class="text-sm font-semibold text-base-content/85">Nenhum lançamento financeiro</p>
+              <p class="mt-1 text-xs leading-5 text-base-content/65">
+                Registre rendas e gastos no card de lançamento rápido para começar seu histórico.
+              </p>
+            </div>
           </div>
+
+          <article
+            :for={{id, entry} <- @streams.finances}
+            id={id}
+            class={["micro-surface rounded-xl border p-2.5", finance_row_border_class(entry.kind)]}
+          >
+            <div class="flex flex-col gap-2">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <p class="truncate text-sm font-semibold text-base-content">{entry.category}</p>
+                    <p class="text-[11px] text-base-content/62">
+                      {date_input_value(entry.occurred_on)}
+                    </p>
+                  </div>
+                  <p
+                    :if={entry.description && String.trim(entry.description) != ""}
+                    class="mt-0.5 text-xs text-base-content/72"
+                  >
+                    {entry.description}
+                  </p>
+                </div>
+                <p class={[finance_amount_class(entry.kind), "shrink-0 whitespace-nowrap"]}>
+                  {format_money(entry.amount_cents)}
+                </p>
+              </div>
+
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap gap-1.5">
+                  <span class={finance_kind_badge_class(entry.kind)}>
+                    {finance_kind_label(entry.kind)}
+                  </span>
+                  <span
+                    :if={entry.expense_profile}
+                    class={finance_profile_badge_class(entry.expense_profile)}
+                  >
+                    {finance_profile_label(entry.expense_profile)}
+                  </span>
+                  <span
+                    :if={entry.payment_method}
+                    class={finance_payment_badge_class(entry.payment_method)}
+                  >
+                    {finance_payment_label(entry.payment_method)}
+                  </span>
+                  <span
+                    :if={show_installments_badge?(entry)}
+                    class={finance_installments_badge_class()}
+                  >
+                    {installments_badge_label(entry)}
+                  </span>
+                  <span
+                    :if={fixed_until_cancelled?(entry)}
+                    class="badge badge-sm border-info/62 bg-info/24 text-info font-semibold"
+                  >
+                    Ativa até cancelar
+                  </span>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                  <button
+                    id={"finance-edit-btn-#{entry.id}"}
+                    type="button"
+                    phx-click="start_edit_finance"
+                    phx-value-id={entry.id}
+                    class="ds-inline-btn rounded-md px-2 py-1 text-xs"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    id={"finance-delete-btn-#{entry.id}"}
+                    type="button"
+                    phx-click="delete_finance"
+                    phx-value-id={entry.id}
+                    class="ds-inline-btn ds-inline-btn-danger rounded-md px-2 py-1 text-xs"
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            </div>
+          </article>
         </div>
 
-        <article
-          :for={{id, entry} <- @streams.finances}
-          id={id}
-          class={["micro-surface rounded-xl border p-3", finance_row_border_class(entry.kind)]}
-        >
-          <div class="grid gap-2 lg:grid-cols-[minmax(0,1fr)_11rem] lg:items-start">
-            <div class="min-w-0">
-              <p class="truncate text-sm font-semibold text-base-content">{entry.category}</p>
-              <p
-                :if={entry.description && String.trim(entry.description) != ""}
-                class="mt-1 text-xs text-base-content/72"
-              >
-                {entry.description}
-              </p>
-              <p class="mt-1 text-xs text-base-content/65">{date_input_value(entry.occurred_on)}</p>
-            </div>
-            <p class={[finance_amount_class(entry.kind), "lg:text-right"]}>
-              {format_money(entry.amount_cents)}
+        <div :if={@finance_loading_more?} id="finance-load-more-state" class="px-1 py-2">
+          <p class="text-center text-[11px] text-base-content/62">Carregando mais lançamentos...</p>
+        </div>
+      </div>
+
+      <.finance_edit_modal
+        entry={@finance_edit_modal_entry}
+        category_suggestions={@category_suggestions}
+      />
+    </section>
+    """
+  end
+
+  attr :entry, :any, default: nil
+  attr :category_suggestions, :map, default: %{income: [], expense: [], all: []}
+
+  defp finance_edit_modal(assigns) do
+    ~H"""
+    <div
+      :if={is_map(@entry)}
+      id="finance-edit-modal"
+      class="fixed inset-0 z-[80] flex items-end justify-center p-3 sm:items-center sm:p-6"
+      phx-window-keydown="cancel_edit_finance"
+      phx-key="escape"
+      aria-hidden="false"
+    >
+      <div id="finance-edit-modal-backdrop" aria-hidden="true" class="absolute inset-0 h-full w-full">
+      </div>
+
+      <section
+        id="finance-edit-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={"finance-edit-title-#{@entry.id}"}
+        class="relative z-10 w-full max-w-3xl rounded-2xl border border-base-content/16 bg-base-100 p-5 shadow-[0_24px_70px_rgba(23,33,47,0.34)] sm:p-6"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-wide text-base-content/65">
+              Editar lançamento
             </p>
+            <h2
+              id={"finance-edit-title-#{@entry.id}"}
+              class="mt-1 break-words text-xl font-semibold text-base-content"
+            >
+              {@entry.category}
+            </h2>
           </div>
 
-          <div class="mt-2 flex flex-wrap gap-1.5">
-            <span class={finance_kind_badge_class(entry.kind)}>{finance_kind_label(entry.kind)}</span>
-            <span
-              :if={entry.expense_profile}
-              class={finance_profile_badge_class(entry.expense_profile)}
-            >
-              {finance_profile_label(entry.expense_profile)}
-            </span>
-            <span :if={entry.payment_method} class={finance_payment_badge_class(entry.payment_method)}>
-              {finance_payment_label(entry.payment_method)}
-            </span>
-            <span :if={show_installments_badge?(entry)} class={finance_installments_badge_class()}>
-              {entry.installments_count}x parcelas
-            </span>
-          </div>
-
-          <div class="mt-3 flex flex-wrap gap-2">
-            <button
-              id={"finance-edit-btn-#{entry.id}"}
-              type="button"
-              phx-click="start_edit_finance"
-              phx-value-id={entry.id}
-              class="ds-inline-btn rounded-md px-2 py-1 text-xs"
-            >
-              Editar
-            </button>
-            <button
-              id={"finance-delete-btn-#{entry.id}"}
-              type="button"
-              phx-click="delete_finance"
-              phx-value-id={entry.id}
-              class="ds-inline-btn ds-inline-btn-danger rounded-md px-2 py-1 text-xs"
-            >
-              Excluir
-            </button>
-          </div>
-
-          <form
-            :if={editing?(@editing_finance_id, entry.id)}
-            id={"finance-edit-form-#{entry.id}"}
-            phx-submit="save_finance"
-            class="mt-3 space-y-2 rounded-md border border-base-content/16 bg-base-100/80 p-3"
+          <button
+            id="finance-edit-close-btn"
+            type="button"
+            phx-click="cancel_edit_finance"
+            class="btn btn-ghost btn-sm border border-base-content/16"
           >
-            <input type="hidden" name="_id" value={entry.id} />
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </div>
+
+        <div class="mt-3 flex flex-wrap gap-1.5">
+          <span class={finance_kind_badge_class(@entry.kind)}>{finance_kind_label(@entry.kind)}</span>
+          <span
+            :if={@entry.expense_profile}
+            class={finance_profile_badge_class(@entry.expense_profile)}
+          >
+            {finance_profile_label(@entry.expense_profile)}
+          </span>
+          <span :if={@entry.payment_method} class={finance_payment_badge_class(@entry.payment_method)}>
+            {finance_payment_label(@entry.payment_method)}
+          </span>
+          <span :if={show_installments_badge?(@entry)} class={finance_installments_badge_class()}>
+            {installments_badge_label(@entry)}
+          </span>
+        </div>
+
+        <form
+          id={"finance-edit-form-#{@entry.id}"}
+          phx-submit="save_finance"
+          class="mt-4 space-y-3 rounded-xl border border-base-content/14 bg-base-100/65 p-3.5 sm:p-4"
+        >
+          <input type="hidden" name="_id" value={@entry.id} />
+          <div class="grid gap-2 sm:grid-cols-2">
+            <div>
+              <label
+                class="text-xs font-medium text-base-content/70"
+                for={"finance-kind-#{@entry.id}"}
+              >
+                Tipo
+              </label>
+              <select
+                id={"finance-kind-#{@entry.id}"}
+                name="finance[kind]"
+                class="select select-bordered w-full"
+              >
+                <option value="income" selected={@entry.kind == :income}>Receita</option>
+                <option value="expense" selected={@entry.kind == :expense}>Despesa</option>
+              </select>
+            </div>
+            <div>
+              <label
+                class="text-xs font-medium text-base-content/70"
+                for={"finance-expense-profile-#{@entry.id}"}
+              >
+                Natureza da despesa
+              </label>
+              <select
+                id={"finance-expense-profile-#{@entry.id}"}
+                name="finance[expense_profile]"
+                class="select select-bordered w-full"
+              >
+                <option value="" selected={is_nil(@entry.expense_profile)}>Não se aplica</option>
+                <option value="fixed" selected={@entry.expense_profile == :fixed}>Fixa</option>
+                <option value="variable" selected={@entry.expense_profile == :variable}>
+                  Variável
+                </option>
+                <option value="recurring_fixed" selected={@entry.expense_profile == :recurring_fixed}>
+                  Recorrente fixa
+                </option>
+                <option
+                  value="recurring_variable"
+                  selected={@entry.expense_profile == :recurring_variable}
+                >
+                  Recorrente variável
+                </option>
+              </select>
+            </div>
+            <div>
+              <label
+                class="text-xs font-medium text-base-content/70"
+                for={"finance-payment-method-#{@entry.id}"}
+              >
+                Pagamento
+              </label>
+              <select
+                id={"finance-payment-method-#{@entry.id}"}
+                name="finance[payment_method]"
+                class="select select-bordered w-full"
+              >
+                <option value="" selected={is_nil(@entry.payment_method)}>Não se aplica</option>
+                <option value="debit" selected={@entry.payment_method == :debit}>Débito</option>
+                <option value="credit" selected={@entry.payment_method == :credit}>Crédito</option>
+              </select>
+            </div>
+            <div>
+              <label
+                class="text-xs font-medium text-base-content/70"
+                for={"finance-amount-#{@entry.id}"}
+              >
+                Valor
+              </label>
+              <input
+                id={"finance-amount-#{@entry.id}"}
+                name="finance[amount_cents]"
+                type="text"
+                inputmode="decimal"
+                required
+                value={money_input_value(@entry.amount_cents)}
+                class="input input-bordered w-full"
+                placeholder="Ex: 330,00"
+              />
+            </div>
+          </div>
+          <label
+            class="text-xs font-medium text-base-content/70"
+            for={"finance-category-#{@entry.id}"}
+          >
+            Categoria
+          </label>
+          <input
+            id={"finance-category-#{@entry.id}"}
+            name="finance[category]"
+            type="text"
+            required
+            value={@entry.category}
+            class="input input-bordered w-full"
+            list={finance_entry_category_datalist_id(@entry.id, @entry.kind)}
+          />
+          <label class="text-xs font-medium text-base-content/70" for={"finance-date-#{@entry.id}"}>
+            Data
+          </label>
+          <input
+            id={"finance-date-#{@entry.id}"}
+            name="finance[occurred_on]"
+            type="text"
+            value={date_input_value(@entry.occurred_on)}
+            class="input input-bordered w-full"
+            placeholder="dd/mm/aaaa"
+            inputmode="numeric"
+            maxlength="10"
+            pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
+          />
+          <label
+            class="text-xs font-medium text-base-content/70"
+            for={"finance-description-#{@entry.id}"}
+          >
+            Descrição
+          </label>
+          <input
+            id={"finance-description-#{@entry.id}"}
+            name="finance[description]"
+            type="text"
+            value={@entry.description || ""}
+            class="input input-bordered w-full"
+          />
+          <div :if={@entry.kind == :expense}>
             <div class="grid gap-2 sm:grid-cols-2">
               <div>
                 <label
                   class="text-xs font-medium text-base-content/70"
-                  for={"finance-kind-#{entry.id}"}
+                  for={"finance-installment-number-#{@entry.id}"}
                 >
-                  Tipo
-                </label>
-                <select
-                  id={"finance-kind-#{entry.id}"}
-                  name="finance[kind]"
-                  class="select select-bordered w-full"
-                >
-                  <option value="income" selected={entry.kind == :income}>Receita</option>
-                  <option value="expense" selected={entry.kind == :expense}>Despesa</option>
-                </select>
-              </div>
-              <div>
-                <label
-                  class="text-xs font-medium text-base-content/70"
-                  for={"finance-expense-profile-#{entry.id}"}
-                >
-                  Natureza da despesa
-                </label>
-                <select
-                  id={"finance-expense-profile-#{entry.id}"}
-                  name="finance[expense_profile]"
-                  class="select select-bordered w-full"
-                >
-                  <option value="" selected={is_nil(entry.expense_profile)}>Não se aplica</option>
-                  <option value="fixed" selected={entry.expense_profile == :fixed}>Fixa</option>
-                  <option value="variable" selected={entry.expense_profile == :variable}>
-                    Variável
-                  </option>
-                  <option value="recurring_fixed" selected={entry.expense_profile == :recurring_fixed}>
-                    Recorrente fixa
-                  </option>
-                  <option
-                    value="recurring_variable"
-                    selected={entry.expense_profile == :recurring_variable}
-                  >
-                    Recorrente variável
-                  </option>
-                </select>
-              </div>
-              <div>
-                <label
-                  class="text-xs font-medium text-base-content/70"
-                  for={"finance-payment-method-#{entry.id}"}
-                >
-                  Pagamento
-                </label>
-                <select
-                  id={"finance-payment-method-#{entry.id}"}
-                  name="finance[payment_method]"
-                  class="select select-bordered w-full"
-                >
-                  <option value="" selected={is_nil(entry.payment_method)}>Não se aplica</option>
-                  <option value="debit" selected={entry.payment_method == :debit}>Débito</option>
-                  <option value="credit" selected={entry.payment_method == :credit}>Crédito</option>
-                </select>
-              </div>
-              <div>
-                <label
-                  class="text-xs font-medium text-base-content/70"
-                  for={"finance-amount-#{entry.id}"}
-                >
-                  Valor
+                  Parcela atual
                 </label>
                 <input
-                  id={"finance-amount-#{entry.id}"}
-                  name="finance[amount_cents]"
+                  id={"finance-installment-number-#{@entry.id}"}
+                  name="finance[installment_number]"
                   type="number"
-                  required
-                  value={entry.amount_cents}
+                  min="1"
+                  max="120"
+                  step="1"
+                  value={@entry.installment_number || 1}
+                  class="input input-bordered w-full"
+                />
+              </div>
+              <div>
+                <label
+                  class="text-xs font-medium text-base-content/70"
+                  for={"finance-installments-#{@entry.id}"}
+                >
+                  Total de parcelas
+                </label>
+                <input
+                  id={"finance-installments-#{@entry.id}"}
+                  name="finance[installments_count]"
+                  type="number"
+                  min="1"
+                  max="120"
+                  step="1"
+                  value={@entry.installments_count || 1}
                   class="input input-bordered w-full"
                 />
               </div>
             </div>
-            <label
-              class="text-xs font-medium text-base-content/70"
-              for={"finance-category-#{entry.id}"}
+            <p class="mt-1 text-[11px] text-base-content/62">
+              Use o formato atual/total para facilitar a leitura, por exemplo: 6/10.
+            </p>
+          </div>
+          <datalist id={finance_entry_category_datalist_id(@entry.id, @entry.kind)}>
+            <option
+              :for={category <- finance_category_options(@entry.kind, @category_suggestions)}
+              value={category}
             >
-              Categoria
-            </label>
-            <input
-              id={"finance-category-#{entry.id}"}
-              name="finance[category]"
-              type="text"
-              required
-              value={entry.category}
-              class="input input-bordered w-full"
-              list={finance_entry_category_datalist_id(entry.id, entry.kind)}
-            />
-            <label class="text-xs font-medium text-base-content/70" for={"finance-date-#{entry.id}"}>
-              Data
-            </label>
-            <input
-              id={"finance-date-#{entry.id}"}
-              name="finance[occurred_on]"
-              type="text"
-              value={date_input_value(entry.occurred_on)}
-              class="input input-bordered w-full"
-              placeholder="dd/mm/aaaa"
-              inputmode="numeric"
-              maxlength="10"
-              pattern="^\\d{2}/\\d{2}/\\d{4}$"
-            />
-            <label
-              class="text-xs font-medium text-base-content/70"
-              for={"finance-description-#{entry.id}"}
-            >
-              Descrição
-            </label>
-            <input
-              id={"finance-description-#{entry.id}"}
-              name="finance[description]"
-              type="text"
-              value={entry.description || ""}
-              class="input input-bordered w-full"
-            />
-            <div :if={entry.kind == :expense}>
-              <label
-                class="text-xs font-medium text-base-content/70"
-                for={"finance-installments-#{entry.id}"}
-              >
-                Parcelas
-              </label>
-              <input
-                id={"finance-installments-#{entry.id}"}
-                name="finance[installments_count]"
-                type="number"
-                min="1"
-                max="120"
-                step="1"
-                value={entry.installments_count || 1}
-                class="input input-bordered w-full"
-              />
-              <p class="mt-1 text-[11px] text-base-content/62">
-                Usado quando o pagamento estiver em crédito.
-              </p>
-            </div>
-            <datalist id={finance_entry_category_datalist_id(entry.id, entry.kind)}>
-              <option
-                :for={category <- finance_category_options(entry.kind, @category_suggestions)}
-                value={category}
-              >
-                {category}
-              </option>
-            </datalist>
-            <div class="flex flex-wrap gap-2">
-              <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
-              <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_edit_finance">
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </article>
-      </div>
-    </section>
+              {category}
+            </option>
+          </datalist>
+          <div class="mt-1 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_edit_finance">
+              Cancelar
+            </button>
+            <button type="submit" class="btn btn-primary btn-sm">Salvar lançamento</button>
+          </div>
+        </form>
+      </section>
+    </div>
     """
   end
 
@@ -563,12 +710,36 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
     do: "badge badge-sm border-base-content/34 bg-base-100 text-base-content/92 font-semibold"
 
   defp finance_installments_badge_class,
-    do: "badge badge-sm border-base-content/34 bg-base-100 text-base-content/92 font-semibold"
+    do: "badge badge-sm border-secondary/62 bg-secondary/22 text-secondary font-semibold"
 
   defp show_installments_badge?(entry) do
     entry.kind == :expense and entry.payment_method == :credit and
       is_integer(entry.installments_count) and entry.installments_count > 1
   end
+
+  defp installments_badge_label(entry) do
+    "Parcela #{current_installment_number(entry)}/#{entry.installments_count}"
+  end
+
+  defp current_installment_number(entry) do
+    case entry.installment_number do
+      number when is_integer(number) and number > 0 -> number
+      _ -> 1
+    end
+  end
+
+  defp fixed_until_cancelled?(entry) do
+    entry.kind == :expense and entry.expense_profile in [:fixed, :recurring_fixed]
+  end
+
+  defp money_input_value(cents) when is_integer(cents) and cents >= 0 do
+    integer_part = cents |> div(100) |> Integer.to_string()
+    decimal_part = cents |> rem(100) |> Integer.to_string() |> String.pad_leading(2, "0")
+    integer_part <> "," <> decimal_part
+  end
+
+  defp money_input_value(cents) when is_integer(cents), do: Integer.to_string(cents)
+  defp money_input_value(_cents), do: ""
 
   defp finance_entry_category_datalist_id(entry_id, :income),
     do: "finance-entry-income-categories-#{entry_id}"

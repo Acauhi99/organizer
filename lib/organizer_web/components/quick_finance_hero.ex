@@ -99,7 +99,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
             placeholder="dd/mm/aaaa"
             inputmode="numeric"
             maxlength="10"
-            pattern="^\\d{2}/\\d{2}/\\d{4}$"
+            pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
           />
 
           <.input
@@ -133,16 +133,36 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
 
           <.input
             :if={@quick_finance_kind == "expense" && payment_credit?(@quick_finance_form)}
+            field={@quick_finance_form[:installment_number]}
+            id="quick-finance-installment-number"
+            type="number"
+            label="Parcela atual"
+            min="1"
+            max="120"
+            step="1"
+            required
+          />
+
+          <.input
+            :if={@quick_finance_kind == "expense" && payment_credit?(@quick_finance_form)}
             field={@quick_finance_form[:installments_count]}
             id="quick-finance-installments-count"
             type="number"
-            label="Parcelas"
+            label="Total de parcelas"
             min="1"
             max="120"
             step="1"
             required
           />
         </div>
+
+        <p
+          :if={@quick_finance_kind == "expense"}
+          id="quick-finance-fixed-guidance"
+          class="text-xs text-base-content/70"
+        >
+          Lançamentos com natureza fixa permanecem ativos no sistema até você cancelar ou excluir.
+        </p>
 
         <datalist id={category_datalist_id(@quick_finance_kind)}>
           <option

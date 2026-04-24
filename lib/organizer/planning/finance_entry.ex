@@ -18,6 +18,7 @@ defmodule Organizer.Planning.FinanceEntry do
           kind: kind() | nil,
           expense_profile: expense_profile() | nil,
           payment_method: payment_method() | nil,
+          installment_number: integer() | nil,
           installments_count: integer() | nil,
           amount_cents: integer() | nil,
           category: String.t() | nil,
@@ -36,6 +37,7 @@ defmodule Organizer.Planning.FinanceEntry do
     field :kind, Ecto.Enum, values: @kinds
     field :expense_profile, Ecto.Enum, values: @expense_profiles
     field :payment_method, Ecto.Enum, values: @payment_methods
+    field :installment_number, :integer
     field :installments_count, :integer
     field :amount_cents, :integer
     field :category, :string
@@ -60,6 +62,7 @@ defmodule Organizer.Planning.FinanceEntry do
     |> cast(attrs, [
       :kind,
       :payment_method,
+      :installment_number,
       :installments_count,
       :amount_cents,
       :category,
@@ -72,6 +75,7 @@ defmodule Organizer.Planning.FinanceEntry do
     |> cast_expense_profile(attrs)
     |> validate_required([:kind, :amount_cents, :category, :occurred_on])
     |> validate_number(:amount_cents, greater_than: 0, less_than_or_equal_to: 1_000_000_000)
+    |> validate_number(:installment_number, greater_than: 0, less_than_or_equal_to: 120)
     |> validate_number(:installments_count, greater_than: 0, less_than_or_equal_to: 120)
     |> validate_number(:shared_manual_mine_cents,
       greater_than_or_equal_to: 0,
@@ -99,16 +103,37 @@ defmodule Organizer.Planning.FinanceEntry do
 
       _ ->
         put_change(changeset, :installments_count, nil)
+        |> put_change(:installment_number, nil)
     end
   end
 
   defp validate_installments_for_payment_method(changeset) do
     case get_field(changeset, :payment_method) do
       :credit ->
-        validate_required(changeset, [:installments_count])
+        changeset
+        |> validate_required([:installments_count, :installment_number])
+        |> validate_installment_number_bounds()
 
       _ ->
-        put_change(changeset, :installments_count, nil)
+        changeset
+        |> put_change(:installments_count, nil)
+        |> put_change(:installment_number, nil)
+    end
+  end
+
+  defp validate_installment_number_bounds(changeset) do
+    installments_count = get_field(changeset, :installments_count)
+    installment_number = get_field(changeset, :installment_number)
+
+    if is_integer(installment_number) and is_integer(installments_count) and
+         installment_number > installments_count do
+      add_error(
+        changeset,
+        :installment_number,
+        "must be less than or equal to installments_count"
+      )
+    else
+      changeset
     end
   end
 end
