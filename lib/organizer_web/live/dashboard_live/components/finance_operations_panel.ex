@@ -508,13 +508,13 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   defp finance_amount_class(_), do: "text-sm font-semibold font-mono text-base-content"
 
   defp finance_kind_badge_class(:income),
-    do: "badge badge-sm border-success/40 bg-success/14 text-success-content"
+    do: "badge badge-sm border-success/60 bg-success/26 text-success font-semibold"
 
   defp finance_kind_badge_class(:expense),
-    do: "badge badge-sm border-error/40 bg-error/14 text-error-content"
+    do: "badge badge-sm border-error/62 bg-error/22 text-error font-semibold"
 
   defp finance_kind_badge_class(_),
-    do: "badge badge-sm border-base-content/25 bg-base-100 text-base-content/80"
+    do: "badge badge-sm border-base-content/34 bg-base-100 text-base-content/92 font-semibold"
 
   defp finance_kind_label(:income), do: "Receita"
   defp finance_kind_label(:expense), do: "Despesa"
@@ -531,19 +531,19 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   defp finance_profile_label(_), do: "Perfil"
 
   defp finance_profile_badge_class(:fixed),
-    do: "badge badge-sm border-info/45 bg-info/20 text-info-content"
+    do: "badge badge-sm border-info/60 bg-info/24 text-info font-semibold"
 
   defp finance_profile_badge_class(:variable),
-    do: "badge badge-sm border-warning/48 bg-warning/22 text-warning-content"
+    do: "badge badge-sm border-warning/66 bg-warning/30 text-warning-content font-semibold"
 
   defp finance_profile_badge_class(:recurring_fixed),
-    do: "badge badge-sm border-primary/46 bg-primary/22 text-primary-content"
+    do: "badge badge-sm border-primary/62 bg-primary/24 text-primary font-semibold"
 
   defp finance_profile_badge_class(:recurring_variable),
-    do: "badge badge-sm border-accent/52 bg-accent/24 text-accent-content"
+    do: "badge badge-sm border-accent/64 bg-accent/28 text-accent-content font-semibold"
 
   defp finance_profile_badge_class(_),
-    do: "badge badge-sm border-base-content/28 bg-base-100 text-base-content/86"
+    do: "badge badge-sm border-base-content/34 bg-base-100 text-base-content/92 font-semibold"
 
   defp finance_payment_label(:debit), do: "Débito"
   defp finance_payment_label(:credit), do: "Crédito"
@@ -554,16 +554,16 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   defp finance_payment_label(_), do: "Pagamento"
 
   defp finance_payment_badge_class(:debit),
-    do: "badge badge-sm border-success/46 bg-success/22 text-success-content"
+    do: "badge badge-sm border-success/60 bg-success/26 text-success font-semibold"
 
   defp finance_payment_badge_class(:credit),
-    do: "badge badge-sm border-error/46 bg-error/20 text-error-content"
+    do: "badge badge-sm border-error/62 bg-error/22 text-error font-semibold"
 
   defp finance_payment_badge_class(_),
-    do: "badge badge-sm border-base-content/28 bg-base-100 text-base-content/86"
+    do: "badge badge-sm border-base-content/34 bg-base-100 text-base-content/92 font-semibold"
 
   defp finance_installments_badge_class,
-    do: "badge badge-sm border-base-content/30 bg-base-100 text-base-content/86"
+    do: "badge badge-sm border-base-content/34 bg-base-100 text-base-content/92 font-semibold"
 
   defp show_installments_badge?(entry) do
     entry.kind == :expense and entry.payment_method == :credit and

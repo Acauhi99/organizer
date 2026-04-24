@@ -367,9 +367,9 @@ defmodule OrganizerWeb.DashboardLive.Components.TaskOperationsPanel do
                 class={[
                   "flex h-5 w-5 shrink-0 items-center justify-center rounded border transition",
                   item.checked &&
-                    "border-success/50 bg-success/20 text-success-content hover:border-success/60 hover:bg-success/28",
+                    "border-success/72 bg-success/34 text-success ring-1 ring-success/28 hover:border-success/82 hover:bg-success/40",
                   !item.checked &&
-                    "border-base-content/28 bg-transparent text-base-content/50 hover:border-base-content/40 hover:bg-base-content/6"
+                    "border-base-content/38 bg-base-100/88 text-base-content/70 hover:border-base-content/52 hover:bg-base-100"
                 ]}
                 aria-label={
                   if item.checked, do: "Desmarcar item da checklist", else: "Marcar item da checklist"
@@ -492,12 +492,13 @@ defmodule OrganizerWeb.DashboardLive.Components.TaskOperationsPanel do
           <div
             :if={task_linked_sync?(task)}
             id={"task-share-state-#{task.id}"}
-            class="mt-3 rounded-lg border border-success/24 bg-success/8 p-2.5"
+            class="mt-3 rounded-lg border border-success/34 bg-success/12 px-2.5 py-2"
           >
-            <p class="flex items-center gap-1.5 text-xs font-semibold text-success-content">
-              <.icon name="hero-link" class="size-3.5" /> Atrelada ao compartilhamento (sincronizado)
+            <p class="flex items-center gap-1.5 text-xs font-semibold leading-tight text-success">
+              <.icon name="hero-link" class="size-3.5 shrink-0 text-success" />
+              Atrelada ao compartilhamento (sincronizado)
             </p>
-            <p class="mt-1 text-[11px] text-base-content/70">
+            <p class="mt-0.5 text-[11px] leading-tight text-base-content/74">
               {task_share_link_name_by_id(@account_links, @current_user_id, task.shared_with_link_id)}
             </p>
           </div>

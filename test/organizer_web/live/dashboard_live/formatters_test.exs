@@ -73,22 +73,22 @@ defmodule OrganizerWeb.DashboardLive.FormattersTest do
   describe "balance_badge_class/1" do
     test "returns error badge class for negative cents" do
       assert Formatters.balance_badge_class(-100) ==
-               "border-error/40 bg-error/12 text-error-content"
+               "border-error/62 bg-error/24 text-error font-semibold"
     end
 
     test "returns success badge class for positive cents" do
       assert Formatters.balance_badge_class(100) ==
-               "border-success/40 bg-success/12 text-success-content"
+               "border-success/62 bg-success/28 text-success font-semibold"
     end
 
     test "returns info badge class for zero" do
       assert Formatters.balance_badge_class(0) ==
-               "border-info/40 bg-info/12 text-info-content"
+               "border-info/60 bg-info/24 text-info font-semibold"
     end
 
     test "returns info badge class for non-integer" do
       assert Formatters.balance_badge_class("invalid") ==
-               "border-info/40 bg-info/12 text-info-content"
+               "border-info/60 bg-info/24 text-info font-semibold"
     end
   end
 
@@ -209,9 +209,9 @@ defmodule OrganizerWeb.DashboardLive.FormattersTest do
       result = Formatters.balance_badge_class(n)
 
       cond do
-        n < 0 -> assert result == "border-error/40 bg-error/12 text-error-content"
-        n > 0 -> assert result == "border-success/40 bg-success/12 text-success-content"
-        true -> assert result == "border-info/40 bg-info/12 text-info-content"
+        n < 0 -> assert result == "border-error/62 bg-error/24 text-error font-semibold"
+        n > 0 -> assert result == "border-success/62 bg-success/28 text-success font-semibold"
+        true -> assert result == "border-info/60 bg-info/24 text-info font-semibold"
       end
     end
   end

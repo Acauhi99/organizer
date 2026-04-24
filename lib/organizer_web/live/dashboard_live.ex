@@ -1385,7 +1385,7 @@ defmodule OrganizerWeb.DashboardLive do
             {@description}
           </p>
         </div>
-        <div class="flex size-12 items-center justify-center rounded-2xl border border-primary/35 bg-primary/14 text-primary-content">
+        <div class="flex size-12 items-center justify-center rounded-2xl border border-primary/56 bg-primary/22 text-primary">
           <.icon name={@icon} class="size-6" />
         </div>
       </div>

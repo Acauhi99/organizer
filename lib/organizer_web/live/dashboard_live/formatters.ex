@@ -40,12 +40,12 @@ defmodule OrganizerWeb.DashboardLive.Formatters do
 
   @spec balance_badge_class(integer() | any()) :: String.t()
   def balance_badge_class(cents) when is_integer(cents) and cents < 0,
-    do: "border-error/40 bg-error/12 text-error-content"
+    do: "border-error/62 bg-error/24 text-error font-semibold"
 
   def balance_badge_class(cents) when is_integer(cents) and cents > 0,
-    do: "border-success/40 bg-success/12 text-success-content"
+    do: "border-success/62 bg-success/28 text-success font-semibold"
 
-  def balance_badge_class(_cents), do: "border-info/40 bg-info/12 text-info-content"
+  def balance_badge_class(_cents), do: "border-info/60 bg-info/24 text-info font-semibold"
 
   @spec balance_label(integer() | any()) :: String.t()
   def balance_label(cents) when is_integer(cents) and cents < 0, do: "negativo"
