@@ -285,8 +285,11 @@ defmodule OrganizerWeb.DashboardLive.Components.TaskOperationsPanel do
     <section id={@column_id} class={["rounded-xl border p-3", task_column_surface_class(@status)]}>
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0">
-          <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/75">
-            <.icon name={task_column_icon(@status)} class="size-3.5" />
+          <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/82">
+            <.icon
+              name={task_column_icon(@status)}
+              class={"size-3.5 #{task_column_icon_class(@status)}"}
+            />
             {@title}
           </p>
           <p class="mt-1 text-xs text-base-content/60">{@subtitle}</p>
@@ -886,22 +889,22 @@ defmodule OrganizerWeb.DashboardLive.Components.TaskOperationsPanel do
   defp task_status_label(_), do: "A fazer"
 
   defp task_priority_badge_class(:high),
-    do: "badge badge-sm border-error/40 bg-error/14 text-error-content"
+    do: "badge badge-sm border-error/65 bg-error/24 text-error font-semibold"
 
   defp task_priority_badge_class(:low),
-    do: "badge badge-sm border-success/40 bg-success/14 text-success-content"
+    do: "badge badge-sm border-success/65 bg-success/30 text-success font-semibold"
 
   defp task_priority_badge_class(_),
-    do: "badge badge-sm border-warning/40 bg-warning/14 text-warning-content"
+    do: "badge badge-sm border-warning/65 bg-warning/30 text-warning-content font-semibold"
 
   defp task_status_badge_class(:done),
-    do: "badge badge-sm border-success/40 bg-success/14 text-success-content"
+    do: "badge badge-sm border-success/65 bg-success/30 text-success font-semibold"
 
   defp task_status_badge_class(:in_progress),
-    do: "badge badge-sm border-info/40 bg-info/14 text-info-content"
+    do: "badge badge-sm border-info/65 bg-info/24 text-info font-semibold"
 
   defp task_status_badge_class(_),
-    do: "badge badge-sm border-base-content/25 bg-base-100 text-base-content/80"
+    do: "badge badge-sm border-base-content/34 bg-base-100 text-base-content/92 font-semibold"
 
   defp task_status_border_class(:done), do: "border-success/25"
   defp task_status_border_class(:in_progress), do: "border-info/25"
@@ -920,9 +923,9 @@ defmodule OrganizerWeb.DashboardLive.Components.TaskOperationsPanel do
 
   defp task_privacy_badge_class(task) do
     if task_linked_sync?(task) do
-      "badge badge-sm border-success/35 bg-success/14 text-success-content"
+      "badge badge-sm border-success/62 bg-success/28 text-success font-semibold"
     else
-      "badge badge-sm border-base-content/24 bg-base-100 text-base-content/78"
+      "badge badge-sm border-base-content/34 bg-base-100 text-base-content/92 font-semibold"
     end
   end
 
@@ -934,18 +937,22 @@ defmodule OrganizerWeb.DashboardLive.Components.TaskOperationsPanel do
   defp task_column_surface_class(:in_progress), do: "border-info/20 bg-info/6"
   defp task_column_surface_class(:done), do: "border-success/22 bg-success/7"
 
+  defp task_column_icon_class(:todo), do: "text-base-content/88"
+  defp task_column_icon_class(:in_progress), do: "text-info"
+  defp task_column_icon_class(:done), do: "text-success"
+
   defp task_column_icon(:todo), do: "hero-inbox-stack"
   defp task_column_icon(:in_progress), do: "hero-play-circle"
   defp task_column_icon(:done), do: "hero-check-badge"
 
   defp task_column_count_badge_class(:todo),
-    do: "badge badge-sm border-base-content/24 bg-base-100 text-base-content/80"
+    do: "badge badge-sm border-base-content/34 bg-base-100 text-base-content/92 font-semibold"
 
   defp task_column_count_badge_class(:in_progress),
-    do: "badge badge-sm border-info/35 bg-info/14 text-info-content"
+    do: "badge badge-sm border-info/65 bg-info/24 text-info font-semibold"
 
   defp task_column_count_badge_class(:done),
-    do: "badge badge-sm border-success/35 bg-success/14 text-success-content"
+    do: "badge badge-sm border-success/65 bg-success/30 text-success font-semibold"
 
   defp task_primary_action_status(:todo), do: "in_progress"
   defp task_primary_action_status(:in_progress), do: "done"

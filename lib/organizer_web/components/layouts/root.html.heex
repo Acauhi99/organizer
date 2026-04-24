@@ -7,71 +7,146 @@
     <.live_title default="Organizer" suffix="">
       {assigns[:page_title]}
     </.live_title>
-    <link phx-track-static rel="icon" type="image/svg+xml" href={~p"/favicon.svg"} />
-    <link phx-track-static rel="icon" type="image/x-icon" href={~p"/favicon.svg"} />
-    <link phx-track-static rel="shortcut icon" type="image/x-icon" href={~p"/favicon.svg"} />
+    <link phx-track-static rel="icon" type="image/x-icon" href={~p"/favicon.ico"} />
+    <link
+      phx-track-static
+      rel="icon"
+      type="image/png"
+      sizes="512x512"
+      href={~p"/images/organizer-favicon.png"}
+    />
+    <link
+      phx-track-static
+      rel="apple-touch-icon"
+      type="image/png"
+      href={~p"/images/organizer-favicon.png"}
+    />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
   </head>
   <body class="min-h-screen text-base-content">
-    <a
-      href="#main-content"
-      class="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-base-100 focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
-    >
-      Pular para o conteudo principal
-    </a>
+    <a href="#main-content" class="skip-link">Pular para o conteudo principal</a>
 
-    <nav
-      aria-label="Navegação da conta"
-      class={[
-        "site-nav relative z-20 border-b border-base-300/60 bg-base-100/70 backdrop-blur",
-        !@current_scope && "public-guest-nav"
-      ]}
-    >
-      <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-6 lg:px-8 2xl:max-w-[100rem]">
-        <.link href={~p"/"} class="inline-flex min-w-0 items-center gap-2.5">
-          <img src={~p"/images/organizer-logo.svg"} alt="Organizer" class="brand-mark h-8 w-8" />
-          <span class="brand-wordmark hidden text-xs font-semibold uppercase tracking-[0.2em] min-[360px]:inline">
-            Organizer
-          </span>
-        </.link>
+    <input id="mobile-sidebar-toggle" type="checkbox" class="sidebar-toggle-input" />
+    <input id="desktop-sidebar-toggle" type="checkbox" class="sidebar-toggle-input" />
 
-        <ul class={[
-          "menu nav-menu menu-horizontal flex-wrap justify-end gap-1 p-0",
-          !@current_scope && "public-guest-menu"
-        ]}>
-          <%= if @current_scope do %>
-            <li>
-              <.link href={~p"/finances"} class="top-nav-link">Finanças</.link>
-            </li>
-            <li>
-              <.link href={~p"/tasks"} class="top-nav-link">Tarefas</.link>
-            </li>
-            <li>
-              <.link href={~p"/account-links"} class="top-nav-link">Compartilhamentos</.link>
-            </li>
-            <li>
-              <.link href={~p"/users/settings"} class="top-nav-link">Configuração</.link>
-            </li>
-            <li>
-              <.link href={~p"/users/log-out"} method="delete" class="top-nav-link">Sair</.link>
-            </li>
-          <% else %>
-            <li>
-              <.link href={~p"/users/register"} class="top-nav-link public-guest-link">
-                Criar conta
+    <div class="app-layout">
+      <aside
+        aria-label="Navegação principal"
+        class={["app-sidebar", !@current_scope && "app-sidebar-guest"]}
+      >
+        <div class="app-sidebar-inner">
+          <header class="app-sidebar-head">
+            <.link href={~p"/"} class="app-brand-link">
+              <img
+                src={~p"/images/organizer-logo.png"}
+                alt="Organizer"
+                class="brand-mark app-brand-mark"
+              />
+              <span class="app-brand-wordmark">Organizer</span>
+            </.link>
+
+            <div class="app-sidebar-controls">
+              <label
+                for="desktop-sidebar-toggle"
+                class="app-sidebar-toggle hidden lg:inline-flex"
+                aria-label="Expandir ou recolher barra lateral"
+              >
+                <.icon name="hero-chevron-double-left" class="app-sidebar-toggle-icon size-4" />
+              </label>
+            </div>
+          </header>
+
+          <div :if={@current_scope} class="app-account-chip">
+            <span class="app-account-avatar" aria-hidden="true">
+              <.icon name="hero-user" class="size-4" />
+            </span>
+            <div class="app-account-copy">
+              <p class="app-account-title">Conta ativa</p>
+              <p class="app-account-email">Sessão autenticada</p>
+            </div>
+          </div>
+
+          <nav class="app-sidebar-nav" aria-label="Serviços do Organizer">
+            <ul>
+              <%= if @current_scope do %>
+                <li>
+                  <.link href={~p"/finances"} class="app-sidebar-link">
+                    <.icon name="hero-banknotes" class="size-5" />
+                    <span class="app-sidebar-label">Finanças</span>
+                  </.link>
+                </li>
+                <li>
+                  <.link href={~p"/tasks"} class="app-sidebar-link">
+                    <.icon name="hero-check-circle" class="size-5" />
+                    <span class="app-sidebar-label">Tarefas</span>
+                  </.link>
+                </li>
+                <li>
+                  <.link href={~p"/account-links"} class="app-sidebar-link">
+                    <.icon name="hero-link" class="size-5" />
+                    <span class="app-sidebar-label">Compartilhamentos</span>
+                  </.link>
+                </li>
+                <li>
+                  <.link href={~p"/users/settings"} class="app-sidebar-link">
+                    <.icon name="hero-cog-6-tooth" class="size-5" />
+                    <span class="app-sidebar-label">Configurações</span>
+                  </.link>
+                </li>
+              <% else %>
+                <li>
+                  <.link href={~p"/users/register"} class="app-sidebar-link">
+                    <.icon name="hero-user-plus" class="size-5" />
+                    <span class="app-sidebar-label">Criar conta</span>
+                  </.link>
+                </li>
+                <li>
+                  <.link href={~p"/users/log-in"} class="app-sidebar-link">
+                    <.icon name="hero-arrow-right-on-rectangle" class="size-5" />
+                    <span class="app-sidebar-label">Entrar</span>
+                  </.link>
+                </li>
+              <% end %>
+            </ul>
+
+            <div :if={@current_scope} class="app-sidebar-footer">
+              <.link
+                href={~p"/users/log-out"}
+                method="delete"
+                class="app-sidebar-link app-sidebar-link-danger"
+              >
+                <.icon name="hero-arrow-right-on-rectangle" class="size-5" />
+                <span class="app-sidebar-label">Sair</span>
               </.link>
-            </li>
-            <li>
-              <.link href={~p"/users/log-in"} class="top-nav-link public-guest-link">
-                Entrar
-              </.link>
-            </li>
-          <% end %>
-        </ul>
+            </div>
+          </nav>
+        </div>
+      </aside>
+
+      <div class="app-layout-main">
+        <header class="app-mobile-bar lg:hidden">
+          <label for="mobile-sidebar-toggle" class="app-mobile-menu-btn" aria-label="Abrir menu">
+            <.icon name="hero-bars-3" class="size-5" />
+            <span>Serviços</span>
+          </label>
+
+          <.link href={~p"/"} class="app-mobile-brand">
+            <img
+              src={~p"/images/organizer-logo.png"}
+              alt="Organizer"
+              class="h-8 w-12 rounded-md object-contain"
+            />
+            <span class="text-xs font-semibold uppercase tracking-[0.18em]">Organizer</span>
+          </.link>
+        </header>
+
+        {@inner_content}
       </div>
-    </nav>
-    {@inner_content}
+    </div>
+
+    <label for="mobile-sidebar-toggle" class="app-sidebar-overlay lg:hidden" aria-hidden="true">
+    </label>
   </body>
 </html>

@@ -1,7 +1,7 @@
 <Layouts.app flash={@flash} current_scope={assigns[:current_scope]} wide={true}>
   <section id="public-home" class="public-home mx-auto max-w-7xl space-y-8">
-    <header class="brand-hero-card rounded-3xl p-6 sm:p-8 lg:p-10">
-      <div class="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+    <header class="brand-hero-card public-home-hero rounded-[2rem] p-6 sm:p-8 lg:p-10">
+      <div class="grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-start lg:gap-8">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/64">
             Organizer
@@ -12,42 +12,77 @@
           <p class="mt-5 max-w-2xl text-base leading-7 text-base-content/78">
             Registre gastos sem atrito, acompanhe tarefas e feche acertos entre contas com contexto.
           </p>
+
           <div class="mt-7 flex flex-wrap gap-3">
             <.link href={~p"/users/register"} class="btn btn-primary">Criar conta</.link>
             <.link href={~p"/users/log-in"} class="btn btn-outline">Entrar</.link>
           </div>
+
+          <div class="mt-8 grid gap-3 sm:grid-cols-2">
+            <article class="micro-surface public-kpi rounded-2xl p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">
+                Fluxo integrado
+              </p>
+              <p class="mt-2 text-sm leading-6 text-base-content/78">
+                Finanças, tarefas e compartilhamento no mesmo painel de decisão.
+              </p>
+            </article>
+
+            <article class="micro-surface public-kpi rounded-2xl p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">
+                Clareza diária
+              </p>
+              <p class="mt-2 text-sm leading-6 text-base-content/78">
+                Visual limpo para acompanhar tendência, saldo e prioridades.
+              </p>
+            </article>
+
+            <article class="micro-surface public-kpi rounded-2xl p-4 sm:col-span-2">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">
+                Conexão segura
+              </p>
+              <p class="mt-2 text-sm leading-6 text-base-content/78">
+                Convites para compartilhar dados e registrar acertos sem fricção.
+              </p>
+            </article>
+          </div>
         </div>
 
-        <div class="grid gap-3">
-          <article class="micro-surface rounded-2xl p-4">
-            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
-              Finanças primeiro
-            </p>
-            <p class="mt-2 text-sm leading-6 text-base-content/78">
-              Lançamentos, categorias, saldo e gráficos com foco em clareza de decisão.
-            </p>
-          </article>
-          <article class="micro-surface rounded-2xl p-4">
-            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
-              Operação diária
-            </p>
-            <p class="mt-2 text-sm leading-6 text-base-content/78">
-              Tarefas, checklist e Time Box em uma área própria, sem competir com finanças.
-            </p>
-          </article>
-          <article class="micro-surface rounded-2xl p-4">
-            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
-              Colaboração
-            </p>
-            <p class="mt-2 text-sm leading-6 text-base-content/78">
-              Compartilhamentos por convite para dividir despesas, enxergar desequilíbrios e registrar acertos.
-            </p>
-          </article>
+        <div class="public-home-aside grid content-start gap-3">
+          <figure class="public-reference-frame rounded-[1.7rem] p-3">
+            <img
+              src={~p"/images/organizer-logo.png"}
+              alt="Logo do Organizer"
+              class="public-reference-image rounded-[1.2rem]"
+              loading="lazy"
+              decoding="async"
+            />
+          </figure>
+
+          <div class="grid gap-3 lg:grid-cols-2">
+            <article class="micro-surface h-full rounded-2xl p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
+                Identidade visual
+              </p>
+              <p class="mt-2 text-sm leading-6 text-base-content/78">
+                O símbolo Organizer agora guia toda a navegação e reforça o foco entre organização e colaboração.
+              </p>
+            </article>
+
+            <article class="micro-surface h-full rounded-2xl p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
+                Entrada simplificada
+              </p>
+              <p class="mt-2 text-sm leading-6 text-base-content/78">
+                Cadastro e login com a mesma identidade visual para dar continuidade ao fluxo de uso.
+              </p>
+            </article>
+          </div>
         </div>
       </div>
     </header>
 
-    <section class="grid gap-4 md:grid-cols-3">
+    <section class="public-feature-grid grid gap-4 md:grid-cols-3">
       <article class="surface-card rounded-2xl p-5">
         <.icon name="hero-banknotes" class="size-6 text-primary" />
         <h2 class="mt-4 text-base font-bold text-base-content">Finanças pessoais</h2>
@@ -85,21 +120,21 @@
         </div>
         <div class="grid gap-3 sm:grid-cols-3">
           <article class="micro-surface rounded-2xl p-4">
-            <span class="text-xs font-bold text-primary">01</span>
+            <span class="public-step-chip">01</span>
             <p class="mt-2 text-sm font-semibold text-base-content">Capture</p>
             <p class="mt-1 text-xs leading-5 text-base-content/68">
               Formulários rápidos para finanças e tarefas.
             </p>
           </article>
           <article class="micro-surface rounded-2xl p-4">
-            <span class="text-xs font-bold text-primary">02</span>
+            <span class="public-step-chip">02</span>
             <p class="mt-2 text-sm font-semibold text-base-content">Organize</p>
             <p class="mt-1 text-xs leading-5 text-base-content/68">
               Separe finanças, tarefas e compartilhamentos.
             </p>
           </article>
           <article class="micro-surface rounded-2xl p-4">
-            <span class="text-xs font-bold text-primary">03</span>
+            <span class="public-step-chip">03</span>
             <p class="mt-2 text-sm font-semibold text-base-content">Decida</p>
             <p class="mt-1 text-xs leading-5 text-base-content/68">
               Leia saldo, tendência, backlog e acertos.

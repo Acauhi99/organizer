@@ -72,12 +72,12 @@ defmodule OrganizerWeb.DashboardLive.Formatters do
   def burnout_level_label(_), do: "Baixo"
 
   @spec risk_badge_class(atom() | any()) :: String.t()
-  def risk_badge_class(:high), do: "border border-error/58 bg-error/24 text-error-content"
+  def risk_badge_class(:high), do: "border border-error/68 bg-error/24 text-error"
 
   def risk_badge_class(:medium),
-    do: "border border-warning/58 bg-warning/28 text-warning-content"
+    do: "border border-warning/66 bg-warning/30 text-warning-content"
 
-  def risk_badge_class(_), do: "border border-success/58 bg-success/26 text-success-content"
+  def risk_badge_class(_), do: "border border-success/68 bg-success/30 text-success"
 
   @spec finance_entry_meta_line(map()) :: String.t()
   def finance_entry_meta_line(entry) do

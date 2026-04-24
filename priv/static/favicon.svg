@@ -1,9 +1,0 @@
-<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img">
-  <title>Organizer</title>
-  <rect x="14" y="14" width="172" height="172" rx="38" fill="#f8fafc"/>
-  <rect x="14" y="14" width="172" height="172" rx="38" fill="none" stroke="#1e293b" stroke-width="8"/>
-  <path d="M54 126V82c0-8 6-14 14-14h64c8 0 14 6 14 14v44c0 8-6 14-14 14H68c-8 0-14-6-14-14Z" fill="#e0f2fe" stroke="#2563eb" stroke-width="8"/>
-  <path d="M72 104h18l13-22 20 42 13-20h12" fill="none" stroke="#0f766e" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="70" cy="72" r="13" fill="#2563eb"/>
-  <path d="M64 72l5 5 9-11" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
