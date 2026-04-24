@@ -11,8 +11,6 @@ defmodule Organizer.Accounts.UserPreferences do
       values: [:expanded, :focused, :minimal],
       default: :expanded
 
-    field :bulk_import_block_size_preference, :integer, default: 3
-
     belongs_to :user, Organizer.Accounts.User
 
     timestamps(type: :utc_datetime)
@@ -25,14 +23,9 @@ defmodule Organizer.Accounts.UserPreferences do
       :analytics_panel_default_visible,
       :operations_panel_default_visible,
       :onboarding_completed,
-      :preferred_layout_mode,
-      :bulk_import_block_size_preference
+      :preferred_layout_mode
     ])
     |> validate_required([:user_id])
     |> validate_inclusion(:preferred_layout_mode, [:expanded, :focused, :minimal])
-    |> validate_number(:bulk_import_block_size_preference,
-      greater_than: 0,
-      less_than_or_equal_to: 20
-    )
   end
 end

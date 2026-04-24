@@ -33,7 +33,7 @@ defmodule OrganizerWeb.Layouts do
 
   attr :wide, :boolean,
     default: false,
-    doc: "when true uses a wider content container for dashboard and analytics views"
+    doc: "when true uses a wider content container for logged-in operational views"
 
   slot :inner_block, required: true
 
@@ -49,14 +49,14 @@ defmodule OrganizerWeb.Layouts do
             Organizer
           </p>
           <p class="text-sm text-base-content/80">
-            Registro rápido por formulário e vínculo por link para compartilhar com contexto.
+            Finanças, tarefas e compartilhamentos em áreas claras para reduzir atrito.
           </p>
         </div>
 
         <div class="flex items-center gap-3">
           <%= if @current_scope do %>
-            <.link href={~p"/dashboard"} class="btn btn-outline btn-sm header-cta tracking-[0.02em]">
-              Painel
+            <.link href={~p"/finances"} class="btn btn-outline btn-sm header-cta tracking-[0.02em]">
+              Finanças
             </.link>
           <% else %>
             <.link

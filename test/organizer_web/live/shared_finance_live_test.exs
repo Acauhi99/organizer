@@ -85,6 +85,12 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       assert has_element?(view, "#recurring-variable-trend")
     end
 
+    test "renders shared finance charts", %{conn: conn, link: link} do
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      assert has_element?(view, "#shared-balance-chart")
+      assert has_element?(view, "#shared-trend-chart")
+    end
+
     test "shows shared entry in the stream after sharing", %{
       conn: conn,
       scope_a: scope_a,

@@ -89,7 +89,7 @@ defmodule Organizer.Planning.AnalyticsCache do
   @doc """
   Invalidate all cache entries for a user.
 
-  Called after mutations (create/update/delete of tasks, finances, goals)
+  Called after mutations (create/update/delete of tasks and finances)
   to ensure next get_analytics call recalculates fresh results.
   """
   def invalidate_for_user(scope) do
@@ -187,7 +187,7 @@ defmodule Organizer.Planning.AnalyticsCache do
   defp recalculate(scope, days, planned_capacity) do
     {:ok, tasks} = Planning.list_tasks(scope, %{days: days})
     # Note: finances are fetched but not used in current analytics calculations
-    # This ensures cache consistency across mutation types (task/finance/goal changes)
+    # This ensures cache consistency across mutation types (task/finance changes)
     {:ok, _finances} = Planning.list_finance_entries(scope, %{days: days})
 
     analytics = %{

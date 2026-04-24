@@ -4,11 +4,9 @@ defmodule OrganizerWeb.DashboardLive do
   alias Organizer.Planning
   alias Organizer.Planning.AmountParser
   alias Organizer.SharedFinance
-  alias OrganizerWeb.DashboardLive.{Filters, BulkImport, Insights}
+  alias OrganizerWeb.DashboardLive.{Filters, Insights}
 
   alias OrganizerWeb.DashboardLive.Components.{
-    AccountLinkPanel,
-    DashboardHeader,
     AnalyticsPanel,
     OperationsPanel
   }
@@ -17,9 +15,7 @@ defmodule OrganizerWeb.DashboardLive do
 
   @analytics_days_filters ["7", "15", "30", "90", "365"]
   @analytics_capacity_filters ["5", "10", "15", "20", "30"]
-  @bulk_template_keys ["mixed", "tasks", "finance"]
   @ops_tabs ["tasks", "finances"]
-  @max_bulk_payload_bytes 50_000
 
   @impl true
   def mount(_params, _session, socket) do
@@ -45,7 +41,15 @@ defmodule OrganizerWeb.DashboardLive do
     end
   end
 
-  use OrganizerWeb.DashboardLive.BulkEventHandlers
+  @impl true
+  def handle_params(_params, _uri, socket) do
+    live_action = socket.assigns.live_action || :finances
+
+    {:noreply,
+     socket
+     |> assign(:page_title, page_title(live_action))
+     |> maybe_set_route_ops_tab(live_action)}
+  end
 
   @impl true
   def handle_event("quick_finance_validate", %{"quick_finance" => attrs}, socket) do
@@ -84,7 +88,7 @@ defmodule OrganizerWeb.DashboardLive do
         flash_message =
           case share_result do
             :shared ->
-              "Lançamento registrado e compartilhado no vínculo."
+              "Lançamento registrado e compartilhado no compartilhamento."
 
             {:share_failed, reason} ->
               "Lançamento registrado, mas #{reason}."
@@ -447,25 +451,6 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   @impl true
-  def handle_event("load_example_to_bulk", %{"entity_type" => entity_type}, socket) do
-    example_text =
-      case entity_type do
-        "tasks" -> generate_task_example()
-        "finances" -> generate_finance_example()
-        _ -> generate_mixed_example()
-      end
-
-    {:noreply,
-     socket
-     |> assign(:bulk_payload_text, String.trim(example_text))
-     |> assign(:bulk_form, to_form(%{"payload" => String.trim(example_text)}, as: :bulk))
-     |> push_event("scroll-to-element", %{
-       selector: "#bulk-import-hero",
-       focus: "#bulk-payload-input"
-     })}
-  end
-
-  @impl true
   def handle_event("start_edit_task", %{"id" => id}, socket) do
     {:noreply,
      socket
@@ -556,22 +541,23 @@ defmodule OrganizerWeb.DashboardLive do
               {:noreply,
                socket
                |> assign(:ops_tab, "tasks")
-               |> put_flash(:info, "Tarefa atrelada ao vínculo em modo sincronizado.")
+               |> put_flash(:info, "Tarefa atrelada ao compartilhamento em modo sincronizado.")
                |> load_operation_collections()}
 
             {:error, :not_found} ->
-              {:noreply, put_flash(socket, :error, "Tarefa ou vínculo não encontrado.")}
+              {:noreply, put_flash(socket, :error, "Tarefa ou compartilhamento não encontrado.")}
 
             {:error, {:validation, details}} ->
               {:noreply, put_flash(socket, :error, task_share_validation_message(details))}
 
             _ ->
               {:noreply,
-               put_flash(socket, :error, "Não foi possível atrelar a tarefa ao vínculo.")}
+               put_flash(socket, :error, "Não foi possível atrelar a tarefa ao compartilhamento.")}
           end
 
         :error ->
-          {:noreply, put_flash(socket, :error, "Selecione um vínculo válido para compartilhar.")}
+          {:noreply,
+           put_flash(socket, :error, "Selecione um compartilhamento válido para compartilhar.")}
       end
     end
   end
@@ -766,9 +752,7 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   defp initialize_dashboard_state(socket, scope) do
-    top_categories = FieldSuggester.suggest_values("category", scope)
     {:ok, account_links} = SharedFinance.list_account_links(scope)
-    default_bulk_share_link_id = account_links |> List.first() |> then(&(&1 && &1.id))
 
     {:ok, user_preferences} = Organizer.Accounts.get_or_create_user_preferences(scope.user)
     {:ok, onboarding_progress} = Organizer.Accounts.get_or_create_onboarding_progress(scope.user)
@@ -776,10 +760,6 @@ defmodule OrganizerWeb.DashboardLive do
     onboarding_active =
       !user_preferences.onboarding_completed && !onboarding_progress.dismissed &&
         is_nil(onboarding_progress.completed_at)
-
-    {:ok, tasks} = Planning.list_tasks(scope, Filters.default_task_filters())
-    {:ok, finances} = Planning.list_finance_entries(scope, Filters.default_finance_filters())
-    has_any_imports = length(tasks) > 0 || length(finances) > 0
 
     socket
     |> assign(:current_scope, scope)
@@ -789,19 +769,6 @@ defmodule OrganizerWeb.DashboardLive do
       to_form(quick_finance_defaults("expense", account_links), as: :quick_finance)
     )
     |> assign(:quick_task_form, to_form(quick_task_defaults(), as: :quick_task))
-    |> assign(:bulk_form, to_form(%{"payload" => ""}, as: :bulk))
-    |> assign(:bulk_payload_text, "")
-    |> assign(:bulk_result, nil)
-    |> assign(:bulk_preview, nil)
-    |> assign(:bulk_strict_mode, false)
-    |> assign(:last_bulk_import, nil)
-    |> assign(:bulk_recent_payloads, [])
-    |> assign(:bulk_template_favorites, [])
-    |> assign(:bulk_import_block_size, 3)
-    |> assign(:bulk_import_block_index, 0)
-    |> assign(:bulk_top_categories, top_categories)
-    |> assign(:bulk_share_finances, false)
-    |> assign(:bulk_share_link_id, default_bulk_share_link_id)
     |> assign(:account_links, account_links)
     |> assign(:ops_tab, "tasks")
     |> assign(:task_filters, Filters.default_task_filters())
@@ -813,7 +780,6 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:task_details_modal_task, nil)
     |> assign(:onboarding_active, onboarding_active)
     |> assign(:onboarding_step, onboarding_progress.current_step)
-    |> assign(:has_any_imports, has_any_imports)
     |> assign(:help_menu_open, false)
     |> assign(:progress_chart, %{loading: true, chart_svg: nil})
     |> assign(:finance_trend_chart, %{loading: true, chart_svg: nil})
@@ -1189,7 +1155,7 @@ defmodule OrganizerWeb.DashboardLive do
           end
 
         :error ->
-          {:share_failed, "vínculo inválido para compartilhamento"}
+          {:share_failed, "compartilhamento inválido para compartilhamento"}
       end
     else
       :not_shared
@@ -1262,18 +1228,18 @@ defmodule OrganizerWeb.DashboardLive do
   defp task_share_validation_message(details) when is_map(details) do
     cond do
       Map.has_key?(details, :mode) ->
-        "Essa tarefa já está atrelada a um vínculo em modo sincronizado."
+        "Essa tarefa já está atrelada a um compartilhamento em modo sincronizado."
 
       Map.has_key?(details, :link_id) ->
-        "Selecione um vínculo válido para atrelar a tarefa."
+        "Selecione um compartilhamento válido para atrelar a tarefa."
 
       true ->
-        "Verifique os dados para atrelar a tarefa ao vínculo."
+        "Verifique os dados para atrelar a tarefa ao compartilhamento."
     end
   end
 
   defp task_share_validation_message(_details),
-    do: "Verifique os dados para atrelar a tarefa ao vínculo."
+    do: "Verifique os dados para atrelar a tarefa ao compartilhamento."
 
   defp string_key_map(attrs) do
     Enum.reduce(attrs, %{}, fn {key, value}, acc ->
@@ -1297,35 +1263,6 @@ defmodule OrganizerWeb.DashboardLive do
   defp default_quick_payment_method("income"), do: ""
   defp default_quick_payment_method(_kind), do: "debit"
 
-  # Example generators for empty state interactions
-
-  defp generate_task_example do
-    """
-    tarefa: Comprar mantimentos no supermercado
-    tarefa: Agendar consulta médica para check-up
-    tarefa: Revisar relatório mensal de vendas
-    tarefa: Organizar documentos fiscais
-    tarefa: Planejar reunião de equipe
-    """
-  end
-
-  defp generate_finance_example do
-    """
-    finança: -120.50 Supermercado - compras da semana
-    finança: 3500 Salário mensal
-    finança: -45 Transporte - combustível
-    finança: -89.90 Restaurante - almoço em família
-    finança: -250 Conta de luz
-    """
-  end
-
-  defp generate_mixed_example do
-    """
-    tarefa: Revisar documentação do projeto
-    finança: -50 Almoço executivo
-    """
-  end
-
   defp normalize_quick_task_priority(priority) do
     case to_string(priority) |> String.trim() do
       "low" -> "low"
@@ -1342,13 +1279,20 @@ defmodule OrganizerWeb.DashboardLive do
     end
   end
 
+  defp page_title(:finances), do: "Finanças"
+  defp page_title(:tasks), do: "Tarefas"
+  defp page_title(_), do: "Finanças"
+
+  defp maybe_set_route_ops_tab(socket, :finances), do: assign(socket, :ops_tab, "finances")
+  defp maybe_set_route_ops_tab(socket, :tasks), do: assign(socket, :ops_tab, "tasks")
+  defp maybe_set_route_ops_tab(socket, _live_action), do: socket
+
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
       <nav aria-label="Atalhos de navegação">
-        <a href="#quick-finance-hero" class="skip-link">Ir para lançamento rápido</a>
-        <a href="#bulk-import-hero" class="skip-link">Ir para importação em lote</a>
+        <a href="#quick-finance-hero" class="skip-link">Ir para finanças</a>
         <a href="#operations-panel" class="skip-link">Ir para operação diária</a>
         <a href="#analytics-panel" class="skip-link">Ir para visão analítica</a>
       </nav>
@@ -1419,81 +1363,104 @@ defmodule OrganizerWeb.DashboardLive do
       </div>
 
       <div
-        id="dashboard-keyboard-shortcuts"
+        id="module-keyboard-shortcuts"
         class="dashboard-shell flex flex-col gap-4 lg:gap-6"
         phx-window-keydown="global_shortcut"
       >
-        <DashboardHeader.dashboard_header
-          workload_capacity_snapshot={@workload_capacity_snapshot}
-          finance_summary={@finance_summary}
-          onboarding_completed={!@onboarding_active && @onboarding_step >= 6}
-          help_menu_open={@help_menu_open}
-        />
-
-        <AccountLinkPanel.account_link_panel
-          account_links={@account_links}
-          current_user_id={@current_scope.user.id}
-        />
-
-        <QuickFinanceHero.quick_finance_hero
-          quick_finance_form={@quick_finance_form}
-          quick_finance_kind={@quick_finance_kind}
-          account_links={@account_links}
-          current_user_id={@current_scope.user.id}
-        />
-
-        <QuickTaskHero.quick_task_hero quick_task_form={@quick_task_form} />
-
-        <div id="bulk-import-legacy" class="hidden" aria-hidden="true">
-          <OrganizerWeb.Components.BulkImportHero.bulk_import_hero
-            bulk_form={@bulk_form}
-            bulk_payload_text={@bulk_payload_text}
-            bulk_result={@bulk_result}
-            bulk_preview={@bulk_preview}
-            bulk_strict_mode={@bulk_strict_mode}
-            last_bulk_import={@last_bulk_import}
-            bulk_recent_payloads={@bulk_recent_payloads}
-            bulk_template_favorites={@bulk_template_favorites}
-            bulk_import_block_size={@bulk_import_block_size}
-            bulk_import_block_index={@bulk_import_block_index}
-            bulk_top_categories={@bulk_top_categories}
-            bulk_share_finances={@bulk_share_finances}
-            bulk_share_link_id={@bulk_share_link_id}
-            account_links={@account_links}
-            current_user_id={@current_scope.user.id}
-            onboarding_active={@onboarding_active}
-            onboarding_step={@onboarding_step}
-            has_any_imports={@has_any_imports}
-          />
-        </div>
-
-        <OperationsPanel.operations_panel
-          streams={@streams}
-          ops_tab={@ops_tab}
-          task_filters={@task_filters}
-          finance_filters={@finance_filters}
-          account_links={@account_links}
-          current_user_id={@current_scope.user.id}
-          editing_task_id={@editing_task_id}
-          editing_finance_id={@editing_finance_id}
-          task_details_modal_task={@task_details_modal_task}
-          ops_counts={@ops_counts}
-        />
-
-        <AnalyticsPanel.analytics_panel
-          analytics_filters={@analytics_filters}
-          insights_overview={@insights_overview}
-          workload_capacity_snapshot={@workload_capacity_snapshot}
-          progress_chart={@progress_chart}
-          finance_trend_chart={@finance_trend_chart}
-          finance_category_chart={@finance_category_chart}
-          task_priority_chart={@task_priority_chart}
-          finance_mix_chart={@finance_mix_chart}
-          analytics_highlights={@analytics_highlights}
-          ops_counts={@ops_counts}
-        />
+        <%= case @live_action || :finances do %>
+          <% :finances -> %>
+            <.module_hero
+              id="finances-page-hero"
+              eyebrow="Finanças pessoais"
+              title="Controle entradas, saídas e decisões do mês."
+              description="Registre lançamentos, revise o fluxo financeiro e acompanhe categorias antes de abrir o contexto compartilhado."
+              icon="hero-banknotes"
+            />
+            <QuickFinanceHero.quick_finance_hero
+              quick_finance_form={@quick_finance_form}
+              quick_finance_kind={@quick_finance_kind}
+              account_links={@account_links}
+              current_user_id={@current_scope.user.id}
+            />
+            <OperationsPanel.operations_panel
+              streams={@streams}
+              ops_tab="finances"
+              task_filters={@task_filters}
+              finance_filters={@finance_filters}
+              account_links={@account_links}
+              current_user_id={@current_scope.user.id}
+              editing_task_id={@editing_task_id}
+              editing_finance_id={@editing_finance_id}
+              task_details_modal_task={@task_details_modal_task}
+              ops_counts={@ops_counts}
+              mode="finances"
+            />
+            <AnalyticsPanel.analytics_panel
+              analytics_filters={@analytics_filters}
+              insights_overview={@insights_overview}
+              workload_capacity_snapshot={@workload_capacity_snapshot}
+              progress_chart={@progress_chart}
+              finance_trend_chart={@finance_trend_chart}
+              finance_category_chart={@finance_category_chart}
+              task_priority_chart={@task_priority_chart}
+              finance_mix_chart={@finance_mix_chart}
+              analytics_highlights={@analytics_highlights}
+              ops_counts={@ops_counts}
+            />
+          <% :tasks -> %>
+            <.module_hero
+              id="tasks-page-hero"
+              eyebrow="Tarefas"
+              title="Organize execução, checklist e foco em uma área só."
+              description="Acompanhe o kanban operacional, registre tarefas rápidas e use um único Time Box para manter cadência."
+              icon="hero-check-circle"
+            />
+            <QuickTaskHero.quick_task_hero quick_task_form={@quick_task_form} />
+            <OperationsPanel.operations_panel
+              streams={@streams}
+              ops_tab="tasks"
+              task_filters={@task_filters}
+              finance_filters={@finance_filters}
+              account_links={@account_links}
+              current_user_id={@current_scope.user.id}
+              editing_task_id={@editing_task_id}
+              editing_finance_id={@editing_finance_id}
+              task_details_modal_task={@task_details_modal_task}
+              ops_counts={@ops_counts}
+              mode="tasks"
+            />
+        <% end %>
       </div>
     </Layouts.app>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :eyebrow, :string, required: true
+  attr :title, :string, required: true
+  attr :description, :string, required: true
+  attr :icon, :string, required: true
+
+  defp module_hero(assigns) do
+    ~H"""
+    <header id={@id} class="surface-card rounded-2xl p-5 sm:p-6">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="max-w-3xl">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
+            {@eyebrow}
+          </p>
+          <h1 class="mt-2 text-2xl font-black text-base-content sm:text-3xl">
+            {@title}
+          </h1>
+          <p class="mt-2 text-sm leading-6 text-base-content/76">
+            {@description}
+          </p>
+        </div>
+        <div class="flex size-12 items-center justify-center rounded-2xl border border-primary/35 bg-primary/14 text-primary-content">
+          <.icon name={@icon} class="size-6" />
+        </div>
+      </div>
+    </header>
     """
   end
 end

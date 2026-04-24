@@ -9,25 +9,34 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
   describe "access" do
     test "redirects unauthenticated users", %{conn: conn} do
-      assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(conn, ~p"/dashboard")
+      assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(conn, ~p"/finances")
     end
 
     test "renders for authenticated users", %{conn: conn} do
       conn = log_in_user(conn, user_fixture())
 
-      assert {:ok, view, _html} = live(conn, ~p"/dashboard")
-      assert has_element?(view, "#account-link-panel")
+      assert {:ok, view, _html} = live(conn, ~p"/finances")
       assert has_element?(view, "#quick-finance-form")
-      assert has_element?(view, "#quick-task-form")
-      assert has_element?(view, "#quick-bulk")
-      assert has_element?(view, "#bulk-capture-form")
       assert has_element?(view, "#analytics-panel")
       assert has_element?(view, "#notification-permission-modal")
       assert has_element?(view, "#notification-permission-allow")
-      assert has_element?(view, "#task-timer-box")
-      assert has_element?(view, "#task-timer-start")
+      refute has_element?(view, "#task-timer-box")
       assert has_element?(view, "#chart-progress")
       assert has_element?(view, "#chart-finance-trend")
+    end
+
+    test "renders modular authenticated routes", %{conn: conn} do
+      conn = log_in_user(conn, user_fixture())
+
+      assert {:ok, finances, _html} = live(conn, ~p"/finances")
+      assert has_element?(finances, "#finances-page-hero")
+      assert has_element?(finances, "#quick-finance-form")
+      assert has_element?(finances, "#finance-filters")
+
+      assert {:ok, tasks, _html} = live(conn, ~p"/tasks")
+      assert has_element?(tasks, "#tasks-page-hero")
+      assert has_element?(tasks, "#quick-task-form")
+      assert has_element?(tasks, "#task-focus-timer")
     end
   end
 
@@ -41,14 +50,8 @@ defmodule OrganizerWeb.DashboardLiveTest do
       }
     end
 
-    test "renders copy/paste capture by default", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      assert has_element?(view, "#bulk-capture-form")
-    end
-
     test "creates expense through quick finance form", %{conn: conn, scope: scope} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       today = Date.to_iso8601(Date.utc_today())
 
       view
@@ -76,7 +79,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
     end
 
     test "shows quick finance sharing controls disabled when user has no links", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       assert has_element?(view, "#quick-finance-share-controls")
       assert has_element?(view, "#quick-finance-share-with-link[disabled]")
@@ -92,7 +95,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       {:ok, invite} = SharedFinance.create_invite(scope)
       {:ok, link} = SharedFinance.accept_invite(linked_scope, invite.token)
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       today = Date.to_iso8601(Date.utc_today())
 
       view
@@ -126,7 +129,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       {:ok, invite} = SharedFinance.create_invite(scope)
       {:ok, link} = SharedFinance.accept_invite(linked_scope, invite.token)
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       today = Date.to_iso8601(Date.utc_today())
 
       view
@@ -191,7 +194,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
     end
 
     test "applies quick preset for income", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       view
       |> element("#quick-preset-income-salary")
@@ -204,7 +207,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
     end
 
     test "creates task through quick task form", %{conn: conn, scope: scope} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
       today = Date.to_iso8601(Date.utc_today())
 
       view
@@ -229,7 +232,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
     end
 
     test "applies quick preset for shopping list task", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
 
       view
       |> element("#quick-task-preset-shopping-list")
@@ -241,285 +244,11 @@ defmodule OrganizerWeb.DashboardLiveTest do
              )
     end
 
-    test "imports mixed items through copy/paste mode", %{conn: conn, scope: scope} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-      today = Date.to_iso8601(Date.utc_today())
-
-      payload = """
-      tarefa: Comprar ração | data=#{today} | prioridade=alta
-      financeiro: tipo=despesa | natureza=fixa | pagamento=credito | valor=125,90 | categoria=pet | data=#{today}
-      """
-
-      view
-      |> form("#bulk-capture-form", %{"bulk" => %{"payload" => payload}})
-      |> render_submit()
-
-      assert has_element?(view, "#bulk-capture-result")
-
-      {:ok, tasks} = Planning.list_tasks(scope, %{})
-      {:ok, finances} = Planning.list_finance_entries(scope, %{})
-
-      assert Enum.any?(tasks, &(&1.title == "Comprar ração"))
-
-      assert Enum.any?(finances, fn entry ->
-               entry.category == "pet" and
-                 entry.amount_cents == 12_590 and
-                 entry.expense_profile == :fixed and
-                 entry.payment_method == :credit
-             end)
-    end
-
-    test "applies a quick template in copy/paste mode", %{conn: conn, scope: scope} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      view
-      |> element("#bulk-template-mixed")
-      |> render_click()
-
-      view
-      |> element("#bulk-capture-form")
-      |> render_submit()
-
-      {:ok, tasks} = Planning.list_tasks(scope, %{})
-      {:ok, finances} = Planning.list_finance_entries(scope, %{})
-
-      assert Enum.any?(tasks, &String.contains?(&1.title, "reunião com equipe"))
-      assert Enum.any?(finances, &(&1.kind == :expense and &1.category == "almoço"))
-    end
-
-    test "previews lines without creating records", %{conn: conn, scope: scope} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-      today = Date.to_iso8601(Date.utc_today())
-
-      {:ok, tasks_before} = Planning.list_tasks(scope, %{})
-
-      payload = """
-      tarefa: Task só preview | data=#{today} | prioridade=alta
-      inválido sem dois pontos
-      """
-
-      view
-      |> element("#bulk-capture-form")
-      |> render_submit(%{"bulk" => %{"payload" => payload}, "action" => "preview"})
-
-      assert has_element?(view, "#bulk-capture-preview")
-      refute has_element?(view, "#bulk-capture-result")
-
-      {:ok, tasks_after} = Planning.list_tasks(scope, %{})
-      assert length(tasks_after) == length(tasks_before)
-    end
-
-    test "applies guided fix to invalid preview line", %{conn: conn, scope: scope} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      {:ok, tasks_before} = Planning.list_tasks(scope, %{})
-
-      payload = """
-      tarefa Comprar leite
-      """
-
-      view
-      |> element("#bulk-capture-form")
-      |> render_submit(%{"bulk" => %{"payload" => payload}, "action" => "preview"})
-
-      assert has_element?(view, "#bulk-fix-line-1")
-
-      view
-      |> element("#bulk-fix-line-1")
-      |> render_click()
-
-      refute has_element?(view, "#bulk-fix-line-1")
-
-      view
-      |> form("#bulk-capture-form", %{"bulk" => %{"payload" => "tarefa: Comprar leite"}})
-      |> render_submit()
-
-      assert has_element?(view, "#bulk-capture-result")
-
-      {:ok, tasks_after} = Planning.list_tasks(scope, %{})
-      assert length(tasks_after) == length(tasks_before) + 1
-    end
-
-    test "applies all guided fixes in one action", %{conn: conn, scope: scope} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      {:ok, tasks_before} = Planning.list_tasks(scope, %{})
-
-      payload = """
-      tarefa Comprar leite
-      tarefa Pagar conta
-      """
-
-      view
-      |> element("#bulk-capture-form")
-      |> render_submit(%{"bulk" => %{"payload" => payload}, "action" => "preview"})
-
-      assert has_element?(view, "#bulk-fix-all-btn")
-
-      view
-      |> element("#bulk-fix-all-btn")
-      |> render_click()
-
-      refute has_element?(view, "#bulk-fix-all-btn")
-
-      view
-      |> form("#bulk-capture-form", %{
-        "bulk" => %{"payload" => "tarefa: Comprar leite\ntarefa: Pagar conta"}
-      })
-      |> render_submit()
-
-      assert has_element?(view, "#bulk-capture-result")
-
-      {:ok, tasks_after} = Planning.list_tasks(scope, %{})
-      assert length(tasks_after) == length(tasks_before) + 2
-    end
-
-    test "undoes the last bulk import", %{conn: conn, scope: scope} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-      today = Date.to_iso8601(Date.utc_today())
-
-      payload = """
-      tarefa: Item para desfazer | data=#{today} | prioridade=media
-      financeiro: tipo=despesa | valor=8900 | categoria=teste | data=#{today}
-      """
-
-      view
-      |> form("#bulk-capture-form", %{
-        "bulk" => %{"payload" => payload}
-      })
-      |> render_submit()
-
-      assert has_element?(view, "#bulk-undo-btn")
-
-      view
-      |> element("#bulk-undo-btn")
-      |> render_click()
-
-      refute has_element?(view, "#bulk-capture-result")
-      refute has_element?(view, "#bulk-capture-preview")
-
-      {:ok, tasks_after} = Planning.list_tasks(scope, %{})
-      assert Enum.all?(tasks_after, &(&1.title != "Item para desfazer"))
-    end
-
-    test "strict mode blocks import when there are invalid lines", %{conn: conn, scope: scope} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-      today = Date.to_iso8601(Date.utc_today())
-
-      {:ok, tasks_before} = Planning.list_tasks(scope, %{})
-
-      view
-      |> element("#bulk-strict-toggle")
-      |> render_click()
-
-      payload = """
-      tarefa: Item válido em estrito | data=#{today} | prioridade=alta
-      inválido sem dois pontos
-      """
-
-      view
-      |> form("#bulk-capture-form", %{"bulk" => %{"payload" => payload}})
-      |> render_submit()
-
-      assert has_element?(view, "#bulk-capture-preview")
-      refute has_element?(view, "#bulk-capture-result")
-
-      {:ok, tasks_after} = Planning.list_tasks(scope, %{})
-      assert length(tasks_after) == length(tasks_before)
-    end
-
-    test "normalizes tolerant date, amount and priority inputs", %{conn: conn, scope: scope} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      payload = """
-      tarefa: Ajustar parser | data=15-04-2026 | prioridade=urgente
-      financeiro: tipo=despesa | natureza=variavel | pagamento=debito | valor=R$ 1.234,56 | categoria=moradia | data=15/04/2026
-      """
-
-      view
-      |> form("#bulk-capture-form", %{"bulk" => %{"payload" => payload}})
-      |> render_submit()
-
-      {:ok, tasks} = Planning.list_tasks(scope, %{})
-      {:ok, finances} = Planning.list_finance_entries(scope, %{})
-
-      task = Enum.find(tasks, &(&1.title == "Ajustar parser"))
-      assert task
-      assert task.priority == :high
-      assert Date.to_iso8601(task.due_on) == "2026-04-15"
-
-      finance = Enum.find(finances, &(&1.category == "moradia" and &1.amount_cents == 123_456))
-      assert finance
-      assert Date.to_iso8601(finance.occurred_on) == "2026-04-15"
-      assert finance.expense_profile == :variable
-      assert finance.payment_method == :debit
-    end
-
-    test "manages template favorites and payload history", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      view
-      |> element("#bulk-template-fav-mixed")
-      |> render_click()
-
-      assert has_element?(view, "#bulk-template-fav-mixed span.hero-star-solid")
-
-      payload = "tarefa: Payload para histórico"
-
-      view
-      |> element("#bulk-capture-form")
-      |> render_submit(%{"bulk" => %{"payload" => payload}, "action" => "preview"})
-
-      assert has_element?(view, "#bulk-history")
-      assert has_element?(view, "[id^='bulk-history-load-']")
-
-      view
-      |> element("[id^='bulk-history-load-']")
-      |> render_click()
-
-      assert render(view) =~ payload
-    end
-
-    test "imports incrementally by block with diff preview", %{conn: conn, scope: scope} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      payload = """
-      tarefa: Bloco tarefa 1 | prioridade=alta
-      tarefa: Bloco tarefa 2 | prioridade=media
-      tarefa: Bloco tarefa 3 | prioridade=baixa
-      """
-
-      view
-      |> element("#bulk-capture-form")
-      |> render_submit(%{"bulk" => %{"payload" => payload}, "action" => "preview"})
-
-      assert has_element?(view, "#bulk-block-diff")
-
-      view
-      |> element("#bulk-block-size-2")
-      |> render_click()
-
-      view
-      |> element("#bulk-import-block-btn")
-      |> render_click()
-
-      {:ok, tasks_after_first} = Planning.list_tasks(scope, %{})
-      assert length(tasks_after_first) == 2
-      refute Enum.any?(tasks_after_first, &(&1.title == "Bloco tarefa 3"))
-
-      view
-      |> element("#bulk-import-block-btn")
-      |> render_click()
-
-      {:ok, tasks_after_second} = Planning.list_tasks(scope, %{})
-      assert length(tasks_after_second) == 3
-    end
-
     test "edits and deletes a task inline", %{conn: conn, scope: scope} do
       assert {:ok, task} =
                Planning.create_task(scope, %{"title" => "Task original", "priority" => "low"})
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
 
       view
       |> element("#task-edit-btn-#{task.id}")
@@ -557,7 +286,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
                  "notes" => "Primeira linha\nSegunda linha completa"
                })
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
 
       refute has_element?(view, "#task-details-modal")
 
@@ -593,7 +322,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
                  "notes" => notes
                })
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
 
       assert has_element?(
                view,
@@ -624,7 +353,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert {:ok, task} =
                Planning.create_task(scope, %{"title" => "Mover status", "priority" => "medium"})
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
 
       view
       |> element("#task-status-quick-btn-#{task.id}")
@@ -658,7 +387,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       assert {:ok, task} =
                Planning.create_task(scope, %{
-                 "title" => "Compartilhar no vínculo",
+                 "title" => "Compartilhar no compartilhamento",
                  "priority" => "high",
                  "notes" => "Validar com a outra conta"
                })
@@ -666,7 +395,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert {:ok, _check_item} =
                Planning.add_task_checklist_item(scope, task.id, %{"label" => "Primeira etapa"})
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
 
       view
       |> form("#task-share-form-#{task.id}", %{
@@ -681,7 +410,8 @@ defmodule OrganizerWeb.DashboardLiveTest do
       {:ok, linked_tasks} = Planning.list_tasks(linked_scope, %{"days" => "30"})
 
       assert Enum.any?(linked_tasks, fn linked_task ->
-               linked_task.title == "Compartilhar no vínculo" and linked_task.status == :todo and
+               linked_task.title == "Compartilhar no compartilhamento" and
+                 linked_task.status == :todo and
                  linked_task.notes =~ "Compartilhada por"
              end)
 
@@ -693,7 +423,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
         Planning.list_tasks(linked_scope, %{"days" => "30"})
 
       assert Enum.any?(linked_tasks_after_status_change, fn linked_task ->
-               linked_task.title == "Compartilhar no vínculo" and
+               linked_task.title == "Compartilhar no compartilhamento" and
                  linked_task.status == :in_progress
              end)
     end
@@ -710,7 +440,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
                  "priority" => "medium"
                })
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
 
       view
       |> form("#task-share-form-#{task.id}", %{
@@ -730,7 +460,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert {:ok, task} =
                Planning.create_task(scope, %{"title" => "Compras", "priority" => "medium"})
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
 
       view
       |> form("#task-checklist-add-form-#{task.id}", %{
@@ -783,7 +513,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
                  "occurred_on" => Date.to_iso8601(Date.utc_today())
                })
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       view
       |> element("#finance-edit-btn-#{entry.id}")
@@ -855,7 +585,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
                  "status" => "todo"
                })
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
 
       view
       |> form("#task-filters", %{"filters" => %{"status" => "done", "priority" => "high"}})
@@ -884,7 +614,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
                  "occurred_on" => old_date
                })
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       view
       |> form("#finance-filters", %{"filters" => %{"days" => "7"}})
@@ -894,26 +624,8 @@ defmodule OrganizerWeb.DashboardLiveTest do
       refute has_element?(view, "#finance-edit-btn-#{old_entry.id}")
     end
 
-    test "applies finance template for quick copy/paste capture", %{conn: conn, scope: scope} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-      {:ok, finance_entries_before} = Planning.list_finance_entries(scope, %{})
-
-      view
-      |> element("#bulk-template-finance")
-      |> render_click()
-
-      view
-      |> element("#bulk-capture-form")
-      |> render_submit()
-
-      {:ok, finance_entries} = Planning.list_finance_entries(scope, %{})
-      assert length(finance_entries) > length(finance_entries_before)
-      assert Enum.any?(finance_entries, &(&1.kind == :expense))
-      assert Enum.any?(finance_entries, &(&1.kind == :income))
-    end
-
     test "updates analytics filters through chips", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       assert has_element?(view, "#analytics-days-30.btn-primary")
       assert has_element?(view, "#analytics-capacity-10.btn-primary")
@@ -931,7 +643,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
     end
 
     test "does not render onboarding card", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       refute has_element?(view, "h2", "Configuração inicial em 2 passos")
     end
   end
@@ -943,12 +655,12 @@ defmodule OrganizerWeb.DashboardLiveTest do
     end
 
     test "analytics panel is visible by default", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       assert has_element?(view, "#analytics-panel")
     end
 
     test "operations panel is visible by default", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       assert has_element?(view, "#operations-panel")
     end
   end
@@ -961,12 +673,12 @@ defmodule OrganizerWeb.DashboardLiveTest do
     end
 
     test "onboarding overlay is shown for new users", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       assert has_element?(view, "#onboarding-overlay")
     end
 
     test "advances through all 6 onboarding steps", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       assert has_element?(view, "#onboarding-overlay")
 
@@ -982,7 +694,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
     end
 
     test "skip onboarding dismisses the overlay", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       assert has_element?(view, "#onboarding-overlay")
 
@@ -992,18 +704,18 @@ defmodule OrganizerWeb.DashboardLiveTest do
     end
 
     test "dismissed onboarding does not reappear after page reload", %{conn: conn, user: user} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       view |> element("#onboarding-skip-btn") |> render_click()
       refute has_element?(view, "#onboarding-overlay")
 
       # Reload (new session for same user)
-      {:ok, view2, _html} = live(log_in_user(conn, user), ~p"/dashboard")
+      {:ok, view2, _html} = live(log_in_user(conn, user), ~p"/finances")
       refute has_element?(view2, "#onboarding-overlay")
     end
 
     test "completed onboarding does not reappear after page reload", %{conn: conn, user: user} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       # Advance to last step and complete
       for _step <- 1..6 do
@@ -1012,22 +724,8 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       refute has_element?(view, "#onboarding-overlay")
 
-      {:ok, view2, _html} = live(log_in_user(conn, user), ~p"/dashboard")
+      {:ok, view2, _html} = live(log_in_user(conn, user), ~p"/finances")
       refute has_element?(view2, "#onboarding-overlay")
-    end
-
-    test "onboarding can be restarted from help menu", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      # Skip onboarding first
-      view |> element("#onboarding-skip-btn") |> render_click()
-      refute has_element?(view, "#onboarding-overlay")
-
-      # Open help menu and restart tutorial
-      view |> element("#help-menu-btn") |> render_click()
-      view |> element("#restart-tutorial-btn") |> render_click()
-
-      assert has_element?(view, "#onboarding-overlay")
     end
   end
 
@@ -1039,36 +737,29 @@ defmodule OrganizerWeb.DashboardLiveTest do
     end
 
     test "empty state for tasks is shown when user has no tasks", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
       assert has_element?(view, "#empty-state-tasks")
     end
 
     test "empty state for finances is shown when user has no finances", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       assert has_element?(view, "#empty-state-finances")
     end
 
-    test "empty state for account links is shown when user has no links", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-      assert has_element?(view, "#account-link-empty-state")
-      assert has_element?(view, "#account-link-create-btn")
-    end
-
     test "quick finance form is available for empty state users", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       assert has_element?(view, "#quick-finance-hero")
       assert has_element?(view, "#quick-finance-form")
-      assert has_element?(view, "#quick-task-form")
     end
 
-    test "empty state disappears after importing data", %{conn: conn, user: user} do
+    test "empty state disappears after creating data", %{conn: conn, user: user} do
       scope = user_scope_fixture(user)
 
       {:ok, _task} =
         Planning.create_task(scope, %{"title" => "Tarefa teste", "priority" => "low"})
 
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
 
       assert has_element?(view, "#tasks [id^='tasks-']")
     end
@@ -1081,27 +772,22 @@ defmodule OrganizerWeb.DashboardLiveTest do
     end
 
     test "dashboard layout grid is rendered", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-      assert has_element?(view, "#dashboard-keyboard-shortcuts")
-    end
-
-    test "bulk import hero is present", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-      assert has_element?(view, "#bulk-import-hero")
+      {:ok, view, _html} = live(conn, ~p"/finances")
+      assert has_element?(view, "#module-keyboard-shortcuts")
     end
 
     test "operations panel is present", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       assert has_element?(view, "#operations-panel")
     end
 
     test "analytics panel is present", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       assert has_element?(view, "#analytics-panel")
     end
 
     test "toggling analytics mobile expand event is handled", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       render_click(view, "set_analytics_days", %{"days" => "7"})
       assert has_element?(view, "#analytics-panel")
     end
@@ -1113,33 +799,23 @@ defmodule OrganizerWeb.DashboardLiveTest do
       %{conn: log_in_user(conn, user)}
     end
 
-    test "skip link to bulk import is present in DOM", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-      assert has_element?(view, "a.skip-link[href='#bulk-import-hero']")
-    end
-
     test "skip link to operations panel is present", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       assert has_element?(view, "a.skip-link[href='#operations-panel']")
     end
 
     test "skip link to analytics panel is present", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       assert has_element?(view, "a.skip-link[href='#analytics-panel']")
     end
 
     test "onboarding overlay has role dialog", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       assert has_element?(view, "#onboarding-overlay[role='dialog']")
     end
 
-    test "bulk import form is present and focusable", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-      assert has_element?(view, "#bulk-capture-form")
-    end
-
     test "Alt+B shortcut triggers focus scroll event", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       render_hook(view, "global_shortcut", %{"key" => "b", "altKey" => true})
 
@@ -1149,20 +825,12 @@ defmodule OrganizerWeb.DashboardLiveTest do
       })
     end
 
-    test "? shortcut opens help menu", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      render_hook(view, "global_shortcut", %{"key" => "?"})
-
-      assert has_element?(view, "#help-menu-dropdown:not(.hidden)")
-    end
-
     test "global shortcut ignores payload without key", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       render_hook(view, "global_shortcut", %{"altKey" => true})
 
-      assert has_element?(view, "#bulk-capture-form")
+      assert has_element?(view, "#quick-finance-form")
     end
   end
 
@@ -1172,16 +840,16 @@ defmodule OrganizerWeb.DashboardLiveTest do
       %{conn: log_in_user(conn, user), user: user}
     end
 
-    test "dashboard renders within 2 second budget", %{conn: conn} do
+    test "finances renders within 2 second budget", %{conn: conn} do
       {time_us, {:ok, _view, _html}} =
-        :timer.tc(fn -> live(conn, ~p"/dashboard") end)
+        :timer.tc(fn -> live(conn, ~p"/finances") end)
 
       time_ms = time_us / 1000
-      assert time_ms < 2000, "Dashboard took #{time_ms}ms to render (budget: 2000ms)"
+      assert time_ms < 2000, "Finances took #{time_ms}ms to render (budget: 2000ms)"
     end
 
     test "analytics filter change completes within 200ms budget", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       {time_us, _result} =
         :timer.tc(fn ->
@@ -1192,7 +860,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert time_ms < 200, "Analytics filter took #{time_ms}ms (budget: 200ms)"
     end
 
-    test "dashboard renders with large task list within budget", %{conn: conn, user: user} do
+    test "tasks renders with large task list within budget", %{conn: conn, user: user} do
       scope = user_scope_fixture(user)
 
       for i <- 1..55 do
@@ -1203,7 +871,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       end
 
       {time_us, {:ok, _view, _html}} =
-        :timer.tc(fn -> live(conn, ~p"/dashboard") end)
+        :timer.tc(fn -> live(conn, ~p"/tasks") end)
 
       time_ms = time_us / 1000
       assert time_ms < 2000, "Dashboard with 55 tasks took #{time_ms}ms (budget: 2000ms)"
@@ -1212,11 +880,11 @@ defmodule OrganizerWeb.DashboardLiveTest do
     test "async chart loading state is shown on initial render", %{conn: conn} do
       # Charts start in loading state and load asynchronously
       # We verify the chart containers are present (they may be loading or loaded)
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
       assert has_element?(view, "#analytics-panel")
     end
 
-    test "dashboard renders with large finance list within budget", %{conn: conn, user: user} do
+    test "finances renders with large finance list within budget", %{conn: conn, user: user} do
       scope = user_scope_fixture(user)
 
       for i <- 1..55 do
@@ -1229,7 +897,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
       end
 
       {time_us, {:ok, _view, _html}} =
-        :timer.tc(fn -> live(conn, ~p"/dashboard") end)
+        :timer.tc(fn -> live(conn, ~p"/finances") end)
 
       time_ms = time_us / 1000
       assert time_ms < 2000, "Dashboard with 55 finances took #{time_ms}ms (budget: 2000ms)"

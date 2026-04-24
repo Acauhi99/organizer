@@ -43,15 +43,16 @@
         ]}>
           <%= if @current_scope do %>
             <li>
-              <span class="identity-pill inline-block max-w-44 truncate rounded-full px-3 py-1 text-xs sm:max-w-64">
-                {@current_scope.user.email}
-              </span>
+              <.link href={~p"/finances"} class="top-nav-link">Finanças</.link>
             </li>
             <li>
-              <.link href={~p"/dashboard"} class="top-nav-link">Painel</.link>
+              <.link href={~p"/tasks"} class="top-nav-link">Tarefas</.link>
             </li>
             <li>
-              <.link href={~p"/users/settings"} class="top-nav-link">Configurações</.link>
+              <.link href={~p"/account-links"} class="top-nav-link">Compartilhamentos</.link>
+            </li>
+            <li>
+              <.link href={~p"/users/settings"} class="top-nav-link">Configuração</.link>
             </li>
             <li>
               <.link href={~p"/users/log-out"} method="delete" class="top-nav-link">Sair</.link>

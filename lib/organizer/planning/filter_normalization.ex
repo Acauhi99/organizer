@@ -55,10 +55,7 @@ defmodule Organizer.Planning.FilterNormalization do
           "media" => :medium,
           "média" => :medium,
           "alta" => :high,
-          "urgente" => :high,
-          "ativo" => :active,
-          "parado" => :paused,
-          "pausado" => :paused
+          "urgente" => :high
         }
 
         alias_result = Map.get(aliases, normalized)
@@ -133,10 +130,6 @@ defmodule Organizer.Planning.FilterNormalization do
       "media" => "medium",
       "alta" => "high",
       "urgente" => "high",
-      # Goal status aliases
-      "ativo" => "active",
-      "parado" => "paused",
-      "pausado" => "paused",
       # Finance kind aliases
       "receita" => "income",
       "entrada" => "income",

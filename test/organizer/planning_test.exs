@@ -340,16 +340,6 @@ defmodule Organizer.PlanningTest do
       assert {:error, {:validation, %{priority: ["is invalid"]}}} =
                Planning.list_tasks(scope, %{"priority" => "urgent"})
     end
-
-    test "returns validation error for invalid goal filters" do
-      scope = user_scope_fixture()
-
-      assert {:error, {:validation, %{status: ["is invalid"]}}} =
-               Planning.list_goals(scope, %{"status" => "archived"})
-
-      assert {:error, {:validation, %{horizon: ["is invalid"]}}} =
-               Planning.list_goals(scope, %{"horizon" => "immediate"})
-    end
   end
 
   describe "analytics overview" do
@@ -517,40 +507,6 @@ defmodule Organizer.PlanningTest do
       assert {:ok, _analytics_after} =
                Organizer.Planning.AnalyticsCache.get_analytics(scope,
                  days: 30,
-                 planned_capacity: 10
-               )
-    end
-
-    test "invalidates cache when goal is mutated" do
-      scope = user_scope_fixture()
-
-      # Create initial goal
-      assert {:ok, goal} =
-               Planning.create_goal(scope, %{
-                 "title" => "Goal para cache",
-                 "horizon" => "short",
-                 "status" => "active"
-               })
-
-      # Cache the analytics
-      assert {:ok, _analytics_before} =
-               Organizer.Planning.AnalyticsCache.get_analytics(scope,
-                 days: 14,
-                 planned_capacity: 10
-               )
-
-      # Update the goal (should invalidate cache)
-      assert {:ok, _updated} =
-               Planning.update_goal(scope, goal.id, %{
-                 "title" => "Goal para cache",
-                 "horizon" => "short",
-                 "status" => "paused"
-               })
-
-      # Cache should be invalidated
-      assert {:ok, _analytics_after} =
-               Organizer.Planning.AnalyticsCache.get_analytics(scope,
-                 days: 14,
                  planned_capacity: 10
                )
     end

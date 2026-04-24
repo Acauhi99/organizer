@@ -13,6 +13,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
   attr :editing_finance_id, :any, default: nil
   attr :task_details_modal_task, :any, default: nil
   attr :ops_counts, :map, required: true
+  attr :mode, :string, default: "all"
 
   def operations_panel(assigns) do
     ~H"""
@@ -24,7 +25,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
         <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/70">
           Operação diária
         </h2>
-        <div class="flex flex-wrap gap-2" aria-label="Abas operacionais">
+        <div :if={@mode == "all"} class="flex flex-wrap gap-2" aria-label="Abas operacionais">
           <button
             id="ops-tab-tasks"
             type="button"
@@ -53,102 +54,6 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
           </button>
         </div>
       </div>
-
-      <section
-        id="task-timer-box"
-        phx-hook="TaskTimerBox"
-        phx-update="ignore"
-        data-default-minutes="30"
-        data-complete-label="Tempo concluído"
-        class="mt-3 rounded-xl border border-base-content/12 bg-base-100/35 p-4"
-      >
-        <div class="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <h3 class="text-sm font-semibold uppercase tracking-wide text-base-content/72">
-              Time Box
-            </h3>
-            <p class="text-xs text-base-content/65">
-              Timer de foco para tarefa em execução.
-            </p>
-          </div>
-          <span
-            id="task-timer-status"
-            class="inline-flex items-center rounded-full border border-base-content/20 bg-base-100/80 px-2.5 py-1 text-xs font-semibold text-base-content/72"
-          >
-            Pronto
-          </span>
-        </div>
-
-        <div class="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_126px_110px_auto]">
-          <select
-            id="task-timer-task-select"
-            class="select select-bordered select-sm w-full"
-            aria-label="Selecionar tarefa para timer"
-          >
-            <option value="">Selecione uma tarefa em andamento</option>
-            <option :for={{_dom_id, task} <- @streams.tasks_in_progress} value={task.id}>
-              {task.title}
-            </option>
-          </select>
-
-          <select
-            id="task-timer-preset"
-            class="select select-bordered select-sm w-full"
-            aria-label="Preset de duração do timer"
-          >
-            <option value="15">15 min</option>
-            <option value="25">25 min</option>
-            <option value="30" selected>30 min</option>
-            <option value="45">45 min</option>
-            <option value="60">60 min</option>
-          </select>
-
-          <input
-            id="task-timer-minutes"
-            type="number"
-            value="30"
-            min="1"
-            max="720"
-            step="1"
-            inputmode="numeric"
-            class="input input-bordered input-sm w-full"
-            aria-label="Minutos customizados do timer"
-          />
-
-          <button
-            id="task-timer-apply"
-            type="button"
-            class="btn btn-soft btn-sm whitespace-nowrap"
-          >
-            Aplicar
-          </button>
-        </div>
-
-        <div class="mt-3 flex flex-wrap gap-2">
-          <button id="task-timer-start" type="button" class="btn btn-primary btn-sm">Iniciar</button>
-          <button id="task-timer-pause" type="button" class="btn btn-soft btn-sm">Pausar</button>
-          <button id="task-timer-reset" type="button" class="btn btn-ghost btn-sm">Resetar</button>
-        </div>
-
-        <div class="mt-3">
-          <p id="task-timer-remaining" class="text-sm font-semibold text-base-content/80">
-            Restante: 30:00
-          </p>
-
-          <div class="mt-2 h-2 overflow-hidden rounded-full bg-base-content/14">
-            <div
-              id="task-timer-progress"
-              class="h-full rounded-full bg-success transition-[width] duration-300 ease-out"
-              style="width: 0%;"
-            >
-            </div>
-          </div>
-
-          <p id="task-timer-feedback" class="mt-2 text-xs text-base-content/65">
-            Ative as notificações para ser avisado quando o timer terminar.
-          </p>
-        </div>
-      </section>
 
       <div id="operations-panel-content">
         <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -224,7 +129,8 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
         <div class="mt-3 space-y-4">
           <section class={[
             "rounded-xl border border-base-content/12 bg-base-100/35 p-4",
-            @ops_tab != "tasks" && "hidden"
+            @mode == "finances" && "hidden",
+            @mode == "all" && @ops_tab != "tasks" && "hidden"
           ]}>
             <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/70">
               Tarefas
@@ -429,7 +335,8 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
 
           <section class={[
             "rounded-xl border border-base-content/12 bg-base-100/35 p-4",
-            @ops_tab != "finances" && "hidden"
+            @mode == "tasks" && "hidden",
+            @mode == "all" && @ops_tab != "finances" && "hidden"
           ]}>
             <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/70">
               Financeiro
@@ -966,7 +873,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
             class="mt-3 rounded-lg border border-success/24 bg-success/8 p-2.5"
           >
             <p class="flex items-center gap-1.5 text-xs font-semibold text-success-content">
-              <.icon name="hero-link" class="size-3.5" /> Atrelada ao vínculo (sincronizado)
+              <.icon name="hero-link" class="size-3.5" /> Atrelada ao compartilhamento (sincronizado)
             </p>
             <p class="mt-1 text-[11px] text-base-content/70">
               {task_share_link_name_by_id(@account_links, @current_user_id, task.shared_with_link_id)}
@@ -1004,7 +911,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                 <.icon name="hero-lock-closed" class="size-3.5" /> Tarefa privada por padrão
               </span>
               <span class="text-[11px] text-base-content/65">
-                Marque para atrelar ao vínculo
+                Marque para atrelar ao compartilhamento
               </span>
             </label>
 
@@ -1015,7 +922,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                 class="select select-bordered select-xs min-w-56 flex-1"
               >
                 <option :if={Enum.empty?(@account_links)} value="">
-                  Sem vínculos ativos
+                  Sem compartilhamentos ativos
                 </option>
                 <option
                   :for={{label, value} <- task_share_link_options(@account_links, @current_user_id)}
@@ -1029,12 +936,12 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                 type="submit"
                 class="btn btn-soft btn-xs border-base-content/18"
               >
-                <.icon name="hero-link" class="size-3.5" /> Atrelar vínculo
+                <.icon name="hero-link" class="size-3.5" /> Atrelar compartilhamento
               </button>
             </div>
 
             <p :if={Enum.empty?(@account_links)} class="mt-2 text-[11px] text-base-content/65">
-              Crie um vínculo para permitir compartilhamento.
+              Crie um compartilhamento para permitir compartilhamento.
             </p>
           </form>
 
@@ -1483,18 +1390,19 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
           "conta vinculada"
       end
 
-    "Vínculo ##{link.id} • #{partner_email}"
+    "Compartilhamento ##{link.id} • #{partner_email}"
   end
 
   defp task_share_link_name_by_id(account_links, current_user_id, link_id)
        when is_integer(link_id) do
     case Enum.find(account_links, &(&1.id == link_id)) do
-      nil -> "Vínculo ##{link_id}"
+      nil -> "Compartilhamento ##{link_id}"
       link -> task_share_link_label(link, current_user_id)
     end
   end
 
-  defp task_share_link_name_by_id(_account_links, _current_user_id, _link_id), do: "Vínculo"
+  defp task_share_link_name_by_id(_account_links, _current_user_id, _link_id),
+    do: "Compartilhamento"
 
   defp task_focus_duration_presets, do: Enum.to_list(15..180//15)
 

@@ -32,7 +32,7 @@ defmodule OrganizerWeb.SettlementLive do
       _ ->
         {:ok,
          socket
-         |> put_flash(:error, "Vínculo não encontrado.")
+         |> put_flash(:error, "Compartilhamento não encontrado.")
          |> push_navigate(to: ~p"/account-links")}
     end
   end
@@ -161,7 +161,7 @@ defmodule OrganizerWeb.SettlementLive do
                 Acerto colaborativo
               </p>
               <h1 class="text-2xl font-black tracking-[-0.02em] text-base-content sm:text-3xl">
-                Acerto de contas do vínculo
+                Acerto de contas do compartilhamento
               </h1>
               <p class="max-w-2xl text-sm leading-6 text-base-content/78">
                 Registre transferências, valide saldo bilateral e finalize o ciclo com transparência.

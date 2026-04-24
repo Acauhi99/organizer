@@ -1,152 +1,112 @@
-<Layouts.flash_group flash={@flash} />
-
-<section class="public-home responsive-shell mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
-  <div class="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-    <article class="brand-hero-card public-home-hero rounded-[2rem] p-8 sm:p-10">
-      <div class="micro-surface inline-flex items-center gap-2 rounded-full px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-base-content/85">
-        <span class="public-pulse-dot" aria-hidden="true"></span> Plataforma unificada
-      </div>
-
-      <h1 class="mt-4 max-w-3xl text-4xl font-black leading-[1.05] text-base-content sm:text-5xl">
-        Importe texto em segundos, registre tarefas e gastos, e acompanhe tudo em um painel só.
-      </h1>
-
-      <p class="mt-5 max-w-2xl text-sm leading-7 text-base-content/80 sm:text-base">
-        O Organizer transforma linhas soltas em tarefas e lançamentos financeiros com pré-visualização, correção guiada e colaboração entre contas.
-      </p>
-
-      <div class="mt-8 flex flex-wrap gap-3">
-        <.link href={~p"/users/register"} class="btn btn-primary">Criar conta</.link>
-        <.link href={~p"/users/log-in"} class="btn btn-outline">Entrar</.link>
-      </div>
-
-      <div class="mt-8 grid gap-3 sm:grid-cols-3">
-        <div class="micro-surface public-kpi rounded-2xl px-4 py-3">
-          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">
-            Importação por texto
-          </p>
-          <p class="mt-1 text-sm text-base-content/82">
-            Cole linhas no formato <code class="font-mono text-[0.84rem]">tipo: conteúdo</code>
-            e valide antes de salvar.
-          </p>
-        </div>
-        <div class="micro-surface public-kpi rounded-2xl px-4 py-3">
-          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">
-            Vínculo por link
-          </p>
-          <p class="mt-1 text-sm text-base-content/82">
-            Convide outra conta com segurança para compartilhar despesas.
-          </p>
-        </div>
-        <div class="micro-surface public-kpi rounded-2xl px-4 py-3">
-          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">
-            Operação + analytics
-          </p>
-          <p class="mt-1 text-sm text-base-content/82">
-            Acompanhe execução diária, saldo e tendências no mesmo dashboard.
-          </p>
-        </div>
-      </div>
-    </article>
-
-    <article class="surface-card public-home-aside rounded-[2rem] p-6 sm:p-8">
-      <h2 class="text-lg font-bold text-base-content">Como funciona na prática</h2>
-
-      <div class="mt-5 space-y-3">
-        <article class="micro-surface rounded-2xl p-4">
-          <div class="flex items-start gap-3">
-            <span class="public-step-chip">01</span>
-            <div>
-              <h3 class="text-sm font-semibold text-base-content">
-                Cole, pré-visualize e importe
-              </h3>
-              <p class="mt-1 text-xs leading-6 text-base-content/78">
-                Revise validade por linha, aplique correções sugeridas e importe em bloco ou tudo.
-              </p>
-            </div>
-          </div>
-        </article>
-
-        <article class="micro-surface rounded-2xl p-4">
-          <div class="flex items-start gap-3">
-            <span class="public-step-chip">02</span>
-            <div>
-              <h3 class="text-sm font-semibold text-base-content">
-                Convide e compartilhe despesas
-              </h3>
-              <p class="mt-1 text-xs leading-6 text-base-content/78">
-                Conecte duas contas por convite para operar finanças compartilhadas no mesmo fluxo.
-              </p>
-            </div>
-          </div>
-        </article>
-
-        <article class="micro-surface rounded-2xl p-4">
-          <div class="flex items-start gap-3">
-            <span class="public-step-chip">03</span>
-            <div>
-              <h3 class="text-sm font-semibold text-base-content">Acompanhe painel e acertos</h3>
-              <p class="mt-1 text-xs leading-6 text-base-content/78">
-                Monitore operação, analytics e registre transferências para fechar ciclos do vínculo.
-              </p>
-            </div>
-          </div>
-        </article>
-      </div>
-
-      <div class="mt-6 rounded-xl border border-base-content/14 bg-base-100/50 p-4 text-xs leading-6 text-base-content/75">
-        Da captura rápida ao acerto colaborativo: menos fricção para lançar, mais clareza para decidir.
-      </div>
-    </article>
-  </div>
-
-  <div class="public-feature-grid mt-8 grid gap-4 md:grid-cols-3">
-    <article class="surface-card rounded-2xl p-5">
-      <div class="flex items-start gap-3">
-        <span class="public-icon-wrap">
-          <.icon name="hero-arrow-up-tray" class="size-4" />
-        </span>
+<Layouts.app flash={@flash} current_scope={assigns[:current_scope]} wide={true}>
+  <section id="public-home" class="public-home mx-auto max-w-7xl space-y-8">
+    <header class="brand-hero-card rounded-3xl p-6 sm:p-8 lg:p-10">
+      <div class="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
         <div>
-          <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/70">
-            Importação guiada
-          </h2>
-          <p class="mt-2 text-sm text-base-content/80">
-            Cole texto, valide por linha e importe tarefas e lançamentos com feedback imediato.
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/64">
+            Organizer
           </p>
+          <h1 class="mt-3 max-w-4xl text-4xl font-black leading-tight text-base-content sm:text-5xl">
+            Um cockpit para finanças, tarefas e decisões compartilhadas.
+          </h1>
+          <p class="mt-5 max-w-2xl text-base leading-7 text-base-content/78">
+            Registre gastos sem atrito, acompanhe tarefas e feche acertos entre contas com contexto.
+          </p>
+          <div class="mt-7 flex flex-wrap gap-3">
+            <.link href={~p"/users/register"} class="btn btn-primary">Criar conta</.link>
+            <.link href={~p"/users/log-in"} class="btn btn-outline">Entrar</.link>
+          </div>
         </div>
-      </div>
-    </article>
 
-    <article class="surface-card rounded-2xl p-5">
-      <div class="flex items-start gap-3">
-        <span class="public-icon-wrap">
-          <.icon name="hero-link" class="size-4" />
-        </span>
-        <div>
-          <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/70">
-            Finanças compartilhadas
-          </h2>
-          <p class="mt-2 text-sm text-base-content/80">
-            Convites por link para dividir despesas, acompanhar proporções e fechar acertos.
-          </p>
+        <div class="grid gap-3">
+          <article class="micro-surface rounded-2xl p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
+              Finanças primeiro
+            </p>
+            <p class="mt-2 text-sm leading-6 text-base-content/78">
+              Lançamentos, categorias, saldo e gráficos com foco em clareza de decisão.
+            </p>
+          </article>
+          <article class="micro-surface rounded-2xl p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
+              Operação diária
+            </p>
+            <p class="mt-2 text-sm leading-6 text-base-content/78">
+              Tarefas, checklist e Time Box em uma área própria, sem competir com finanças.
+            </p>
+          </article>
+          <article class="micro-surface rounded-2xl p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
+              Colaboração
+            </p>
+            <p class="mt-2 text-sm leading-6 text-base-content/78">
+              Compartilhamentos por convite para dividir despesas, enxergar desequilíbrios e registrar acertos.
+            </p>
+          </article>
         </div>
       </div>
-    </article>
+    </header>
 
-    <article class="surface-card rounded-2xl p-5">
-      <div class="flex items-start gap-3">
-        <span class="public-icon-wrap">
-          <.icon name="hero-chart-bar-square" class="size-4" />
-        </span>
+    <section class="grid gap-4 md:grid-cols-3">
+      <article class="surface-card rounded-2xl p-5">
+        <.icon name="hero-banknotes" class="size-6 text-primary" />
+        <h2 class="mt-4 text-base font-bold text-base-content">Finanças pessoais</h2>
+        <p class="mt-2 text-sm leading-6 text-base-content/74">
+          Registre renda e gastos, filtre por período e acompanhe categorias que mais pesam.
+        </p>
+      </article>
+
+      <article class="surface-card rounded-2xl p-5">
+        <.icon name="hero-check-circle" class="size-6 text-primary" />
+        <h2 class="mt-4 text-base font-bold text-base-content">Tarefas visíveis</h2>
+        <p class="mt-2 text-sm leading-6 text-base-content/74">
+          Kanban, prioridade, checklist e foco sem esconder a saúde financeira.
+        </p>
+      </article>
+
+      <article class="surface-card rounded-2xl p-5">
+        <.icon name="hero-link" class="size-6 text-primary" />
+        <h2 class="mt-4 text-base font-bold text-base-content">Contas vinculadas</h2>
+        <p class="mt-2 text-sm leading-6 text-base-content/74">
+          Compartilhe despesas e veja esperado vs realizado no compartilhamento.
+        </p>
+      </article>
+    </section>
+
+    <section class="surface-card rounded-3xl p-6 sm:p-8">
+      <div class="grid gap-6 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
         <div>
-          <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/70">
-            Indicadores acionáveis
-          </h2>
-          <p class="mt-2 text-sm text-base-content/80">
-            Burndown, saldo semanal e categorias de despesas para orientar decisões diárias.
+          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
+            Fluxo de uso
           </p>
+          <h2 class="mt-2 text-2xl font-black text-base-content">
+            Menos fricção para registrar. Mais clareza para decidir.
+          </h2>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-3">
+          <article class="micro-surface rounded-2xl p-4">
+            <span class="text-xs font-bold text-primary">01</span>
+            <p class="mt-2 text-sm font-semibold text-base-content">Capture</p>
+            <p class="mt-1 text-xs leading-5 text-base-content/68">
+              Formulários rápidos para finanças e tarefas.
+            </p>
+          </article>
+          <article class="micro-surface rounded-2xl p-4">
+            <span class="text-xs font-bold text-primary">02</span>
+            <p class="mt-2 text-sm font-semibold text-base-content">Organize</p>
+            <p class="mt-1 text-xs leading-5 text-base-content/68">
+              Separe finanças, tarefas e compartilhamentos.
+            </p>
+          </article>
+          <article class="micro-surface rounded-2xl p-4">
+            <span class="text-xs font-bold text-primary">03</span>
+            <p class="mt-2 text-sm font-semibold text-base-content">Decida</p>
+            <p class="mt-1 text-xs leading-5 text-base-content/68">
+              Leia saldo, tendência, backlog e acertos.
+            </p>
+          </article>
         </div>
       </div>
-    </article>
-  </div>
-</section>
+    </section>
+  </section>
+</Layouts.app>

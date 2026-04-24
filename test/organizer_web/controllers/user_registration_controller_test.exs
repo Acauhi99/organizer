@@ -15,7 +15,7 @@ defmodule OrganizerWeb.UserRegistrationControllerTest do
     test "redirects if already logged in", %{conn: conn} do
       conn = conn |> log_in_user(user_fixture()) |> get(~p"/users/register")
 
-      assert redirected_to(conn) == ~p"/dashboard"
+      assert redirected_to(conn) == ~p"/finances"
     end
 
     test "renders invite context when there is a pending account-link accept", %{conn: conn} do
@@ -26,7 +26,7 @@ defmodule OrganizerWeb.UserRegistrationControllerTest do
         |> html_response(200)
 
       assert html =~ "Crie sua conta para aceitar o convite"
-      assert html =~ "vínculo ativo"
+      assert html =~ "compartilhamento ativo"
     end
   end
 
@@ -46,7 +46,7 @@ defmodule OrganizerWeb.UserRegistrationControllerTest do
         })
 
       assert get_session(conn, :user_token)
-      assert redirected_to(conn) == ~p"/dashboard"
+      assert redirected_to(conn) == ~p"/finances"
 
       assert conn.assigns.flash["info"] =~
                "Conta criada com sucesso"

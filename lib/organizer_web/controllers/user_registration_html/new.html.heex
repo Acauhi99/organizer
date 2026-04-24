@@ -13,9 +13,9 @@
 
         <p class="hero-copy mt-4 max-w-xl text-sm leading-relaxed sm:text-base">
           <%= if @invite_pending? do %>
-            Depois do cadastro, vamos concluir automaticamente o vínculo entre as contas para liberar o espaço colaborativo de finanças.
+            Depois do cadastro, vamos concluir automaticamente o compartilhamento entre as contas para liberar o espaço colaborativo de finanças.
           <% else %>
-            Configure seu acesso e comece com importação por texto, formulários rápidos e compartilhamento financeiro por vínculo.
+            Configure seu acesso e comece com formulários rápidos, tarefas e compartilhamento financeiro por compartilhamento.
           <% end %>
         </p>
 
@@ -23,7 +23,7 @@
           :if={@invite_pending?}
           class="micro-surface mt-6 rounded-2xl p-4 text-sm text-base-content/80"
         >
-          Você está a um passo de entrar em um vínculo ativo com outra pessoa.
+          Você está a um passo de entrar em um compartilhamento ativo com outra pessoa.
         </div>
 
         <div class="mt-6 flex flex-wrap gap-2">
@@ -43,10 +43,10 @@
               </span>
               <div>
                 <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-                  Importação por texto
+                  Captura rápida
                 </p>
                 <p class="hero-meta-copy mt-1 text-xs">
-                  Cole linhas livres com prévia e validação antes de salvar.
+                  Registre finanças e tarefas sem atravessar fluxos longos.
                 </p>
               </div>
             </div>
@@ -75,7 +75,7 @@
               </span>
               <div>
                 <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-                  Painel integrado
+                  Operação integrada
                 </p>
                 <p class="hero-meta-copy mt-1 text-xs">
                   Tarefas, operação financeira e analytics no mesmo lugar desde o primeiro login.

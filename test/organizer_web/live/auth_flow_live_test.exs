@@ -7,7 +7,7 @@ defmodule OrganizerWeb.AuthFlowLiveTest do
   alias Organizer.Accounts
 
   describe "auth end-to-end" do
-    test "registers with password, reaches dashboard live, and logs out", %{conn: conn} do
+    test "registers with password, reaches finances live, and logs out", %{conn: conn} do
       email = unique_user_email()
       password = valid_user_password()
 
@@ -22,21 +22,21 @@ defmodule OrganizerWeb.AuthFlowLiveTest do
         })
 
       assert get_session(registration_conn, :user_token)
-      assert redirected_to(registration_conn) == ~p"/dashboard"
+      assert redirected_to(registration_conn) == ~p"/finances"
 
       user = Accounts.get_user_by_email(email)
       refute is_nil(user)
       assert user.confirmed_at
 
-      assert {:ok, _view, html} = live(recycle(registration_conn), ~p"/dashboard")
-      assert html =~ "Painel Diário"
+      assert {:ok, _view, html} = live(recycle(registration_conn), ~p"/finances")
+      assert html =~ "Finanças"
 
       logout_conn = delete(recycle(registration_conn), ~p"/users/log-out")
       assert redirected_to(logout_conn) == ~p"/"
       refute get_session(logout_conn, :user_token)
 
       assert {:error, {:redirect, %{to: "/users/log-in"}}} =
-               live(recycle(logout_conn), ~p"/dashboard")
+               live(recycle(logout_conn), ~p"/finances")
     end
 
     test "forces reauthentication and restores intended path", %{conn: conn} do
@@ -80,7 +80,7 @@ defmodule OrganizerWeb.AuthFlowLiveTest do
       assert html_response(login_conn, 200) =~ "E-mail ou senha inválidos"
 
       assert {:error, {:redirect, %{to: "/users/log-in"}}} =
-               live(recycle(login_conn), ~p"/dashboard")
+               live(recycle(login_conn), ~p"/finances")
     end
   end
 end

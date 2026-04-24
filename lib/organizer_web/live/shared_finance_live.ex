@@ -1,6 +1,7 @@
 defmodule OrganizerWeb.SharedFinanceLive do
   use OrganizerWeb, :live_view
 
+  alias Contex.{Dataset, Plot}
   alias Organizer.SharedFinance
 
   @shared_period_filters ["current_month", "last_3_months", "all"]
@@ -32,6 +33,8 @@ defmodule OrganizerWeb.SharedFinanceLive do
         |> assign(:selected_shared_period, selected_period)
         |> assign(:metrics, metrics)
         |> assign(:trend, trend)
+        |> assign(:shared_balance_chart, shared_balance_chart_svg(metrics))
+        |> assign(:shared_trend_chart, shared_trend_chart_svg(trend))
         |> assign(:shared_entries_count, length(views))
         |> assign(:page_title, "Finanças Compartilhadas")
         |> stream_configure(:shared_entries, dom_id: &"shared-entry-view-#{&1.entry.id}")
@@ -42,7 +45,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
       _ ->
         {:ok,
          socket
-         |> put_flash(:error, "Vínculo não encontrado.")
+         |> put_flash(:error, "Compartilhamento não encontrado.")
          |> push_navigate(to: ~p"/account-links")}
     end
   end
@@ -111,14 +114,14 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 Finanças compartilhadas
               </p>
               <h1 class="text-2xl font-black tracking-[-0.02em] text-base-content sm:text-3xl">
-                Visão conjunta do vínculo
+                Visão conjunta do compartilhamento
               </h1>
               <p class="max-w-2xl text-sm leading-6 text-base-content/78">
                 Monitore total compartilhado, proporção entre contas e tendência recorrente sem sair do fluxo colaborativo.
               </p>
             </div>
             <.link navigate={~p"/account-links"} class="btn btn-outline btn-sm sm:btn-md">
-              <.icon name="hero-arrow-left" class="size-4" /> Voltar para vínculos
+              <.icon name="hero-arrow-left" class="size-4" /> Voltar para compartilhamentos
             </.link>
           </div>
         </header>
@@ -202,6 +205,41 @@ defmodule OrganizerWeb.SharedFinanceLive do
             </article>
           </div>
 
+          <div class="mt-4 grid gap-3 xl:grid-cols-2">
+            <article
+              id="shared-balance-chart"
+              class="micro-surface min-h-[15rem] overflow-x-auto rounded-2xl p-4"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/70">
+                  Esperado vs realizado
+                </h3>
+                <span class="text-[0.68rem] text-base-content/60">percentual</span>
+              </div>
+              <div class="contex-plot mt-2">
+                {@shared_balance_chart}
+              </div>
+            </article>
+
+            <article
+              id="shared-trend-chart"
+              class="micro-surface min-h-[15rem] overflow-x-auto rounded-2xl p-4"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/70">
+                  Tendência compartilhada
+                </h3>
+                <span class="text-[0.68rem] text-base-content/60">6 meses</span>
+              </div>
+              <div :if={@trend != []} class="contex-plot mt-2">
+                {@shared_trend_chart}
+              </div>
+              <p :if={@trend == []} class="mt-8 text-sm text-base-content/62">
+                Sem recorrentes variáveis compartilhados para gerar tendência.
+              </p>
+            </article>
+          </div>
+
           <div
             :if={@metrics.imbalance_detected}
             id="imbalance-indicator"
@@ -228,7 +266,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
               id="shared-entries-empty-state"
               class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/72"
             >
-              Ainda não há lançamentos compartilhados neste vínculo.
+              Ainda não há lançamentos compartilhados neste compartilhamento.
             </div>
 
             <div
@@ -302,6 +340,8 @@ defmodule OrganizerWeb.SharedFinanceLive do
     socket
     |> assign(:metrics, metrics)
     |> assign(:trend, trend)
+    |> assign(:shared_balance_chart, shared_balance_chart_svg(metrics))
+    |> assign(:shared_trend_chart, shared_trend_chart_svg(trend))
     |> assign(:shared_entries_count, length(views))
     |> stream(:shared_entries, views, reset: true)
   end
@@ -371,6 +411,51 @@ defmodule OrganizerWeb.SharedFinanceLive do
   defp shared_period_label("current_month"), do: "Mês atual"
   defp shared_period_label("last_3_months"), do: "Últimos 3 meses"
   defp shared_period_label(_), do: "Tudo"
+
+  defp shared_balance_chart_svg(metrics) do
+    data = [
+      {"Você", metrics.expected_pct_a, metrics.effective_pct_a},
+      {"Outra conta", metrics.expected_pct_b, metrics.effective_pct_b}
+    ]
+
+    dataset = Dataset.new(data, ["conta", "esperado", "realizado"])
+
+    Plot.new(dataset, Contex.BarChart, 560, 260,
+      mapping: %{category_col: "conta", value_cols: ["esperado", "realizado"]},
+      type: :grouped,
+      data_labels: false,
+      title: "Divisão esperada x realizada"
+    )
+    |> Plot.plot_options(%{legend_setting: :legend_bottom})
+    |> Plot.to_svg()
+  end
+
+  defp shared_trend_chart_svg([]), do: nil
+
+  defp shared_trend_chart_svg(trend) do
+    data =
+      Enum.map(trend, fn mt ->
+        {"#{String.pad_leading(to_string(mt.month), 2, "0")}/#{mt.year}", mt.total_cents}
+      end)
+
+    dataset = Dataset.new(data, ["mês", "total"])
+
+    Plot.new(dataset, Contex.BarChart, 560, 260,
+      mapping: %{category_col: "mês", value_cols: ["total"]},
+      data_labels: false,
+      custom_value_formatter: &money_axis_formatter/1,
+      title: "Recorrentes variáveis compartilhados"
+    )
+    |> Plot.to_svg()
+  end
+
+  defp money_axis_formatter(value) when is_number(value) do
+    value
+    |> round()
+    |> format_cents()
+  end
+
+  defp money_axis_formatter(_), do: "R$ 0,00"
 
   @spec normalize_shared_period_filter(map()) :: String.t()
   defp normalize_shared_period_filter(params) do

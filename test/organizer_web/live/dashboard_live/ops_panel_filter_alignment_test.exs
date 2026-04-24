@@ -12,7 +12,7 @@ defmodule OrganizerWeb.DashboardLive.OpsPanelFilterAlignmentTest do
 
   describe "estado inicial dos period labels" do
     test "cards exibem labels corretos ao montar", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/tasks")
 
       assert has_element?(view, "#ops-card-tasks-open", "14d")
       assert has_element?(view, "#ops-card-tasks-total", "14d")
@@ -23,7 +23,7 @@ defmodule OrganizerWeb.DashboardLive.OpsPanelFilterAlignmentTest do
 
   describe "atualização dos labels por filtro" do
     test "filtro de tarefas atualiza apenas cards de tarefas", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       view
       |> form("#task-filters", %{"filters" => %{"days" => "7"}})
@@ -36,7 +36,7 @@ defmodule OrganizerWeb.DashboardLive.OpsPanelFilterAlignmentTest do
     end
 
     test "filtro de finanças atualiza apenas cards financeiros", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
+      {:ok, view, _html} = live(conn, ~p"/finances")
 
       view
       |> form("#finance-filters", %{"filters" => %{"days" => "90"}})
@@ -49,31 +49,9 @@ defmodule OrganizerWeb.DashboardLive.OpsPanelFilterAlignmentTest do
     end
   end
 
-  describe "navegação entre abas preserva labels" do
-    test "trocar entre tarefas e finanças mantém os períodos ativos", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/dashboard")
-
-      view
-      |> form("#task-filters", %{"filters" => %{"days" => "7"}})
-      |> render_change()
-
-      view
-      |> form("#finance-filters", %{"filters" => %{"days" => "90"}})
-      |> render_change()
-
-      view |> element("#ops-tab-finances") |> render_click()
-      view |> element("#ops-tab-tasks") |> render_click()
-
-      assert has_element?(view, "#ops-card-tasks-open", "7d")
-      assert has_element?(view, "#ops-card-tasks-total", "7d")
-      assert has_element?(view, "#ops-card-finances-total", "90d")
-      assert has_element?(view, "#ops-card-finances-balance", "90d")
-    end
-  end
-
   describe "aria-label dos cards" do
     test "cards têm aria-label descritivo", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/dashboard")
+      {:ok, _view, html} = live(conn, ~p"/finances")
 
       assert html =~ ~s(aria-label="Tarefas abertas nos últimos 14 dias")
       assert html =~ ~s(aria-label="Tarefas no filtro nos últimos 14 dias")
@@ -85,7 +63,7 @@ defmodule OrganizerWeb.DashboardLive.OpsPanelFilterAlignmentTest do
   describe "propriedades de consistência" do
     property "qualquer days válido de tarefas aparece no label de tarefas", %{conn: conn} do
       check all(days <- StreamData.member_of(["7", "14", "30"])) do
-        {:ok, view, _html} = live(conn, ~p"/dashboard")
+        {:ok, view, _html} = live(conn, ~p"/tasks")
 
         view
         |> form("#task-filters", %{"filters" => %{"days" => days}})
@@ -98,7 +76,7 @@ defmodule OrganizerWeb.DashboardLive.OpsPanelFilterAlignmentTest do
 
     property "qualquer days válido de finanças aparece nos labels financeiros", %{conn: conn} do
       check all(days <- StreamData.member_of(["7", "30", "90"])) do
-        {:ok, view, _html} = live(conn, ~p"/dashboard")
+        {:ok, view, _html} = live(conn, ~p"/finances")
 
         view
         |> form("#finance-filters", %{"filters" => %{"days" => days}})

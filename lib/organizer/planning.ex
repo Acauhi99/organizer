@@ -1,6 +1,6 @@
 defmodule Organizer.Planning do
   @moduledoc """
-  Context for day-to-day planning domains: tasks, finance, goals and schedule.
+  Context for day-to-day planning domains: tasks, finance and schedule.
   """
 
   import Ecto.Query, warn: false
@@ -11,7 +11,6 @@ defmodule Organizer.Planning do
   alias Organizer.Planning.FilterNormalization
   alias Organizer.Planning.FinanceEntry
   alias Organizer.Planning.FixedCost
-  alias Organizer.Planning.Goal
   alias Organizer.Planning.ImportantDate
   alias Organizer.Planning.Task
   alias Organizer.Planning.TaskChecklistItem
@@ -453,158 +452,6 @@ defmodule Organizer.Planning do
 
       {:ok, Map.put(summary, :balance_cents, summary.income_cents - summary.expense_cents)}
     end
-  end
-
-  def list_goals(%Scope{} = scope, params \\ %{}) do
-    with {:ok, user_id} <- scope_user_id(scope) do
-      status_filter = Map.get(params, "status") || Map.get(params, :status)
-      horizon_filter = Map.get(params, "horizon") || Map.get(params, :horizon)
-
-      days =
-        parse_positive_integer_or_default(Map.get(params, "days") || Map.get(params, :days), 365)
-
-      progress_min =
-        parse_non_negative_integer_or_default(
-          Map.get(params, "progress_min") || Map.get(params, :progress_min),
-          0
-        )
-
-      progress_max =
-        parse_non_negative_integer_or_default(
-          Map.get(params, "progress_max") || Map.get(params, :progress_max),
-          nil
-        )
-
-      query_text = Map.get(params, "q") || Map.get(params, :q) || ""
-
-      with {:ok, status_filter} <-
-             parse_enum_filter_value(status_filter, Goal.statuses(), :status),
-           {:ok, horizon_filter} <-
-             parse_enum_filter_value(horizon_filter, Goal.horizons(), :horizon) do
-        query =
-          from g in Goal,
-            where: g.user_id == ^user_id,
-            order_by: [asc: g.status, asc: g.horizon, asc: g.due_on]
-
-        query =
-          if is_atom(status_filter) and not is_nil(status_filter) do
-            from g in query, where: g.status == ^status_filter
-          else
-            query
-          end
-
-        query =
-          if is_atom(horizon_filter) and not is_nil(horizon_filter) do
-            from g in query, where: g.horizon == ^horizon_filter
-          else
-            query
-          end
-
-        # Filter by period (due_on)
-        query =
-          from g in query,
-            where: is_nil(g.due_on) or g.due_on <= ^Date.add(Date.utc_today(), days)
-
-        # Filter by text search
-        safe_query = query_text |> String.trim() |> String.slice(0, 100)
-
-        query =
-          if safe_query != "" do
-            search_pattern = "%#{safe_query}%"
-
-            from g in query,
-              where: ilike(g.title, ^search_pattern) or ilike(g.notes, ^search_pattern)
-          else
-            query
-          end
-
-        # Filter by progress range (defensively handle division by zero)
-        query =
-          if progress_min > 0 or is_integer(progress_max) do
-            from g in query,
-              where:
-                fragment(
-                  "CASE WHEN ? > 0 THEN CAST(? * 100.0 / ? AS INTEGER) ELSE 0 END >= ? AND (? IS NULL OR CAST(? * 100.0 / ? AS INTEGER) <= ?)",
-                  g.target_value,
-                  g.current_value,
-                  g.target_value,
-                  ^progress_min,
-                  ^progress_max,
-                  g.current_value,
-                  g.target_value,
-                  ^progress_max
-                )
-          else
-            query
-          end
-
-        {:ok, Repo.all(query)}
-      end
-    end
-  end
-
-  def create_goal(%Scope{} = scope, attrs) when is_map(attrs) do
-    result =
-      with {:ok, user_id} <- scope_user_id(scope),
-           {:ok, normalized} <- AttributeValidation.validate_goal_attrs(attrs) do
-        %Goal{user_id: user_id}
-        |> Goal.changeset(normalized)
-        |> persist_changeset()
-      end
-
-    with {:ok, _goal} <- result do
-      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
-    end
-
-    result
-  end
-
-  def get_goal(%Scope{} = scope, id) do
-    with {:ok, user_id} <- scope_user_id(scope),
-         %Goal{} = goal <- Repo.get_by(Goal, id: id, user_id: user_id) do
-      {:ok, goal}
-    else
-      nil -> {:error, :not_found}
-      {:error, _reason} = error -> error
-    end
-  end
-
-  def update_goal(%Scope{} = scope, id, attrs) when is_map(attrs) do
-    result =
-      with {:ok, user_id} <- scope_user_id(scope),
-           %Goal{} = goal <- Repo.get_by(Goal, id: id, user_id: user_id),
-           {:ok, normalized} <- AttributeValidation.validate_goal_attrs(attrs) do
-        goal
-        |> Goal.changeset(normalized)
-        |> persist_changeset()
-      else
-        nil -> {:error, :not_found}
-        {:error, _reason} = error -> error
-      end
-
-    with {:ok, _goal} <- result do
-      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
-    end
-
-    result
-  end
-
-  def delete_goal(%Scope{} = scope, id) do
-    result =
-      with {:ok, user_id} <- scope_user_id(scope),
-           %Goal{} = goal <- Repo.get_by(Goal, id: id, user_id: user_id),
-           {:ok, goal} <- Repo.delete(goal) do
-        {:ok, goal}
-      else
-        nil -> {:error, :not_found}
-        {:error, _reason} = error -> error
-      end
-
-    with {:ok, _goal} <- result do
-      Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
-    end
-
-    result
   end
 
   def list_important_dates(%Scope{} = scope, days \\ 30) do

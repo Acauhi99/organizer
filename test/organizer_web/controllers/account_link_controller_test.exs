@@ -31,7 +31,7 @@ defmodule OrganizerWeb.AccountLinkControllerTest do
       {:ok, [link]} = SharedFinance.list_account_links(acceptor_scope)
 
       assert redirected_to(conn) == ~p"/account-links/#{link.id}"
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Vínculo estabelecido"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Compartilhamento estabelecido"
     end
 
     test "shows error when invite is invalid", %{conn: conn} do

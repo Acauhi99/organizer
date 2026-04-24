@@ -20,7 +20,7 @@ defmodule OrganizerWeb.AccountLinkController do
     case SharedFinance.accept_invite(scope, token) do
       {:ok, link} ->
         conn
-        |> put_flash(:info, "Vínculo estabelecido com sucesso.")
+        |> put_flash(:info, "Compartilhamento estabelecido com sucesso.")
         |> redirect(to: ~p"/account-links/#{link.id}")
 
       {:error, :invite_invalid} ->
@@ -35,7 +35,7 @@ defmodule OrganizerWeb.AccountLinkController do
 
       {:error, :link_already_exists} ->
         conn
-        |> put_flash(:info, "Este vínculo já está ativo.")
+        |> put_flash(:info, "Este compartilhamento já está ativo.")
         |> redirect(to: ~p"/account-links")
     end
   end

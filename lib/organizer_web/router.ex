@@ -31,7 +31,8 @@ defmodule OrganizerWeb.Router do
     pipe_through :browser
 
     live_session :authenticated, on_mount: {OrganizerWeb.UserAuth, :authenticated} do
-      live "/dashboard", DashboardLive
+      live "/finances", DashboardLive, :finances
+      live "/tasks", DashboardLive, :tasks
       live "/account-links", AccountLinkLive, :index
       live "/account-links/invite", AccountLinkLive, :new_invite
       live "/account-links/:link_id", SharedFinanceLive, :show
@@ -53,12 +54,6 @@ defmodule OrganizerWeb.Router do
     get "/finance-entries/:id", FinanceEntryController, :show
     put "/finance-entries/:id", FinanceEntryController, :update
     delete "/finance-entries/:id", FinanceEntryController, :delete
-
-    get "/goals", GoalController, :index
-    post "/goals", GoalController, :create
-    get "/goals/:id", GoalController, :show
-    put "/goals/:id", GoalController, :update
-    delete "/goals/:id", GoalController, :delete
 
     get "/fixed-costs", FixedCostController, :index
     post "/fixed-costs", FixedCostController, :create
@@ -90,7 +85,7 @@ defmodule OrganizerWeb.Router do
     scope "/dev" do
       pipe_through :browser
 
-      live_dashboard "/dashboard", metrics: OrganizerWeb.Telemetry
+      live_dashboard "/finances", metrics: OrganizerWeb.Telemetry
     end
   end
 

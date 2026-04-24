@@ -34,19 +34,6 @@ defmodule OrganizerWeb.DashboardLive.FiltersTest do
     end
   end
 
-  describe "default_goal_filters/0" do
-    test "returns expected map" do
-      assert Filters.default_goal_filters() == %{
-               status: "all",
-               horizon: "all",
-               days: "365",
-               progress_min: "",
-               progress_max: "",
-               q: ""
-             }
-    end
-  end
-
   describe "default_analytics_filters/0" do
     test "returns expected map" do
       assert Filters.default_analytics_filters() == %{
@@ -126,38 +113,6 @@ defmodule OrganizerWeb.DashboardLive.FiltersTest do
 
     test "returns empty map for empty input" do
       assert Filters.normalize_finance_filters(%{}) == %{}
-    end
-  end
-
-  describe "normalize_goal_filters/1" do
-    test "keeps present string-keyed values" do
-      result =
-        Filters.normalize_goal_filters(%{
-          "status" => "active",
-          "horizon" => "short",
-          "days" => "30",
-          "progress_min" => "10",
-          "progress_max" => "90",
-          "q" => "health"
-        })
-
-      assert result == %{
-               status: "active",
-               horizon: "short",
-               days: "30",
-               progress_min: "10",
-               progress_max: "90",
-               q: "health"
-             }
-    end
-
-    test "drops nil and empty string values" do
-      result = Filters.normalize_goal_filters(%{"status" => "all", "q" => nil})
-      assert result == %{status: "all"}
-    end
-
-    test "returns empty map for empty input" do
-      assert Filters.normalize_goal_filters(%{}) == %{}
     end
   end
 
@@ -315,46 +270,6 @@ defmodule OrganizerWeb.DashboardLive.FiltersTest do
     test "resets non-numeric min_amount_cents to empty string" do
       result = Filters.sanitize_finance_filters(%{min_amount_cents: "abc"})
       assert result.min_amount_cents == ""
-    end
-  end
-
-  # ---------------------------------------------------------------------------
-  # sanitize_goal_filters/1
-  # ---------------------------------------------------------------------------
-
-  describe "sanitize_goal_filters/1" do
-    test "keeps valid status values" do
-      for status <- ["all", "active", "paused", "done"] do
-        result = Filters.sanitize_goal_filters(%{status: status})
-        assert result.status == status
-      end
-    end
-
-    test "resets invalid status to 'all'" do
-      result = Filters.sanitize_goal_filters(%{status: "archived"})
-      assert result.status == "all"
-    end
-
-    test "keeps valid horizon values" do
-      for horizon <- ["all", "short", "medium", "long"] do
-        result = Filters.sanitize_goal_filters(%{horizon: horizon})
-        assert result.horizon == horizon
-      end
-    end
-
-    test "resets invalid horizon to 'all'" do
-      result = Filters.sanitize_goal_filters(%{horizon: "forever"})
-      assert result.horizon == "all"
-    end
-
-    test "uses defaults when keys are absent" do
-      result = Filters.sanitize_goal_filters(%{})
-      assert result.status == "all"
-      assert result.horizon == "all"
-      assert result.days == "365"
-      assert result.progress_min == ""
-      assert result.progress_max == ""
-      assert result.q == ""
     end
   end
 

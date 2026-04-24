@@ -8,8 +8,6 @@ defmodule Organizer.Planning.AttributeValidation do
   @finance_kinds ~w(income expense)
   @finance_expense_profiles ~w(fixed variable recurring_fixed recurring_variable)
   @finance_payment_methods ~w(credit debit)
-  @goal_horizons ~w(short medium long)
-  @goal_statuses ~w(active paused done)
   @important_date_categories ~w(personal finance work)
 
   def validate_task_attrs(attrs) when is_map(attrs) do
@@ -54,36 +52,6 @@ defmodule Organizer.Planning.AttributeValidation do
       category: category,
       description: description,
       occurred_on: occurred_on
-    })
-  end
-
-  def validate_goal_attrs(attrs) when is_map(attrs) do
-    attrs = normalize_keys(attrs)
-
-    {title, errors} = validate_required_string(attrs, :title, 3, 140, %{})
-    {horizon, errors} = validate_enum(attrs, :horizon, @goal_horizons, nil, errors)
-    {status, errors} = validate_enum(attrs, :status, @goal_statuses, "active", errors)
-    {target_value, errors} = validate_optional_positive_int(attrs, :target_value, errors)
-    {current_value, errors} = validate_non_negative_int(attrs, :current_value, 0, errors)
-
-    errors =
-      if is_integer(current_value) and is_integer(target_value) and current_value > target_value do
-        add_error(errors, :current_value, "must be less than or equal to target_value")
-      else
-        errors
-      end
-
-    {due_on, errors} = validate_optional_date(attrs, :due_on, errors)
-    {notes, errors} = validate_optional_string(attrs, :notes, 500, errors)
-
-    build_result(errors, %{
-      title: title,
-      horizon: safe_existing_atom(horizon),
-      status: safe_existing_atom(status),
-      target_value: target_value,
-      current_value: current_value,
-      due_on: due_on,
-      notes: notes
     })
   end
 
@@ -309,40 +277,6 @@ defmodule Organizer.Planning.AttributeValidation do
 
       :error ->
         {nil, add_error(errors, field, "must be an integer")}
-    end
-  end
-
-  defp validate_optional_positive_int(attrs, field, errors) do
-    case Map.get(attrs, field) do
-      nil ->
-        {nil, errors}
-
-      "" ->
-        {nil, errors}
-
-      value ->
-        case parse_int(value) do
-          {:ok, number} when number > 0 -> {number, errors}
-          {:ok, _number} -> {nil, add_error(errors, field, "must be greater than zero")}
-          :error -> {nil, add_error(errors, field, "must be an integer")}
-        end
-    end
-  end
-
-  defp validate_non_negative_int(attrs, field, default, errors) do
-    case Map.get(attrs, field, default) do
-      nil ->
-        {default, errors}
-
-      "" ->
-        {default, errors}
-
-      value ->
-        case parse_int(value) do
-          {:ok, number} when number >= 0 -> {number, errors}
-          {:ok, _number} -> {default, add_error(errors, field, "must be zero or positive")}
-          :error -> {default, add_error(errors, field, "must be an integer")}
-        end
     end
   end
 

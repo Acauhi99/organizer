@@ -14,12 +14,10 @@ defmodule Organizer.Application do
        repos: Application.fetch_env!(:organizer, :ecto_repos), skip: skip_migrations?()},
       {DNSCluster, query: Application.get_env(:organizer, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Organizer.PubSub},
-      # Task supervisor for async work (email delivery, bulk imports, etc.)
+      # Task supervisor for async work (email delivery, etc.)
       {Task.Supervisor, name: Organizer.TaskSupervisor},
       # Analytics cache: GenServer + ETS for read-through caching
       {Organizer.Planning.AnalyticsCache, []},
-      # Field suggester: GenServer + ETS for frequency-based field value suggestions
-      {Organizer.Planning.FieldSuggester, []},
       # Start a worker by calling: Organizer.Worker.start_link(arg)
       # {Organizer.Worker, arg},
       # Start to serve requests, typically the last entry

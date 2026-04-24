@@ -13,7 +13,7 @@ defmodule OrganizerWeb.UserSessionControllerTest do
       response = html_response(conn, 200)
       assert response =~ "Entrar"
       assert response =~ ~p"/users/register"
-      assert response =~ "importação por texto, formulários rápidos e vínculos por convite"
+      assert response =~ "formulários rápidos e compartilhamentos por convite"
     end
 
     test "renders login page with email filled in (sudo mode)", %{conn: conn, user: user} do
@@ -36,7 +36,7 @@ defmodule OrganizerWeb.UserSessionControllerTest do
         |> get(~p"/users/log-in")
         |> html_response(200)
 
-      assert html =~ "Entre para concluir o vínculo"
+      assert html =~ "Entre para concluir o compartilhamento"
       assert html =~ "redirecionado automaticamente"
     end
   end
@@ -51,12 +51,13 @@ defmodule OrganizerWeb.UserSessionControllerTest do
         })
 
       assert get_session(conn, :user_token)
-      assert redirected_to(conn) == ~p"/dashboard"
+      assert redirected_to(conn) == ~p"/finances"
 
       # Now do a logged in request and assert on the menu
-      conn = get(conn, ~p"/dashboard")
+      conn = get(conn, ~p"/finances")
       response = html_response(conn, 200)
-      assert response =~ user.email
+      refute response =~ user.email
+      assert response =~ "Compartilhamentos"
       assert response =~ ~p"/users/settings"
       assert response =~ ~p"/users/log-out"
     end
@@ -74,7 +75,7 @@ defmodule OrganizerWeb.UserSessionControllerTest do
         })
 
       assert conn.resp_cookies["_organizer_user_remember_me"]
-      assert redirected_to(conn) == ~p"/dashboard"
+      assert redirected_to(conn) == ~p"/finances"
     end
 
     test "logs the user in with return to", %{conn: conn, user: user} do

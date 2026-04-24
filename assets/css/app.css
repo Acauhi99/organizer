@@ -2,7 +2,6 @@
    https://tailwindcss.com/docs/configuration */
 
 @import "tailwindcss" source(none);
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap");
 @source "../css";
 @source "../js";
 @source "../../lib/organizer_web";
@@ -20,33 +19,33 @@
 
 /* daisyUI theme plugin. You can update this file by fetching the latest version with:
   curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui-theme.js
-  We pin a single off-white soft light theme for visual consistency. Build your own at:
+  We pin a single high-contrast light theme for visual consistency. Build your own at:
   https://daisyui.com/theme-generator/ */
 @plugin "../vendor/daisyui-theme" {
   name: "organizer_softlight";
   default: true;
   prefersdark: false;
   color-scheme: "light";
-  --color-base-100: oklch(97.6% 0.012 92.1);
-  --color-base-200: oklch(95.4% 0.012 91.2);
-  --color-base-300: oklch(92.6% 0.014 89.9);
-  --color-base-content: oklch(30.8% 0.028 246.1);
-  --color-primary: oklch(72.5% 0.071 220.4);
-  --color-primary-content: oklch(29.4% 0.024 245.7);
-  --color-secondary: oklch(76.8% 0.063 166.3);
-  --color-secondary-content: oklch(29.6% 0.023 167.2);
-  --color-accent: oklch(82.1% 0.07 96.5);
-  --color-accent-content: oklch(33.2% 0.024 91.3);
-  --color-neutral: oklch(88.7% 0.017 247.8);
-  --color-neutral-content: oklch(31.2% 0.025 245.6);
-  --color-info: oklch(71.8% 0.078 226.4);
-  --color-info-content: oklch(30.8% 0.026 233.2);
-  --color-success: oklch(74.6% 0.082 166.8);
-  --color-success-content: oklch(31.2% 0.021 171.1);
-  --color-warning: oklch(81.4% 0.096 88.1);
-  --color-warning-content: oklch(35.8% 0.022 85.4);
-  --color-error: oklch(70.4% 0.121 24.2);
-  --color-error-content: oklch(32.5% 0.024 23.5);
+  --color-base-100: oklch(99% 0.004 255);
+  --color-base-200: oklch(95.5% 0.007 255);
+  --color-base-300: oklch(88.5% 0.014 255);
+  --color-base-content: oklch(22% 0.035 257);
+  --color-primary: oklch(57% 0.115 232);
+  --color-primary-content: oklch(98% 0.006 232);
+  --color-secondary: oklch(61% 0.095 166);
+  --color-secondary-content: oklch(98% 0.006 166);
+  --color-accent: oklch(68% 0.13 80);
+  --color-accent-content: oklch(22% 0.03 80);
+  --color-neutral: oklch(31% 0.035 255);
+  --color-neutral-content: oklch(98% 0.006 255);
+  --color-info: oklch(60% 0.12 230);
+  --color-info-content: oklch(98% 0.006 230);
+  --color-success: oklch(57% 0.12 156);
+  --color-success-content: oklch(98% 0.006 156);
+  --color-warning: oklch(70% 0.13 78);
+  --color-warning-content: oklch(24% 0.035 78);
+  --color-error: oklch(58% 0.17 28);
+  --color-error-content: oklch(98% 0.006 28);
   --radius-selector: 0.45rem;
   --radius-field: 0.52rem;
   --radius-box: 0.85rem;
@@ -70,16 +69,14 @@
 /* This file is for your main application CSS */
 
 body {
-  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
-  font-size: clamp(15px, 0.55vw + 13px, 18px);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
   line-height: 1.55;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   color-scheme: light;
   background:
-    radial-gradient(120% 120% at 82% -12%, rgba(168, 214, 236, 0.34), transparent 58%),
-    radial-gradient(95% 100% at -8% 102%, rgba(189, 230, 203, 0.36), transparent 56%),
-    linear-gradient(180deg, #f7f3ed 0%, #f3f0ea 44%, #efece6 100%);
+    linear-gradient(180deg, #f7f9fc 0%, #eef3f8 46%, #e8eef5 100%);
 }
 
 html,
@@ -101,20 +98,20 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
-  letter-spacing: -0.02em;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
   line-height: 1.18;
 }
 
 .menu a,
 .btn {
-  font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
-  letter-spacing: 0.01em;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
 }
 
 label,
 .label {
-  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.35;
   letter-spacing: 0.02em;
 }
@@ -125,7 +122,7 @@ label,
 }
 
 .text-xs.uppercase {
-  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0.07em;
   font-weight: 700;
 }
@@ -135,7 +132,7 @@ pre,
 kbd,
 samp,
 .font-mono {
-  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 p,
@@ -162,26 +159,23 @@ li {
 }
 
 .surface-card {
-  border: 1px solid color-mix(in oklab, var(--color-base-content) 14%, transparent);
-  background: color-mix(in oklab, var(--color-base-100) 94%, transparent);
-  box-shadow: 0 16px 38px rgba(92, 106, 126, 0.16);
-  backdrop-filter: blur(7px);
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 18%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 98%, transparent);
+  box-shadow: 0 18px 44px rgba(24, 42, 63, 0.11);
+  backdrop-filter: blur(8px);
 }
 
 .micro-surface {
-  border: 1px solid color-mix(in oklab, var(--color-base-content) 18%, transparent);
-  background: color-mix(in oklab, var(--color-base-100) 91%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 20%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 92%, var(--color-base-200));
 }
 
 .brand-hero-card {
   position: relative;
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--color-info) 28%, transparent);
-  background:
-    radial-gradient(125% 110% at 8% 85%, rgba(171, 226, 201, 0.42), transparent 62%),
-    radial-gradient(120% 120% at 96% 6%, rgba(168, 214, 236, 0.38), transparent 60%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(247, 243, 236, 0.92));
-  box-shadow: 0 22px 48px rgba(89, 104, 126, 0.18);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(226, 238, 249, 0.96));
+  box-shadow: 0 22px 48px rgba(24, 42, 63, 0.13);
   color: color-mix(in oklab, var(--color-base-content) 94%, transparent);
 }
 
@@ -217,17 +211,17 @@ li {
 
 .btn.btn-primary,
 .btn-primary {
-  border-color: color-mix(in oklab, var(--color-info) 42%, transparent);
-  background: linear-gradient(135deg, #b9dfef, #bce8ce);
-  color: #213649;
-  box-shadow: 0 8px 20px rgba(118, 145, 171, 0.24);
+  border-color: color-mix(in oklab, var(--color-primary) 74%, transparent);
+  background: linear-gradient(135deg, #2563eb, #0f766e);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.22);
 }
 
 .btn.btn-primary:hover,
 .btn-primary:hover {
-  border-color: color-mix(in oklab, var(--color-success) 46%, transparent);
-  background: linear-gradient(135deg, #b0d9eb, #b5e2c6);
-  color: #1d3142;
+  border-color: color-mix(in oklab, var(--color-primary) 82%, transparent);
+  background: linear-gradient(135deg, #1d4ed8, #0f766e);
+  color: #ffffff;
 }
 
 .btn.btn-soft {
@@ -550,29 +544,6 @@ summary:focus-visible {
   }
 }
 
-.bulk-studio-shell {
-  border-color: color-mix(in oklab, var(--color-info) 34%, var(--color-base-content));
-  background:
-    radial-gradient(120% 80% at 0% 0%, rgba(168, 214, 236, 0.16), transparent 52%),
-    radial-gradient(120% 80% at 100% 100%, rgba(189, 230, 203, 0.16), transparent 52%),
-    color-mix(in oklab, var(--color-base-100) 90%, transparent);
-}
-
-
-
-.bulk-studio-shell .textarea {
-  min-height: 11rem;
-  border-color: color-mix(in oklab, var(--color-base-content) 26%, transparent);
-  background: color-mix(in oklab, var(--color-base-100) 86%, transparent);
-  color: color-mix(in oklab, var(--color-base-content) 98%, transparent);
-  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
-  line-height: 1.45;
-}
-
-.bulk-studio-shell .textarea::placeholder {
-  color: color-mix(in oklab, var(--color-base-content) 58%, transparent);
-}
-
 .public-home,
 .public-auth-shell {
   position: relative;
@@ -587,9 +558,7 @@ summary:focus-visible {
   z-index: -1;
   height: 55%;
   border-radius: 999px;
-  background:
-    radial-gradient(circle at 25% 50%, rgba(168, 214, 236, 0.24), transparent 52%),
-    radial-gradient(circle at 70% 40%, rgba(189, 230, 203, 0.22), transparent 55%);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(15, 118, 110, 0.12));
   filter: blur(28px);
   opacity: 0.8;
 }
@@ -686,9 +655,7 @@ summary:focus-visible {
 
 .public-shell-header-card {
   border-color: color-mix(in oklab, var(--color-info) 24%, var(--color-base-content));
-  background:
-    radial-gradient(130% 100% at 5% 0%, rgba(168, 214, 236, 0.18), transparent 45%),
-    color-mix(in oklab, var(--color-base-100) 88%, transparent);
+  background: color-mix(in oklab, var(--color-base-100) 92%, var(--color-info));
 }
 
 .public-guest-nav::after {
@@ -722,19 +689,18 @@ summary:focus-visible {
   z-index: -1;
   height: 52%;
   border-radius: 999px;
-  background:
-    radial-gradient(circle at 22% 44%, rgba(168, 214, 236, 0.24), transparent 54%),
-    radial-gradient(circle at 72% 42%, rgba(189, 230, 203, 0.22), transparent 56%);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(15, 118, 110, 0.12));
   filter: blur(28px);
   opacity: 0.76;
 }
 
 .collab-hero {
   border-color: color-mix(in oklab, var(--color-info) 26%, var(--color-base-content));
-  background:
-    radial-gradient(130% 100% at 5% 0%, rgba(168, 214, 236, 0.2), transparent 44%),
-    radial-gradient(130% 100% at 95% 100%, rgba(189, 230, 203, 0.16), transparent 48%),
-    color-mix(in oklab, var(--color-base-100) 90%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--color-base-100) 96%, var(--color-info)),
+    color-mix(in oklab, var(--color-base-100) 92%, var(--color-success))
+  );
 }
 
 .collab-stat {
@@ -875,31 +841,6 @@ summary:focus-visible {
     height: 1.45rem;
   }
 }
-.bulk-import-hero {
-  position: relative;
-  border: 2px solid color-mix(in oklab, var(--color-info) 45%, transparent);
-  border-radius: 1.5rem;
-  padding: 2rem;
-  background:
-    radial-gradient(140% 100% at 10% 0%, rgba(168, 214, 236, 0.2), transparent 58%),
-    radial-gradient(140% 100% at 90% 100%, rgba(189, 230, 203, 0.2), transparent 58%),
-    color-mix(in oklab, var(--color-base-100) 92%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--color-info) 20%, transparent),
-    0 22px 52px rgba(106, 121, 142, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-}
-
-.bulk-import-hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 40%, rgba(255, 255, 255, 0.03));
-}
-
 .onboarding-spotlight {
   position: absolute;
   border: 3px solid color-mix(in oklab, var(--color-info) 80%, transparent);
@@ -1082,12 +1023,6 @@ summary:focus-visible {
   .operations-shell #tasks [id^="task-checklist-item-form-"] .input,
   .operations-shell #tasks [id^="task-checklist-add-form-"] .input {
     min-width: 100%;
-  }
-
-  .bulk-code-list code,
-  .bulk-code-list .font-mono {
-    overflow-wrap: anywhere;
-    word-break: break-word;
   }
 
   .contex-plot svg,

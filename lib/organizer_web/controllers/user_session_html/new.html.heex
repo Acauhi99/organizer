@@ -7,18 +7,18 @@
         </p>
         <h2 class="mt-3 text-3xl font-black leading-tight sm:text-4xl">
           {if @invite_pending?,
-            do: "Entre para concluir o vínculo",
+            do: "Entre para concluir o compartilhamento",
             else: "Entre e continue de onde parou"}
         </h2>
 
         <p class="hero-copy mt-4 max-w-xl text-sm leading-relaxed sm:text-base">
           <%= cond do %>
             <% @invite_pending? -> %>
-              Você abriu um convite de conexão entre contas. Faça login para confirmar o vínculo e liberar a área de finanças compartilhadas.
+              Você abriu um convite de conexão entre contas. Faça login para confirmar o compartilhamento e liberar a área de finanças compartilhadas.
             <% @current_scope -> %>
               Reautentique para continuar com segurança em ações sensíveis da sua conta.
             <% true -> %>
-              Entre para continuar no dashboard com importação por texto, formulários rápidos e vínculos por convite.
+              Entre para continuar na área logada com formulários rápidos e compartilhamentos por convite.
           <% end %>
         </p>
 
@@ -42,10 +42,10 @@
               </span>
               <div>
                 <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-                  Importação por texto
+                  Finanças rápidas
                 </p>
                 <p class="hero-meta-copy mt-1 text-xs">
-                  Continue os envios com prévia, correções e importação em lote.
+                  Registre lançamentos com classificação e compartilhamento opcional.
                 </p>
               </div>
             </div>
@@ -58,7 +58,7 @@
               </span>
               <div>
                 <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-                  Vínculo por link
+                  Compartilhamento por link
                 </p>
                 <p class="hero-meta-copy mt-1 text-xs">
                   Aceite convites e compartilhe dados com segurança.

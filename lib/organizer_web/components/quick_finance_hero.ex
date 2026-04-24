@@ -194,7 +194,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           </div>
 
           <p :if={Enum.empty?(@account_links)} class="text-xs text-base-content/70">
-            Você ainda não possui vínculo ativo. Crie um vínculo para compartilhar gastos.
+            Você ainda não possui compartilhamento ativo. Crie um compartilhamento para compartilhar gastos.
           </p>
         </section>
 
@@ -254,7 +254,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
   defp truthy?(value) when value in ["true", "on", "1"], do: true
   defp truthy?(_value), do: false
 
-  defp share_link_options([], _current_user_id), do: [{"Sem vínculo ativo", ""}]
+  defp share_link_options([], _current_user_id), do: [{"Sem compartilhamento ativo", ""}]
 
   defp share_link_options(account_links, current_user_id) do
     Enum.map(account_links, fn link ->
@@ -275,6 +275,6 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           "conta vinculada"
       end
 
-    "Vínculo ##{link.id} • #{partner_email}"
+    "Compartilhamento ##{link.id} • #{partner_email}"
   end
 end

@@ -7,7 +7,7 @@ defmodule OrganizerWeb.ErrorHTMLTest do
   test "renders 404.html" do
     html = render_to_string(OrganizerWeb.ErrorHTML, "404", "html", [])
     assert html =~ "Página não encontrada"
-    assert html =~ "Abrir painel"
+    assert html =~ "Abrir finanças"
   end
 
   test "renders 500.html" do

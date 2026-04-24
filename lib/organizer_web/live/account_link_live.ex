@@ -28,7 +28,7 @@ defmodule OrganizerWeb.AccountLinkLive do
   def handle_params(_params, _uri, socket) do
     socket =
       case socket.assigns.live_action do
-        :index -> assign(socket, :page_title, "Vínculos")
+        :index -> assign(socket, :page_title, "Compartilhamentos")
         :new_invite -> assign(socket, :page_title, "Novo Convite")
       end
 
@@ -78,7 +78,7 @@ defmodule OrganizerWeb.AccountLinkLive do
       {:ok, link} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Vínculo estabelecido com sucesso.")
+         |> put_flash(:info, "Compartilhamento estabelecido com sucesso.")
          |> push_navigate(to: ~p"/account-links/#{link.id}")}
 
       {:error, :invite_invalid} ->
@@ -97,7 +97,7 @@ defmodule OrganizerWeb.AccountLinkLive do
         {:noreply,
          socket
          |> assign(:invite_accept_form, invite_accept_form(%{"token" => token}))
-         |> put_flash(:error, "Já existe um vínculo ativo com este usuário.")}
+         |> put_flash(:error, "Já existe um compartilhamento ativo com este usuário.")}
     end
   end
 
@@ -112,9 +112,9 @@ defmodule OrganizerWeb.AccountLinkLive do
       {:noreply,
        socket
        |> assign(:account_links, links)
-       |> put_flash(:info, "Vínculo desativado.")}
+       |> put_flash(:info, "Compartilhamento desativado.")}
     else
-      _ -> {:noreply, put_flash(socket, :error, "Não foi possível desativar o vínculo.")}
+      _ -> {:noreply, put_flash(socket, :error, "Não foi possível desativar o compartilhamento.")}
     end
   end
 
@@ -139,7 +139,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                     Fluxo colaborativo
                   </p>
                   <h1 class="text-2xl font-black tracking-[-0.02em] text-base-content sm:text-3xl">
-                    Vínculos entre contas
+                    Compartilhamentos entre contas
                   </h1>
                   <p class="max-w-2xl text-sm leading-6 text-base-content/78">
                     Conecte outra pessoa por convite, compartilhe lançamentos e acompanhe acertos no mesmo fluxo.
@@ -158,7 +158,7 @@ defmodule OrganizerWeb.AccountLinkLive do
             <section class="grid gap-3 sm:grid-cols-3">
               <article class="micro-surface rounded-2xl p-4">
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
-                  Vínculos ativos
+                  Compartilhamentos ativos
                 </p>
                 <p class="mt-1 text-2xl font-semibold text-base-content">{length(@account_links)}</p>
               </article>
@@ -174,7 +174,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">Status</p>
                 <p class="mt-1 text-sm text-base-content/82">
                   {if Enum.empty?(@account_links),
-                    do: "Sem vínculo no momento",
+                    do: "Sem compartilhamento no momento",
                     else: "Pronto para colaborar"}
                 </p>
               </article>
@@ -183,7 +183,7 @@ defmodule OrganizerWeb.AccountLinkLive do
             <section class="surface-card rounded-3xl p-5 sm:p-6">
               <div class="flex items-center justify-between">
                 <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
-                  Lista de vínculos
+                  Lista de compartilhamentos
                 </h2>
                 <span class="text-xs text-base-content/65">{length(@account_links)} registro(s)</span>
               </div>
@@ -194,7 +194,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                     id="account-link-empty"
                     class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/75"
                   >
-                    Nenhum vínculo ativo. Gere um convite para começar a compartilhar.
+                    Nenhum compartilhamento ativo. Gere um convite para começar a compartilhar.
                   </li>
                 <% end %>
 
@@ -207,7 +207,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                       <p class="truncate text-sm font-semibold text-base-content/92">
                         {partner_email(@current_scope.user.id, link)}
                       </p>
-                      <p class="text-xs text-base-content/62">Vínculo #{link.id} • ativo</p>
+                      <p class="text-xs text-base-content/62">Compartilhamento #{link.id} • ativo</p>
                     </div>
 
                     <div class="flex flex-wrap gap-2">
@@ -245,7 +245,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                 Gerar e aceitar convite
               </h1>
               <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/78">
-                Compartilhe o link para criar o vínculo. Se recebeu um token, cole abaixo para aceitar.
+                Compartilhe o link para criar o compartilhamento. Se recebeu um token, cole abaixo para aceitar.
               </p>
             </header>
 

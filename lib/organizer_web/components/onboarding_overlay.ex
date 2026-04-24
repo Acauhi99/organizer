@@ -157,9 +157,9 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
 
   defp step_content(5) do
     %{
-      title: "Painéis Secundários",
+      title: "Áreas de operação",
       description:
-        "Use os painéis de Operações e Analytics para visualizar e gerenciar suas tarefas e finanças. Você pode ocultar ou mostrar esses painéis conforme necessário.",
+        "Use as áreas de Operação e Analytics para visualizar e gerenciar suas tarefas e finanças.",
       example: nil
     }
   end
@@ -168,7 +168,7 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
     %{
       title: "Conecte outra conta",
       description:
-        "Crie um vínculo com outra pessoa para compartilhar lançamentos e acompanhar acertos de forma transparente. Você encontra essa área logo abaixo do cabeçalho.",
+        "Crie um compartilhamento com outra pessoa para compartilhar lançamentos e acompanhar acertos de forma transparente. Você encontra essa área logo abaixo do cabeçalho.",
       example: nil
     }
   end
@@ -178,5 +178,5 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
   defp spotlight_target(3), do: "#operations-panel"
   defp spotlight_target(4), do: "#operations-panel"
   defp spotlight_target(5), do: "#operations-panel"
-  defp spotlight_target(6), do: "#account-link-panel"
+  defp spotlight_target(6), do: "a[href='/account-links']"
 end
