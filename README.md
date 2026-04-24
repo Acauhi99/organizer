@@ -4,7 +4,7 @@ Aplicação de organização pessoal construída com **Elixir + Phoenix 1.8 + Li
 
 ## Objetivo
 
-Centralizar tarefas e finanças em um painel operacional único, com importação rápida por texto, análise contínua e colaboração entre contas por convite.
+Centralizar tarefas e finanças em fluxos operacionais rápidos (`/tasks` e `/finances`), com análise contínua e colaboração entre contas por convite.
 
 ## Stack
 
@@ -12,7 +12,7 @@ Centralizar tarefas e finanças em um painel operacional único, com importaçã
 - Phoenix `~> 1.8.1`
 - Phoenix LiveView `~> 1.1`
 - Ecto + SQLite (`ecto_sqlite3`)
-- Tailwind CSS v4 + daisyUI vendorizado
+- Tailwind CSS v4 + daisyUI vendorizado (tema custom)
 - Req para integração HTTP
 
 ## Início rápido

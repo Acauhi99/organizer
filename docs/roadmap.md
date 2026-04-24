@@ -5,8 +5,7 @@
 A base técnica principal está concluída:
 
 - autenticação e escopo de usuário
-- dashboard LiveView principal
-- importação em lote com preview/correção
+- módulos LiveView de finanças (`/finances`) e tarefas (`/tasks`)
 - analytics com cache OTP
 - fluxo de finanças compartilhadas entre contas
 - suíte de testes extensa (unit, web e property-based)

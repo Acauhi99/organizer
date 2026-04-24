@@ -25,7 +25,7 @@ Referências oficiais:
 ## Organização de módulos
 
 - Contexts concentram operações de domínio.
-- Módulos de apoio devem ter fronteira semântica clara (`BulkParser`, `FieldSuggester`, etc).
+- Módulos de apoio devem ter fronteira semântica clara (`AmountParser`, `FilterNormalization`, `LinkMetricsCalculator`, etc).
 - Evite módulos “util” genéricos sem domínio explícito.
 
 ## OTP no projeto
@@ -33,7 +33,6 @@ Referências oficiais:
 Use GenServer quando existir estado compartilhado e ciclo de vida contínuo:
 
 - Cache por usuário (`AnalyticsCache`)
-- Sugestões por frequência/correlação (`FieldSuggester`)
 
 Referência oficial:
 

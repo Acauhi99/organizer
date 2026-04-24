@@ -325,85 +325,6 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   @impl true
-  def handle_event("toggle_help_menu", _params, socket) do
-    {:noreply, assign(socket, :help_menu_open, !socket.assigns.help_menu_open)}
-  end
-
-  @impl true
-  def handle_event("close_help_menu", _params, socket) do
-    {:noreply, assign(socket, :help_menu_open, false)}
-  end
-
-  @impl true
-  def handle_event("show_onboarding_tutorial", _params, socket) do
-    case Organizer.Accounts.get_or_create_onboarding_progress(socket.assigns.current_scope.user) do
-      {:ok, progress} ->
-        case Organizer.Accounts.restart_onboarding(progress) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> assign(:onboarding_active, true)
-             |> assign(:onboarding_step, 1)
-             |> assign(:help_menu_open, false)
-             |> put_flash(
-               :info,
-               "Tutorial iniciado. Siga os passos para aprender a usar a plataforma."
-             )}
-
-          {:error, _} ->
-            {:noreply,
-             socket
-             |> assign(:onboarding_active, true)
-             |> assign(:onboarding_step, 1)
-             |> assign(:help_menu_open, false)}
-        end
-
-      {:error, _} ->
-        {:noreply,
-         socket
-         |> assign(:onboarding_active, true)
-         |> assign(:onboarding_step, 1)
-         |> assign(:help_menu_open, false)}
-    end
-  end
-
-  @impl true
-  def handle_event("restart_onboarding_tutorial", _params, socket) do
-    case Organizer.Accounts.get_or_create_onboarding_progress(socket.assigns.current_scope.user) do
-      {:ok, progress} ->
-        case Organizer.Accounts.restart_onboarding(progress) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> assign(:onboarding_active, true)
-             |> assign(:onboarding_step, 1)
-             |> assign(:help_menu_open, false)
-             |> put_flash(
-               :info,
-               "Tutorial reiniciado. Siga os passos para aprender a usar a plataforma."
-             )}
-
-          {:error, _} ->
-            {:noreply,
-             socket
-             |> put_flash(:error, "Não foi possível reiniciar o tutorial.")}
-        end
-
-      {:error, _} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Não foi possível reiniciar o tutorial.")}
-    end
-  end
-
-  @impl true
-  def handle_event("show_keyboard_shortcuts", _params, socket) do
-    {:noreply,
-     socket
-     |> put_flash(:info, "Atalhos: Alt+B (lançamento rápido), ? (ajuda)")}
-  end
-
-  @impl true
   def handle_event("global_shortcut", params, socket) when is_map(params) do
     normalized_key =
       case Map.get(params, "key") do
@@ -424,7 +345,6 @@ defmodule OrganizerWeb.DashboardLive do
       normalized_key == "?" ->
         {:noreply,
          socket
-         |> assign(:help_menu_open, true)
          |> put_flash(:info, "Atalhos: Alt+B (lançamento rápido), ? (ajuda)")}
 
       true ->
@@ -760,7 +680,6 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:task_details_modal_task, nil)
     |> assign(:onboarding_active, onboarding_active)
     |> assign(:onboarding_step, onboarding_progress.current_step)
-    |> assign(:help_menu_open, false)
     |> assign(:task_delivery_chart, %{loading: true, chart_svg: nil})
     |> assign(:finance_flow_chart, %{loading: true, chart_svg: nil})
     |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})

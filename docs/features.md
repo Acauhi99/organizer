@@ -2,57 +2,80 @@
 
 ## Área pública (não logada)
 
-- Página inicial em `/` com resumo dos fluxos ativos do produto:
-  - Importação rápida por texto
-  - Operação diária (tarefas + lançamentos financeiros)
-  - Colaboração financeira por convite entre contas
-- Fluxos de autenticação:
-  - Cadastro em `/users/register`
-  - Login em `/users/log-in`
-  - Contexto especial quando há convite pendente de vínculo
+- Landing page em `/` com posicionamento do produto e acesso para cadastro/login.
+- Cadastro em `/users/register`.
+- Login em `/users/log-in`.
+- Aceite de convite por token em `/account-links/accept/:token`:
+  - Usuário autenticado: convite é processado na hora.
+  - Usuário não autenticado: redireciona para login e retoma o fluxo.
 
-## Dashboard autenticado (`/dashboard`)
+## Área autenticada (LiveView)
 
-- Cabeçalho com KPIs de burndown e saldo financeiro.
-- Painéis de lançamento rápido:
-  - Formulário de tarefas
-  - Formulário de renda/gastos (com opção de compartilhamento em vínculo ativo)
-- Painel de vínculo entre contas:
-  - Criação de convite
-  - Acesso à área de finanças compartilhadas e acerto
-- Importação em lote por texto:
-  - Pré-visualização por linha
-  - Correções guiadas
-  - Importação por bloco ou total
-  - Modo estrito
-  - Histórico de payloads e favoritos
-  - Desfazer última importação
-- Operação diária com listas filtráveis de tarefas e lançamentos.
-- Analytics com comparativos semanal/mensal/anual, tendência de saldo e categorias de despesa.
+### Finanças (`/finances`)
+
+- Lançamento rápido de receita/despesa com presets.
+- Compartilhamento opcional de despesa com vínculo ativo:
+  - modo por proporção de renda
+  - modo manual (minha parte / outra parte)
+- Métricas financeiras com filtros de período e gráficos:
+  - receitas x despesas no tempo
+  - composição por natureza
+  - top categorias de despesa
+- Operação diária financeira:
+  - filtros avançados (janela móvel, data, mês, intervalo, dia da semana, ordenação e faixa de valor)
+  - edição e exclusão inline de lançamentos
+
+### Tarefas (`/tasks`)
+
+- Lançamento rápido de tarefas (título, prioridade, status, prazo e notas).
+- Kanban com colunas `todo`, `in_progress` e `done`.
+- Checklist por tarefa (adicionar, editar, marcar e remover itens).
+- Edição e exclusão de tarefa diretamente na operação.
+- Vincular tarefa a compartilhamento (modo sincronizado) quando existir vínculo ativo.
+- Time Box de foco com timer no browser e integração de notificação.
+- Métricas de tarefas com filtros de período/capacidade e gráficos:
+  - criadas x concluídas
+  - backlog por prioridade
+  - indicadores de risco e capacidade
+
+### Experiência transversal
+
+- Onboarding guiado em 6 passos para primeira experiência.
+- Atalho global `Alt+B` para focar o lançamento rápido financeiro.
+- Atalho `?` para exibir lembrete de atalhos.
 
 ## Colaboração financeira
 
-- Vínculo entre duas contas por convite (`/account-links`).
-- Visão de finanças compartilhadas por vínculo (`/account-links/:link_id`).
-- Fluxo de acerto com registros de transferência e confirmação bilateral (`/account-links/:link_id/settlement`).
+- Gestão de vínculos em `/account-links`:
+  - criar convite
+  - aceitar convite por token
+  - desativar vínculo
+- Convites em `/account-links/invite` com geração de link e cópia para clipboard.
+- Finanças compartilhadas em `/account-links/:link_id`:
+  - visão de total compartilhado, proporções e tendência
+  - filtro por período (`mês atual`, `últimos 3 meses`, `tudo`)
+  - listagem de lançamentos compartilhados e remoção de compartilhamento
+- Acerto em `/account-links/:link_id/settlement`:
+  - registro de transferências
+  - confirmação bilateral
+  - quitação do ciclo quando ambas as partes confirmam
 
-## Domínio e API REST (`/api/v1`)
+## API REST (`/api/v1`)
 
 Recursos disponíveis:
 
 - `tasks`
 - `finance-entries`
-- `goals`
 - `fixed-costs`
 - `important-dates`
 
 Notas:
 
-- As rotas da API exigem autenticação e escopo válido.
-- O dashboard atual prioriza tarefas e finanças; `goals`, `fixed-costs` e `important-dates` estão disponíveis no domínio e na API.
+- Todas as rotas exigem autenticação e escopo válido.
+- O front atual usa principalmente tarefas, finanças e colaboração; `fixed-costs` e `important-dates` estão disponíveis no domínio/API.
 
 ## Autenticação e segurança
 
 - Registro, login e logout com sessão autenticada.
 - Isolamento de dados por `current_scope`.
-- Redirecionamentos de proteção em rotas autenticadas.
+- Proteção de rotas autenticadas via pipeline e `live_session`.

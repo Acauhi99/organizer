@@ -1,91 +1,110 @@
 # Dashboard — Guia do Usuário
 
-Este guia cobre os fluxos atuais do dashboard autenticado (`/dashboard`): lançamentos rápidos, importação em lote, operação diária, analytics, vínculo entre contas e onboarding.
+Este guia cobre os fluxos autenticados atuais da aplicação: módulo de finanças (`/finances`), módulo de tarefas (`/tasks`) e colaboração financeira (`/account-links`).
 
-## Visão geral do layout
+## Visão geral
 
-1. **Header com KPIs**: burndown (14d), receitas, despesas e saldo.
-2. **Vínculo entre contas**: convite, gestão de vínculo e atalhos para colaboração financeira.
-3. **Lançamento rápido de finanças**: cadastro de renda/gastos por formulário.
-4. **Lançamento rápido de tarefas**: cadastro com prioridade, status, prazo e notas.
-5. **Importação rápida por texto**: preview, correções e importação em lote.
-6. **Operação diária**: listas filtráveis de tarefas e lançamentos.
-7. **Visão analítica**: comparativos, tendências e risco operacional.
+1. **Módulo de finanças (`/finances`)**:
+  - lançamento rápido de receita/despesa
+  - métricas e gráficos financeiros
+  - operação diária com filtros e edição inline
+2. **Módulo de tarefas (`/tasks`)**:
+  - lançamento rápido de tarefas
+  - kanban operacional (todo, em andamento, concluídas)
+  - checklist por tarefa e Time Box de foco
+  - métricas de execução e capacidade
+3. **Colaboração (`/account-links`)**:
+  - criação e aceite de convite
+  - finanças compartilhadas por vínculo
+  - acerto com confirmação bilateral
 
 ## Lançamentos rápidos
 
-- **Finanças**:
-  - Presets para renda e gastos.
-  - Campos de tipo, valor, data, categoria e detalhes de despesa.
-  - Em vínculo ativo, permite compartilhar despesa e escolher modo de divisão.
-- **Tarefas**:
-  - Presets de contexto (foco, próxima ação, backlog, etc.).
-  - Campos de prioridade, status, prazo e notas.
+### Finanças (`/finances`)
+
+- Presets para entradas de renda e despesa.
+- Campos de tipo, valor, data, categoria e descrição.
+- Para despesas, suporte a perfil, método de pagamento e parcelas.
+- Com vínculo ativo, opção de compartilhar despesa:
+  - modo `income_ratio`
+  - modo `manual` (definição da parcela de cada lado)
+
+### Tarefas (`/tasks`)
+
+- Cadastro rápido com título, prioridade, status, prazo e notas.
+- Fluxo pensado para registro rápido e posterior organização no kanban.
+
+## Operação diária
+
+### Finanças
+
+- Filtros por período (janela móvel, data específica, mês, intervalo e dia da semana).
+- Filtros por tipo, categoria, método, perfil, texto e faixa de valor.
+- Edição e exclusão de lançamentos direto na lista.
+
+### Tarefas
+
+- Filtros por status, prioridade, período e busca textual.
+- Kanban com movimentação por status.
+- Checklist por tarefa:
+  - adicionar item
+  - editar rótulo
+  - marcar/desmarcar
+  - remover item
+- Vincular tarefa a um compartilhamento (modo sincronizado).
+
+## Métricas e analytics
+
+### Finanças
+
+- KPIs de saldo, ticket médio, categoria dominante e volume do período.
+- Gráficos de fluxo, composição e ranking por categoria.
+
+### Tarefas
+
+- KPIs de entrega, backlog crítico, capacidade e risco de burnout.
+- Gráficos de criadas x concluídas e backlog por prioridade.
+
+## Time Box de foco
+
+No módulo de tarefas existe um timer de foco para tarefas em andamento:
+
+- seleção de tarefa em execução
+- presets de duração e duração personalizada
+- iniciar, pausar e resetar
+- estado persistido por usuário no navegador
+- suporte a notificações de conclusão
 
 ## Onboarding
 
-Na primeira visita ao dashboard, há uma sequência guiada de 6 passos cobrindo os blocos principais:
+Na primeira experiência autenticada, o sistema exibe onboarding em 6 passos cobrindo os blocos principais:
 
-1. Boas-vindas e visão geral
+1. Visão geral
 2. Lançamento rápido
 3. Filtros operacionais
-4. Edição direta na operação
-5. Painéis de operação e analytics
-6. Área de vínculo entre contas
+4. Edição direta
+5. Métricas
+6. Colaboração
 
 - Use **Próximo** / **Anterior**.
 - Clique em **Pular** para encerrar.
-- Para reabrir, pressione `?` ou use o menu de ajuda.
 
-## Importação em lote por texto
+## Colaboração financeira
 
-- Entrada no padrão `tipo: conteúdo`.
-- Suporte a preview antes de persistir.
-- Correção por linha e correção em lote.
-- Importação por bloco ou completa.
-- Histórico recente de payloads e favoritos.
-- Modo estrito para bloquear importações com erro.
-- Opção de desfazer a última importação.
-
-## Operação diária e analytics
-
-- **Operação diária**:
-  - Aba de tarefas com checklist por item.
-  - Aba de finanças com filtros por tipo, perfil, método, categoria e valor.
-- **Analytics**:
-  - Execução por período (semanal, mensal, anual).
-  - Tendência de saldo semanal.
-  - Top categorias de despesa.
-  - Snapshot de capacidade e sinalização de risco.
-
-## Área de vínculo entre contas
-
-- Sem vínculo ativo: ações para criar convite e abrir gestão de vínculos.
-- Com vínculo ativo: atalhos para finanças compartilhadas e acerto.
+- `/account-links`: lista de vínculos ativos e atalhos para cada vínculo.
+- `/account-links/invite`: gerar e copiar link de convite; aceitar convite por token.
+- `/account-links/:link_id`: resumo compartilhado, tendências e lista de lançamentos compartilhados.
+- `/account-links/:link_id/settlement`: registrar transferências, confirmar saldo e quitar ciclo.
 
 ## Atalhos de teclado
 
 | Atalho | Ação |
 |--------|------|
-| `Alt+B` | Foca o editor do Bulk Import |
-| `?`     | Abre ajuda / reinicia tutorial |
-
-## Estados vazios educativos
-
-Quando não há dados em um painel, o sistema mostra exemplos e oferece carregamento direto no editor.
+| `Alt+B` | Rola para o lançamento rápido financeiro |
+| `?`     | Exibe lembrete de atalhos |
 
 ## Acessibilidade
 
-- Navegação completa por `Tab`
-- Skip links para seções principais
-- Labels e papéis ARIA nos controles principais
-
-## Solução de problemas
-
-**Onboarding não aparece mais**
-
-Use `?` ou menu de ajuda para reiniciar.
-
-**Analytics com skeleton por muito tempo**
-
-Recarregue a página e confira conectividade.
+- Skip links para seções principais dos módulos.
+- Navegação por teclado em formulários e painéis.
+- Estrutura com labels e ARIA nos componentes críticos.

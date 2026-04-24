@@ -59,19 +59,6 @@ defmodule OrganizerWeb.SharedFinanceLive do
   end
 
   @impl true
-  def handle_event("share_entry", %{"entry_id" => entry_id}, socket) do
-    scope = socket.assigns.current_scope
-    link_id = socket.assigns.link_id
-
-    with {:ok, parsed_entry_id} <- parse_int(entry_id),
-         {:ok, _entry} <- SharedFinance.share_finance_entry(scope, parsed_entry_id, link_id) do
-      {:noreply, reload_shared_data(socket)}
-    else
-      _ -> {:noreply, put_flash(socket, :error, "Não foi possível compartilhar o lançamento.")}
-    end
-  end
-
-  @impl true
   def handle_event("unshare_entry", %{"entry_id" => entry_id}, socket) do
     scope = socket.assigns.current_scope
 
