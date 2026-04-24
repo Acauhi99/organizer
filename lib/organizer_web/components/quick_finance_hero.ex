@@ -6,6 +6,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
   attr :quick_finance_kind, :string, required: true
   attr :account_links, :list, default: []
   attr :current_user_id, :integer, default: 0
+  attr :category_suggestions, :map, default: %{}
 
   def quick_finance_hero(assigns) do
     ~H"""
@@ -92,15 +93,20 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
 
           <.input
             field={@quick_finance_form[:occurred_on]}
-            type="date"
+            type="text"
             label="Data"
+            placeholder="dd/mm/aaaa"
+            inputmode="numeric"
+            maxlength="10"
+            pattern="^\\d{2}/\\d{2}/\\d{4}$"
           />
 
           <.input
             field={@quick_finance_form[:category]}
-            type="select"
+            type="text"
             label="Categoria"
-            options={category_options(@quick_finance_kind)}
+            placeholder="Ex: Alimentação"
+            list={category_datalist_id(@quick_finance_kind)}
           />
 
           <.input
@@ -123,7 +129,28 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
             label="Pagamento"
             options={[{"Débito", "debit"}, {"Crédito", "credit"}]}
           />
+
+          <.input
+            :if={@quick_finance_kind == "expense" && payment_credit?(@quick_finance_form)}
+            field={@quick_finance_form[:installments_count]}
+            id="quick-finance-installments-count"
+            type="number"
+            label="Parcelas"
+            min="1"
+            max="120"
+            step="1"
+            required
+          />
         </div>
+
+        <datalist id={category_datalist_id(@quick_finance_kind)}>
+          <option
+            :for={category <- category_options(@quick_finance_kind, @category_suggestions)}
+            value={category}
+          >
+            {category}
+          </option>
+        </datalist>
 
         <.input
           field={@quick_finance_form[:description]}
@@ -206,26 +233,14 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
     """
   end
 
-  defp category_options("income") do
-    [
-      {"Salário", "Salário"},
-      {"Renda extra", "Renda extra"},
-      {"Freelance", "Freelance"},
-      {"Reembolso", "Reembolso"},
-      {"Dividendos", "Dividendos"}
-    ]
+  defp category_options("income", suggestions) do
+    default_income_categories()
+    |> merge_with_suggestions(Map.get(suggestions, :income, []))
   end
 
-  defp category_options(_kind) do
-    [
-      {"Alimentação", "Alimentação"},
-      {"Moradia", "Moradia"},
-      {"Transporte", "Transporte"},
-      {"Saúde", "Saúde"},
-      {"Lazer", "Lazer"},
-      {"Educação", "Educação"},
-      {"Assinaturas", "Assinaturas"}
-    ]
+  defp category_options(_kind, suggestions) do
+    default_expense_categories()
+    |> merge_with_suggestions(Map.get(suggestions, :expense, []))
   end
 
   defp preset_class(active?) do
@@ -253,6 +268,32 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
   defp truthy?(value) when is_boolean(value), do: value
   defp truthy?(value) when value in ["true", "on", "1"], do: true
   defp truthy?(_value), do: false
+
+  defp payment_credit?(quick_finance_form) do
+    case quick_finance_form[:payment_method] do
+      %{value: "credit"} -> true
+      _ -> false
+    end
+  end
+
+  defp category_datalist_id("income"), do: "quick-finance-income-categories"
+  defp category_datalist_id(_kind), do: "quick-finance-expense-categories"
+
+  defp default_income_categories do
+    ["Salário", "Renda extra", "Freelance", "Reembolso", "Dividendos"]
+  end
+
+  defp default_expense_categories do
+    ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Educação", "Assinaturas"]
+  end
+
+  defp merge_with_suggestions(defaults, suggestions) when is_list(suggestions) do
+    (defaults ++ suggestions)
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq_by(&String.downcase/1)
+  end
 
   defp share_link_options([], _current_user_id), do: [{"Sem compartilhamento ativo", ""}]
 

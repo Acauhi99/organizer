@@ -3,12 +3,15 @@ defmodule Organizer.Planning.AttributeValidation do
   Validation and normalization rules for planning attributes.
   """
 
+  alias Organizer.DateSupport
+
   @task_statuses ~w(todo in_progress done)
   @task_priorities ~w(low medium high)
   @finance_kinds ~w(income expense)
   @finance_expense_profiles ~w(fixed variable recurring_fixed recurring_variable)
   @finance_payment_methods ~w(credit debit)
   @important_date_categories ~w(personal finance work)
+  @max_installments_count 120
 
   def validate_task_attrs(attrs) when is_map(attrs) do
     attrs = normalize_keys(attrs)
@@ -34,7 +37,7 @@ defmodule Organizer.Planning.AttributeValidation do
 
     {kind, errors} = validate_enum(attrs, :kind, @finance_kinds, nil, %{})
 
-    {expense_profile, payment_method, errors} =
+    {expense_profile, payment_method, installments_count, errors} =
       validate_expense_classification_attrs(attrs, kind, errors)
 
     {amount_cents, errors} = validate_positive_int(attrs, :amount_cents, errors)
@@ -48,6 +51,7 @@ defmodule Organizer.Planning.AttributeValidation do
       kind: safe_existing_atom(kind),
       expense_profile: safe_existing_atom(expense_profile),
       payment_method: safe_existing_atom(payment_method),
+      installments_count: installments_count,
       amount_cents: amount_cents,
       category: category,
       description: description,
@@ -219,10 +223,23 @@ defmodule Organizer.Planning.AttributeValidation do
     {payment_method, errors} =
       validate_optional_enum(attrs, :payment_method, @finance_payment_methods, errors)
 
-    {expense_profile || "variable", payment_method || "debit", errors}
+    {installments_count, errors} =
+      validate_optional_positive_int(attrs, :installments_count, @max_installments_count, errors)
+
+    normalized_payment_method = payment_method || "debit"
+
+    normalized_installments_count =
+      if normalized_payment_method == "credit" do
+        installments_count || 1
+      else
+        nil
+      end
+
+    {expense_profile || "variable", normalized_payment_method, normalized_installments_count,
+     errors}
   end
 
-  defp validate_expense_classification_attrs(_attrs, _kind, errors), do: {nil, nil, errors}
+  defp validate_expense_classification_attrs(_attrs, _kind, errors), do: {nil, nil, nil, errors}
 
   defp validate_optional_date(attrs, field, errors) do
     case Map.get(attrs, field) do
@@ -256,11 +273,13 @@ defmodule Organizer.Planning.AttributeValidation do
 
   defp parse_date(value, field, errors) do
     value
-    |> String.trim()
-    |> Date.from_iso8601()
+    |> DateSupport.parse_date()
     |> case do
-      {:ok, parsed} -> {parsed, errors}
-      _ -> {nil, add_error(errors, field, "must be in YYYY-MM-DD format")}
+      {:ok, parsed} ->
+        {parsed, errors}
+
+      :error ->
+        {nil, add_error(errors, field, "must be in DD/MM/YYYY or YYYY-MM-DD format")}
     end
   end
 
@@ -285,6 +304,31 @@ defmodule Organizer.Planning.AttributeValidation do
       {:ok, number} when number >= 1 and number <= 31 -> {number, errors}
       {:ok, _number} -> {nil, add_error(errors, field, "must be between 1 and 31")}
       :error -> {nil, add_error(errors, field, "must be an integer")}
+    end
+  end
+
+  defp validate_optional_positive_int(attrs, field, max, errors) do
+    case Map.get(attrs, field) do
+      nil ->
+        {nil, errors}
+
+      "" ->
+        {nil, errors}
+
+      value ->
+        case parse_int(value) do
+          {:ok, number} when number > 0 and number <= max ->
+            {number, errors}
+
+          {:ok, number} when number > max ->
+            {nil, add_error(errors, field, "must be less than or equal to #{max}")}
+
+          {:ok, _number} ->
+            {nil, add_error(errors, field, "must be greater than zero")}
+
+          :error ->
+            {nil, add_error(errors, field, "must be an integer")}
+        end
     end
   end
 
@@ -326,7 +370,10 @@ defmodule Organizer.Planning.AttributeValidation do
   end
 
   defp safe_existing_atom(nil), do: nil
-  defp safe_existing_atom(value), do: String.to_existing_atom(value)
+
+  # Safe to use String.to_atom/1 here because values were already validated
+  # against strict allow-lists in this module.
+  defp safe_existing_atom(value) when is_binary(value), do: String.to_atom(value)
 
   defp completed_at_for("done"), do: DateTime.utc_now(:second)
   defp completed_at_for(_), do: nil

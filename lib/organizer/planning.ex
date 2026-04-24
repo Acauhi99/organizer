@@ -14,6 +14,8 @@ defmodule Organizer.Planning do
   alias Organizer.Planning.ImportantDate
   alias Organizer.Planning.Task
   alias Organizer.Planning.TaskChecklistItem
+  alias Organizer.SharedFinance.AccountLink
+  alias Organizer.DateSupport
   alias Organizer.SharedFinance
   alias Organizer.Repo
 
@@ -275,8 +277,6 @@ defmodule Organizer.Planning do
       days =
         parse_positive_integer_or_default(Map.get(params, "days") || Map.get(params, :days), 30)
 
-      start_on = Date.add(Date.utc_today(), -days)
-
       kind_filter = Map.get(params, "kind") || Map.get(params, :kind)
 
       expense_profile_filter =
@@ -285,8 +285,32 @@ defmodule Organizer.Planning do
       payment_method_filter =
         Map.get(params, "payment_method") || Map.get(params, :payment_method)
 
+      period_mode =
+        parse_finance_period_mode(Map.get(params, "period_mode") || Map.get(params, :period_mode))
+
+      month_filter = Map.get(params, "month") || Map.get(params, :month)
+
+      specific_date_filter =
+        parse_optional_date_filter(
+          Map.get(params, "occurred_on") || Map.get(params, :occurred_on)
+        )
+
+      from_date_filter =
+        parse_optional_date_filter(
+          Map.get(params, "occurred_from") || Map.get(params, :occurred_from)
+        )
+
+      to_date_filter =
+        parse_optional_date_filter(
+          Map.get(params, "occurred_to") || Map.get(params, :occurred_to)
+        )
+
+      weekday_filter =
+        parse_weekday_filter(Map.get(params, "weekday") || Map.get(params, :weekday))
+
       category_filter = Map.get(params, "category") || Map.get(params, :category) || ""
       query_text = Map.get(params, "q") || Map.get(params, :q) || ""
+      sort_by = parse_finance_sort_by(Map.get(params, "sort_by") || Map.get(params, :sort_by))
 
       min_amount_cents =
         parse_non_negative_integer_or_default(
@@ -316,8 +340,19 @@ defmodule Organizer.Planning do
              ) do
         query =
           from f in FinanceEntry,
-            where: f.user_id == ^user_id and f.occurred_on >= ^start_on,
-            order_by: [desc: f.occurred_on, desc: f.inserted_at]
+            where: f.user_id == ^user_id
+
+        query =
+          apply_finance_period_filter(
+            query,
+            period_mode,
+            days,
+            month_filter,
+            specific_date_filter,
+            from_date_filter,
+            to_date_filter,
+            weekday_filter
+          )
 
         query =
           if is_atom(kind_filter) and not is_nil(kind_filter) do
@@ -348,7 +383,7 @@ defmodule Organizer.Planning do
             query
           end
 
-        safe_query = query_text |> String.trim() |> String.slice(0, 100)
+        safe_query = sanitize_filter_query(query_text)
 
         query =
           if safe_query != "" do
@@ -371,8 +406,46 @@ defmodule Organizer.Planning do
             query
           end
 
+        query = apply_finance_sorting(query, sort_by)
+
         {:ok, Repo.all(query)}
       end
+    end
+  end
+
+  def list_finance_category_suggestions(%Scope{} = scope) do
+    with {:ok, user_id} <- scope_user_id(scope) do
+      linked_user_ids = linked_user_ids_for_scope(user_id)
+      user_ids = ([user_id] ++ linked_user_ids) |> Enum.uniq()
+
+      query =
+        from f in FinanceEntry,
+          where: f.user_id in ^user_ids and not is_nil(f.category),
+          select: {f.kind, f.category}
+
+      suggestions =
+        query
+        |> Repo.all()
+        |> Enum.reduce(%{income: [], expense: []}, fn {kind, category}, acc ->
+          cleaned = String.trim(category || "")
+
+          cond do
+            cleaned == "" ->
+              acc
+
+            kind == :income ->
+              Map.update!(acc, :income, &[cleaned | &1])
+
+            kind == :expense ->
+              Map.update!(acc, :expense, &[cleaned | &1])
+
+            true ->
+              acc
+          end
+        end)
+        |> normalize_category_suggestion_map()
+
+      {:ok, suggestions}
     end
   end
 
@@ -1076,6 +1149,223 @@ defmodule Organizer.Planning do
   end
 
   defp parse_non_negative_integer_or_default(_, default), do: default
+
+  defp parse_optional_date_filter(nil), do: nil
+  defp parse_optional_date_filter(""), do: nil
+
+  defp parse_optional_date_filter(value) do
+    case DateSupport.parse_date(value) do
+      {:ok, date} -> date
+      :error -> nil
+    end
+  end
+
+  defp parse_finance_period_mode(value) do
+    case normalize_filter_string(value) do
+      "specific_date" -> :specific_date
+      "month" -> :month
+      "range" -> :range
+      "weekday" -> :weekday
+      _ -> :rolling
+    end
+  end
+
+  defp parse_finance_sort_by(value) do
+    case normalize_filter_string(value) do
+      "date_asc" -> :date_asc
+      "amount_desc" -> :amount_desc
+      "amount_asc" -> :amount_asc
+      "category_asc" -> :category_asc
+      _ -> :date_desc
+    end
+  end
+
+  defp parse_weekday_filter(value) when is_integer(value) and value >= 0 and value <= 6,
+    do: value
+
+  defp parse_weekday_filter(value) when is_binary(value) do
+    case normalize_filter_string(value) do
+      "" ->
+        nil
+
+      "all" ->
+        nil
+
+      normalized ->
+        case Integer.parse(normalized) do
+          {weekday, ""} when weekday >= 0 and weekday <= 6 -> weekday
+          _ -> nil
+        end
+    end
+  end
+
+  defp parse_weekday_filter(_value), do: nil
+
+  defp apply_finance_period_filter(
+         query,
+         :specific_date,
+         _days,
+         _month_filter,
+         %Date{} = specific_date,
+         _from_date,
+         _to_date,
+         _weekday
+       ) do
+    from f in query, where: f.occurred_on == ^specific_date
+  end
+
+  defp apply_finance_period_filter(
+         query,
+         :month,
+         days,
+         month_filter,
+         _specific_date,
+         _from_date,
+         _to_date,
+         _weekday
+       ) do
+    case month_filter |> normalize_filter_string() |> DateSupport.parse_month_year() do
+      {:ok, {start_on, end_on}} ->
+        from f in query, where: f.occurred_on >= ^start_on and f.occurred_on <= ^end_on
+
+      :error ->
+        apply_finance_period_filter(query, :rolling, days, nil, nil, nil, nil, nil)
+    end
+  end
+
+  defp apply_finance_period_filter(
+         query,
+         :range,
+         _days,
+         _month_filter,
+         _specific_date,
+         from_date,
+         to_date,
+         _weekday
+       ) do
+    query
+    |> maybe_filter_from_date(from_date)
+    |> maybe_filter_to_date(to_date)
+  end
+
+  defp apply_finance_period_filter(
+         query,
+         :weekday,
+         _days,
+         _month_filter,
+         _specific_date,
+         _from_date,
+         _to_date,
+         weekday
+       )
+       when is_integer(weekday) do
+    weekday_string = Integer.to_string(weekday)
+    from f in query, where: fragment("strftime('%w', ?)", f.occurred_on) == ^weekday_string
+  end
+
+  defp apply_finance_period_filter(
+         query,
+         _period_mode,
+         days,
+         _month_filter,
+         _specific_date,
+         _from_date,
+         _to_date,
+         _weekday
+       ) do
+    start_on = Date.add(Date.utc_today(), -days)
+    from f in query, where: f.occurred_on >= ^start_on
+  end
+
+  defp maybe_filter_from_date(query, %Date{} = from_date) do
+    from f in query, where: f.occurred_on >= ^from_date
+  end
+
+  defp maybe_filter_from_date(query, _from_date), do: query
+
+  defp maybe_filter_to_date(query, %Date{} = to_date) do
+    from f in query, where: f.occurred_on <= ^to_date
+  end
+
+  defp maybe_filter_to_date(query, _to_date), do: query
+
+  defp apply_finance_sorting(query, :date_asc) do
+    from f in query, order_by: [asc: f.occurred_on, asc: f.inserted_at]
+  end
+
+  defp apply_finance_sorting(query, :amount_desc) do
+    from f in query, order_by: [desc: f.amount_cents, desc: f.occurred_on, desc: f.inserted_at]
+  end
+
+  defp apply_finance_sorting(query, :amount_asc) do
+    from f in query, order_by: [asc: f.amount_cents, desc: f.occurred_on, desc: f.inserted_at]
+  end
+
+  defp apply_finance_sorting(query, :category_asc) do
+    from f in query, order_by: [asc: f.category, desc: f.occurred_on, desc: f.inserted_at]
+  end
+
+  defp apply_finance_sorting(query, _sort_by) do
+    from f in query, order_by: [desc: f.occurred_on, desc: f.inserted_at]
+  end
+
+  defp sanitize_filter_query(query_text) when is_binary(query_text) do
+    query_text
+    |> String.trim()
+    |> String.slice(0, 100)
+  end
+
+  defp sanitize_filter_query(_query_text), do: ""
+
+  defp linked_user_ids_for_scope(user_id) do
+    query =
+      from l in AccountLink,
+        where:
+          l.status == :active and
+            (l.user_a_id == ^user_id or l.user_b_id == ^user_id),
+        select:
+          fragment(
+            "CASE WHEN ? = ? THEN ? ELSE ? END",
+            l.user_a_id,
+            ^user_id,
+            l.user_b_id,
+            l.user_a_id
+          )
+
+    query
+    |> Repo.all()
+    |> Enum.filter(&is_integer/1)
+  end
+
+  defp normalize_category_suggestion_map(%{income: income, expense: expense}) do
+    normalized_income = normalize_category_list(income)
+    normalized_expense = normalize_category_list(expense)
+
+    %{
+      income: normalized_income,
+      expense: normalized_expense,
+      all: normalize_category_list(normalized_income ++ normalized_expense)
+    }
+  end
+
+  defp normalize_category_list(categories) when is_list(categories) do
+    categories
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq_by(&String.downcase/1)
+    |> Enum.sort_by(&String.downcase/1)
+  end
+
+  defp normalize_filter_string(value) when is_binary(value), do: String.trim(value)
+
+  defp normalize_filter_string(value) when is_atom(value),
+    do: value |> Atom.to_string() |> String.trim()
+
+  defp normalize_filter_string(value) when is_integer(value),
+    do: value |> Integer.to_string() |> String.trim()
+
+  defp normalize_filter_string(_value), do: ""
 
   defp read_option_value(opts, key) when is_map(opts),
     do: Map.get(opts, key) || Map.get(opts, Atom.to_string(key))

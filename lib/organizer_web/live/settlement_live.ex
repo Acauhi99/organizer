@@ -3,6 +3,7 @@ defmodule OrganizerWeb.SettlementLive do
 
   alias Organizer.SharedFinance
   alias Organizer.SharedFinance.SettlementRecord
+  alias Organizer.DateSupport
 
   @impl true
   def mount(%{"link_id" => link_id_param}, _session, socket) do
@@ -83,7 +84,7 @@ defmodule OrganizerWeb.SettlementLive do
         {:noreply,
          socket
          |> assign(:record_form, record_form(attrs))
-         |> put_flash(:error, "Data inválida. Use um valor no formato AAAA-MM-DD.")}
+         |> put_flash(:error, "Data inválida. Use o formato dd/mm/aaaa.")}
 
       {:error, {:validation, _}} ->
         {:noreply, put_flash(socket, :error, "Valor deve ser maior que zero.")}
@@ -265,8 +266,12 @@ defmodule OrganizerWeb.SettlementLive do
 
               <.input
                 field={@record_form[:transferred_at]}
-                type="date"
+                type="text"
                 label="Data da transferência"
+                placeholder="dd/mm/aaaa"
+                inputmode="numeric"
+                maxlength="10"
+                pattern="^\\d{2}/\\d{2}/\\d{4}$"
               />
             </div>
 
@@ -368,7 +373,7 @@ defmodule OrganizerWeb.SettlementLive do
   defp parse_transferred_at(""), do: {:ok, DateTime.utc_now() |> DateTime.truncate(:second)}
 
   defp parse_transferred_at(value) when is_binary(value) do
-    with {:ok, date} <- Date.from_iso8601(value),
+    with {:ok, date} <- DateSupport.parse_date(value),
          {:ok, datetime} <- DateTime.new(date, ~T[00:00:00], "Etc/UTC") do
       {:ok, datetime}
     else
@@ -391,7 +396,9 @@ defmodule OrganizerWeb.SettlementLive do
   defp format_cents(_), do: "R$ 0,00"
 
   defp format_date(%DateTime{} = dt) do
-    "#{dt.day}/#{dt.month}/#{dt.year}"
+    day = dt.day |> Integer.to_string() |> String.pad_leading(2, "0")
+    month = dt.month |> Integer.to_string() |> String.pad_leading(2, "0")
+    "#{day}/#{month}/#{dt.year}"
   end
 
   defp format_date(_), do: "—"

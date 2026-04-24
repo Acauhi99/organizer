@@ -95,8 +95,12 @@ defmodule OrganizerWeb.Components.QuickTaskHero do
 
           <.input
             field={@quick_task_form[:due_on]}
-            type="date"
+            type="text"
             label="Prazo"
+            placeholder="dd/mm/aaaa"
+            inputmode="numeric"
+            maxlength="10"
+            pattern="^\\d{2}/\\d{2}/\\d{4}$"
           />
         </div>
 

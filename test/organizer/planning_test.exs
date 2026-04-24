@@ -277,6 +277,7 @@ defmodule Organizer.PlanningTest do
 
       assert default_expense.expense_profile == :variable
       assert default_expense.payment_method == :debit
+      assert is_nil(default_expense.installments_count)
 
       assert {:ok, classified_expense} =
                Planning.create_finance_entry(scope, %{
@@ -289,6 +290,7 @@ defmodule Organizer.PlanningTest do
 
       assert classified_expense.expense_profile == :fixed
       assert classified_expense.payment_method == :credit
+      assert classified_expense.installments_count == 1
 
       assert {:ok, income_entry} =
                Planning.create_finance_entry(scope, %{
@@ -299,6 +301,33 @@ defmodule Organizer.PlanningTest do
 
       assert is_nil(income_entry.expense_profile)
       assert is_nil(income_entry.payment_method)
+      assert is_nil(income_entry.installments_count)
+    end
+
+    test "returns category suggestions including linked account categories" do
+      owner_scope = user_scope_fixture()
+      partner_user = user_fixture()
+      partner_scope = user_scope_fixture(partner_user)
+      {:ok, invite} = SharedFinance.create_invite(owner_scope)
+      {:ok, _link} = SharedFinance.accept_invite(partner_scope, invite.token)
+
+      assert {:ok, _} =
+               Planning.create_finance_entry(owner_scope, %{
+                 "kind" => "expense",
+                 "amount_cents" => 1_500,
+                 "category" => "Mercado Premium"
+               })
+
+      assert {:ok, _} =
+               Planning.create_finance_entry(partner_scope, %{
+                 "kind" => "expense",
+                 "amount_cents" => 1_700,
+                 "category" => "Cafeteria Parceira"
+               })
+
+      assert {:ok, suggestions} = Planning.list_finance_category_suggestions(owner_scope)
+      assert "Mercado Premium" in suggestions.expense
+      assert "Cafeteria Parceira" in suggestions.expense
     end
   end
 
@@ -339,6 +368,52 @@ defmodule Organizer.PlanningTest do
 
       assert {:error, {:validation, %{priority: ["is invalid"]}}} =
                Planning.list_tasks(scope, %{"priority" => "urgent"})
+    end
+
+    test "filters finance entries by specific date, month and weekday" do
+      scope = user_scope_fixture()
+
+      assert {:ok, target_entry} =
+               Planning.create_finance_entry(scope, %{
+                 "kind" => "expense",
+                 "amount_cents" => 2_500,
+                 "category" => "Alimentação",
+                 "occurred_on" => "10/04/2026"
+               })
+
+      assert {:ok, _other_month_entry} =
+               Planning.create_finance_entry(scope, %{
+                 "kind" => "expense",
+                 "amount_cents" => 3_500,
+                 "category" => "Alimentação",
+                 "occurred_on" => "10/03/2026"
+               })
+
+      assert {:ok, specific_date_entries} =
+               Planning.list_finance_entries(scope, %{
+                 "period_mode" => "specific_date",
+                 "occurred_on" => "10/04/2026"
+               })
+
+      assert Enum.map(specific_date_entries, & &1.id) == [target_entry.id]
+
+      assert {:ok, month_entries} =
+               Planning.list_finance_entries(scope, %{
+                 "period_mode" => "month",
+                 "month" => "04/2026"
+               })
+
+      assert Enum.any?(month_entries, &(&1.id == target_entry.id))
+      refute Enum.any?(month_entries, &(&1.occurred_on.month == 3))
+
+      # 10/04/2026 was a Friday (weekday == 5 in strftime %w)
+      assert {:ok, weekday_entries} =
+               Planning.list_finance_entries(scope, %{
+                 "period_mode" => "weekday",
+                 "weekday" => "5"
+               })
+
+      assert Enum.any?(weekday_entries, &(&1.id == target_entry.id))
     end
   end
 

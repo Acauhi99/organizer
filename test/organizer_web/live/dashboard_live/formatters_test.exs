@@ -123,14 +123,14 @@ defmodule OrganizerWeb.DashboardLive.FormattersTest do
       assert Formatters.date_input_value(nil) == ""
     end
 
-    test "returns ISO 8601 string for a Date struct" do
+    test "returns pt-BR date string for a Date struct" do
       date = ~D[2024-06-15]
-      assert Formatters.date_input_value(date) == "2024-06-15"
+      assert Formatters.date_input_value(date) == "15/06/2024"
     end
 
-    test "returns ISO 8601 string for another Date struct" do
+    test "returns pt-BR date string for another Date struct" do
       date = ~D[2000-01-01]
-      assert Formatters.date_input_value(date) == "2000-01-01"
+      assert Formatters.date_input_value(date) == "01/01/2000"
     end
 
     test "handles non-Date, non-nil values" do

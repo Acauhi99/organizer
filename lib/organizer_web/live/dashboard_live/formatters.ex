@@ -6,6 +6,8 @@ defmodule OrganizerWeb.DashboardLive.Formatters do
   template can call all functions without a module prefix.
   """
 
+  alias Organizer.DateSupport
+
   @spec format_money(integer() | any()) :: String.t()
   def format_money(cents) when is_integer(cents) do
     abs_cents = abs(cents)
@@ -24,7 +26,7 @@ defmodule OrganizerWeb.DashboardLive.Formatters do
 
   @spec date_input_value(Date.t() | nil | any()) :: String.t()
   def date_input_value(nil), do: ""
-  def date_input_value(%Date{} = date), do: Date.to_iso8601(date)
+  def date_input_value(%Date{} = date), do: DateSupport.format_pt_br(date)
 
   @spec editing?(any(), any()) :: boolean()
   def editing?(editing_id, id) do

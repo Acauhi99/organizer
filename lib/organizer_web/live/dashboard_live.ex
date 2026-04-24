@@ -4,6 +4,7 @@ defmodule OrganizerWeb.DashboardLive do
   alias Organizer.Planning
   alias Organizer.Planning.AmountParser
   alias Organizer.SharedFinance
+  alias Organizer.DateSupport
   alias OrganizerWeb.DashboardLive.{Filters, Insights}
 
   alias OrganizerWeb.DashboardLive.Components.{
@@ -773,6 +774,7 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:ops_tab, "tasks")
     |> assign(:task_filters, Filters.default_task_filters())
     |> assign(:finance_filters, Filters.default_finance_filters())
+    |> assign(:finance_category_suggestions, %{income: [], expense: [], all: []})
     |> assign(:analytics_filters, Filters.default_analytics_filters())
     |> assign(:editing_task_id, nil)
     |> assign(:editing_finance_id, nil)
@@ -799,6 +801,12 @@ defmodule OrganizerWeb.DashboardLive do
     {:ok, finances} =
       Planning.list_finance_entries(socket.assigns.current_scope, socket.assigns.finance_filters)
 
+    finance_category_suggestions =
+      case Planning.list_finance_category_suggestions(socket.assigns.current_scope) do
+        {:ok, suggestions} -> suggestions
+        _ -> %{income: [], expense: [], all: []}
+      end
+
     finance_income = Enum.filter(finances, &(&1.kind == :income))
     finance_expenses = Enum.filter(finances, &(&1.kind == :expense))
 
@@ -812,6 +820,7 @@ defmodule OrganizerWeb.DashboardLive do
     )
     |> stream(:tasks_done, tasks_done, reset: true, dom_id: &"tasks-done-#{&1.id}")
     |> stream(:finances, finances, reset: true)
+    |> assign(:finance_category_suggestions, finance_category_suggestions)
     |> assign(:task_details_modal_task, selected_task)
     |> assign(:task_details_modal_task_id, selected_task && selected_task.id)
     |> assign(:ops_counts, %{
@@ -870,9 +879,10 @@ defmodule OrganizerWeb.DashboardLive do
       "amount_cents" => "",
       "category" => default_quick_finance_category(kind),
       "description" => "",
-      "occurred_on" => Date.to_iso8601(Date.utc_today()),
+      "occurred_on" => DateSupport.format_pt_br(Date.utc_today()),
       "expense_profile" => default_quick_expense_profile(kind),
       "payment_method" => default_quick_payment_method(kind),
+      "installments_count" => default_quick_installments_count(kind),
       "share_with_link" => "false",
       "shared_with_link_id" => if(kind == "expense", do: default_shared_with_link_id, else: ""),
       "shared_split_mode" => "income_ratio",
@@ -920,7 +930,7 @@ defmodule OrganizerWeb.DashboardLive do
       "title" => "",
       "priority" => "medium",
       "status" => "todo",
-      "due_on" => Date.to_iso8601(Date.utc_today()),
+      "due_on" => DateSupport.format_pt_br(Date.utc_today()),
       "notes" => ""
     }
   end
@@ -930,7 +940,7 @@ defmodule OrganizerWeb.DashboardLive do
       "title" => "Foco do dia",
       "priority" => "high",
       "status" => "in_progress",
-      "due_on" => Date.to_iso8601(Date.utc_today())
+      "due_on" => DateSupport.format_pt_br(Date.utc_today())
     }
   end
 
@@ -939,7 +949,7 @@ defmodule OrganizerWeb.DashboardLive do
       "title" => "Próxima ação",
       "priority" => "medium",
       "status" => "todo",
-      "due_on" => Date.to_iso8601(Date.utc_today())
+      "due_on" => DateSupport.format_pt_br(Date.utc_today())
     }
   end
 
@@ -948,7 +958,7 @@ defmodule OrganizerWeb.DashboardLive do
       "title" => "Item de backlog",
       "priority" => "low",
       "status" => "todo",
-      "due_on" => Date.utc_today() |> Date.add(7) |> Date.to_iso8601()
+      "due_on" => Date.utc_today() |> Date.add(7) |> DateSupport.format_pt_br()
     }
   end
 
@@ -957,7 +967,7 @@ defmodule OrganizerWeb.DashboardLive do
       "title" => "Lista de compras do mercado",
       "priority" => "medium",
       "status" => "todo",
-      "due_on" => Date.to_iso8601(Date.utc_today()),
+      "due_on" => DateSupport.format_pt_br(Date.utc_today()),
       "notes" => "Após salvar, adicione itens na checklist desta tarefa."
     }
   end
@@ -998,7 +1008,10 @@ defmodule OrganizerWeb.DashboardLive do
       |> Map.merge(string_key_map(attrs))
       |> Map.put("kind", kind)
       |> Map.update!("category", &default_if_blank(&1, default_quick_finance_category(kind)))
-      |> Map.update!("occurred_on", &default_if_blank(&1, Date.to_iso8601(Date.utc_today())))
+      |> Map.update!(
+        "occurred_on",
+        &default_if_blank(&1, DateSupport.format_pt_br(Date.utc_today()))
+      )
       |> normalize_quick_finance_share_fields(kind, account_links)
       |> maybe_parse_quick_finance_amount(parse_amount?)
 
@@ -1006,6 +1019,7 @@ defmodule OrganizerWeb.DashboardLive do
       merged
       |> Map.put("expense_profile", "")
       |> Map.put("payment_method", "")
+      |> Map.put("installments_count", "")
     else
       merged
       |> Map.update!(
@@ -1013,6 +1027,7 @@ defmodule OrganizerWeb.DashboardLive do
         &default_if_blank(&1, default_quick_expense_profile(kind))
       )
       |> Map.update!("payment_method", &default_if_blank(&1, default_quick_payment_method(kind)))
+      |> normalize_quick_finance_installments_count()
     end
   end
 
@@ -1046,6 +1061,30 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   defp parse_quick_finance_amount_cents(_value), do: :error
+
+  defp normalize_quick_finance_installments_count(attrs) do
+    payment_method =
+      attrs
+      |> Map.get("payment_method", "debit")
+      |> to_string()
+      |> String.trim()
+
+    if payment_method == "credit" do
+      installments =
+        attrs
+        |> Map.get("installments_count", "1")
+        |> to_string()
+        |> String.trim()
+        |> case do
+          "" -> "1"
+          value -> value
+        end
+
+      Map.put(attrs, "installments_count", installments)
+    else
+      Map.put(attrs, "installments_count", "")
+    end
+  end
 
   defp normalize_quick_finance_share_fields(attrs, kind, account_links) do
     link_ids = Enum.map(account_links, &to_string(&1.id))
@@ -1263,6 +1302,9 @@ defmodule OrganizerWeb.DashboardLive do
   defp default_quick_payment_method("income"), do: ""
   defp default_quick_payment_method(_kind), do: "debit"
 
+  defp default_quick_installments_count("income"), do: ""
+  defp default_quick_installments_count(_kind), do: "1"
+
   defp normalize_quick_task_priority(priority) do
     case to_string(priority) |> String.trim() do
       "low" -> "low"
@@ -1381,6 +1423,7 @@ defmodule OrganizerWeb.DashboardLive do
               quick_finance_kind={@quick_finance_kind}
               account_links={@account_links}
               current_user_id={@current_scope.user.id}
+              category_suggestions={@finance_category_suggestions}
             />
             <OperationsPanel.operations_panel
               streams={@streams}
@@ -1388,6 +1431,7 @@ defmodule OrganizerWeb.DashboardLive do
               task_filters={@task_filters}
               finance_filters={@finance_filters}
               account_links={@account_links}
+              category_suggestions={@finance_category_suggestions}
               current_user_id={@current_scope.user.id}
               editing_task_id={@editing_task_id}
               editing_finance_id={@editing_finance_id}
@@ -1422,6 +1466,7 @@ defmodule OrganizerWeb.DashboardLive do
               task_filters={@task_filters}
               finance_filters={@finance_filters}
               account_links={@account_links}
+              category_suggestions={@finance_category_suggestions}
               current_user_id={@current_scope.user.id}
               editing_task_id={@editing_task_id}
               editing_finance_id={@editing_finance_id}

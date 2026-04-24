@@ -44,6 +44,7 @@ defmodule OrganizerWeb.API.V1.FinanceEntryController do
       kind: to_string(entry.kind),
       expense_profile: enum_to_string(entry.expense_profile),
       payment_method: enum_to_string(entry.payment_method),
+      installments_count: entry.installments_count,
       amount_cents: entry.amount_cents,
       category: entry.category,
       description: entry.description,

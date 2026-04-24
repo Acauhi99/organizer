@@ -8,6 +8,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
   attr :task_filters, :map, required: true
   attr :finance_filters, :map, required: true
   attr :account_links, :list, default: []
+  attr :category_suggestions, :map, default: %{}
   attr :current_user_id, :integer, default: nil
   attr :editing_task_id, :any, default: nil
   attr :editing_finance_id, :any, default: nil
@@ -16,6 +17,15 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
   attr :mode, :string, default: "all"
 
   def operations_panel(assigns) do
+    assigns =
+      assigns
+      |> assign(:task_filters, normalize_task_filters(assigns.task_filters))
+      |> assign(:finance_filters, normalize_finance_filters(assigns.finance_filters))
+      |> assign(
+        :category_suggestions,
+        normalize_category_suggestions(assigns.category_suggestions)
+      )
+
     ~H"""
     <section
       id="operations-panel"
@@ -345,13 +355,105 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
               id="finance-filters"
               phx-change="filter_finances"
               phx-debounce="500"
-              class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8"
+              class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
               aria-label="Filtros de lançamentos"
             >
+              <select name="filters[period_mode]" class="select select-bordered select-sm">
+                <option value="rolling" selected={@finance_filters.period_mode == "rolling"}>
+                  Janela móvel (dias)
+                </option>
+                <option
+                  value="specific_date"
+                  selected={@finance_filters.period_mode == "specific_date"}
+                >
+                  Data específica
+                </option>
+                <option value="month" selected={@finance_filters.period_mode == "month"}>
+                  Mês específico
+                </option>
+                <option value="range" selected={@finance_filters.period_mode == "range"}>
+                  Intervalo de datas
+                </option>
+                <option value="weekday" selected={@finance_filters.period_mode == "weekday"}>
+                  Dia da semana
+                </option>
+              </select>
               <select name="filters[days]" class="select select-bordered select-sm">
                 <option value="7" selected={@finance_filters.days == "7"}>Últimos 7 dias</option>
                 <option value="30" selected={@finance_filters.days == "30"}>Últimos 30 dias</option>
                 <option value="90" selected={@finance_filters.days == "90"}>Últimos 90 dias</option>
+                <option value="365" selected={@finance_filters.days == "365"}>
+                  Últimos 365 dias
+                </option>
+              </select>
+              <input
+                type="text"
+                name="filters[occurred_on]"
+                value={@finance_filters.occurred_on}
+                placeholder="Data exata: dd/mm/aaaa"
+                class="input input-bordered input-sm"
+                inputmode="numeric"
+                maxlength="10"
+                pattern="^\\d{2}/\\d{2}/\\d{4}$"
+              />
+              <input
+                type="text"
+                name="filters[month]"
+                value={@finance_filters.month}
+                placeholder="Mês: mm/aaaa"
+                class="input input-bordered input-sm"
+                inputmode="numeric"
+                maxlength="7"
+                pattern="^\\d{2}/\\d{4}$"
+              />
+              <input
+                type="text"
+                name="filters[occurred_from]"
+                value={@finance_filters.occurred_from}
+                placeholder="De: dd/mm/aaaa"
+                class="input input-bordered input-sm"
+                inputmode="numeric"
+                maxlength="10"
+                pattern="^\\d{2}/\\d{2}/\\d{4}$"
+              />
+              <input
+                type="text"
+                name="filters[occurred_to]"
+                value={@finance_filters.occurred_to}
+                placeholder="Até: dd/mm/aaaa"
+                class="input input-bordered input-sm"
+                inputmode="numeric"
+                maxlength="10"
+                pattern="^\\d{2}/\\d{2}/\\d{4}$"
+              />
+              <select name="filters[weekday]" class="select select-bordered select-sm">
+                <option value="all" selected={@finance_filters.weekday == "all"}>
+                  Todos os dias
+                </option>
+                <option value="1" selected={@finance_filters.weekday == "1"}>Segunda</option>
+                <option value="2" selected={@finance_filters.weekday == "2"}>Terça</option>
+                <option value="3" selected={@finance_filters.weekday == "3"}>Quarta</option>
+                <option value="4" selected={@finance_filters.weekday == "4"}>Quinta</option>
+                <option value="5" selected={@finance_filters.weekday == "5"}>Sexta</option>
+                <option value="6" selected={@finance_filters.weekday == "6"}>Sábado</option>
+                <option value="0" selected={@finance_filters.weekday == "0"}>Domingo</option>
+              </select>
+              <select name="filters[sort_by]" class="select select-bordered select-sm">
+                <option value="date_desc" selected={@finance_filters.sort_by == "date_desc"}>
+                  Data mais recente
+                </option>
+                <option value="date_asc" selected={@finance_filters.sort_by == "date_asc"}>
+                  Data mais antiga
+                </option>
+                <option value="amount_desc" selected={@finance_filters.sort_by == "amount_desc"}>
+                  Maior valor
+                </option>
+                <option value="amount_asc" selected={@finance_filters.sort_by == "amount_asc"}>
+                  Menor valor
+                </option>
+                <option value="category_asc" selected={@finance_filters.sort_by == "category_asc"}>
+                  Categoria A-Z
+                </option>
               </select>
               <select name="filters[kind]" class="select select-bordered select-sm">
                 <option value="all" selected={@finance_filters.kind == "all"}>Todos tipos</option>
@@ -367,6 +469,18 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                 </option>
                 <option value="variable" selected={@finance_filters.expense_profile == "variable"}>
                   Variável
+                </option>
+                <option
+                  value="recurring_fixed"
+                  selected={@finance_filters.expense_profile == "recurring_fixed"}
+                >
+                  Recorrente fixa
+                </option>
+                <option
+                  value="recurring_variable"
+                  selected={@finance_filters.expense_profile == "recurring_variable"}
+                >
+                  Recorrente variável
                 </option>
               </select>
               <select name="filters[payment_method]" class="select select-bordered select-sm">
@@ -387,6 +501,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                 placeholder="Categoria..."
                 class="input input-bordered input-sm"
                 maxlength="50"
+                list="finance-filter-categories"
               />
               <input
                 type="text"
@@ -416,6 +531,12 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
               />
             </form>
 
+            <datalist id="finance-filter-categories">
+              <option :for={category <- Map.get(@category_suggestions, :all, [])} value={category}>
+                {category}
+              </option>
+            </datalist>
+
             <div id="finances" phx-update="stream" class="mt-3 space-y-2">
               <div id="finances-empty-wrapper" class="hidden only:block">
                 <div
@@ -439,8 +560,8 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                   finance_row_border_class(entry.kind)
                 ]}
               >
-                <div class="flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap">
-                  <div class="min-w-0 flex-1">
+                <div class="grid gap-2 lg:grid-cols-[minmax(0,1fr)_11rem] lg:items-start">
+                  <div class="min-w-0">
                     <p class="truncate text-sm font-semibold text-base-content">{entry.category}</p>
                     <p
                       :if={entry.description && String.trim(entry.description) != ""}
@@ -452,7 +573,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                       {date_input_value(entry.occurred_on)}
                     </p>
                   </div>
-                  <p class={finance_amount_class(entry.kind)}>
+                  <p class={[finance_amount_class(entry.kind), "lg:text-right"]}>
                     {format_money(entry.amount_cents)}
                   </p>
                 </div>
@@ -466,6 +587,9 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                   </span>
                   <span :if={entry.payment_method} class="badge badge-outline badge-sm">
                     {finance_payment_label(entry.payment_method)}
+                  </span>
+                  <span :if={show_installments_badge?(entry)} class="badge badge-outline badge-sm">
+                    {entry.installments_count}x parcelas
                   </span>
                 </div>
 
@@ -535,6 +659,18 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                         <option value="variable" selected={entry.expense_profile == :variable}>
                           Variável
                         </option>
+                        <option
+                          value="recurring_fixed"
+                          selected={entry.expense_profile == :recurring_fixed}
+                        >
+                          Recorrente fixa
+                        </option>
+                        <option
+                          value="recurring_variable"
+                          selected={entry.expense_profile == :recurring_variable}
+                        >
+                          Recorrente variável
+                        </option>
                       </select>
                     </div>
                     <div>
@@ -590,6 +726,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                     required
                     value={entry.category}
                     class="input input-bordered w-full"
+                    list={finance_entry_category_datalist_id(entry.id, entry.kind)}
                   />
                   <label
                     class="text-xs font-medium text-base-content/70"
@@ -600,9 +737,13 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                   <input
                     id={"finance-date-#{entry.id}"}
                     name="finance[occurred_on]"
-                    type="date"
+                    type="text"
                     value={date_input_value(entry.occurred_on)}
                     class="input input-bordered w-full"
+                    placeholder="dd/mm/aaaa"
+                    inputmode="numeric"
+                    maxlength="10"
+                    pattern="^\\d{2}/\\d{2}/\\d{4}$"
                   />
                   <label
                     class="text-xs font-medium text-base-content/70"
@@ -617,6 +758,35 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
                     value={entry.description || ""}
                     class="input input-bordered w-full"
                   />
+                  <div :if={entry.kind == :expense}>
+                    <label
+                      class="text-xs font-medium text-base-content/70"
+                      for={"finance-installments-#{entry.id}"}
+                    >
+                      Parcelas
+                    </label>
+                    <input
+                      id={"finance-installments-#{entry.id}"}
+                      name="finance[installments_count]"
+                      type="number"
+                      min="1"
+                      max="120"
+                      step="1"
+                      value={entry.installments_count || 1}
+                      class="input input-bordered w-full"
+                    />
+                    <p class="mt-1 text-[11px] text-base-content/62">
+                      Usado quando o pagamento estiver em crédito.
+                    </p>
+                  </div>
+                  <datalist id={finance_entry_category_datalist_id(entry.id, entry.kind)}>
+                    <option
+                      :for={category <- finance_category_options(entry.kind, @category_suggestions)}
+                      value={category}
+                    >
+                      {category}
+                    </option>
+                  </datalist>
                   <div class="flex flex-wrap gap-2">
                     <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
                     <button
@@ -972,9 +1142,13 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
             <input
               id={"task-due-#{task.id}"}
               name="task[due_on]"
-              type="date"
+              type="text"
               value={date_input_value(task.due_on)}
               class="input input-bordered w-full"
+              placeholder="dd/mm/aaaa"
+              inputmode="numeric"
+              maxlength="10"
+              pattern="^\\d{2}/\\d{2}/\\d{4}$"
             />
             <div class="grid gap-2 sm:grid-cols-2">
               <div>
@@ -1272,7 +1446,7 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
   end
 
   defp task_due_label(nil), do: "sem prazo"
-  defp task_due_label(%Date{} = due_on), do: Date.to_iso8601(due_on)
+  defp task_due_label(%Date{} = due_on), do: date_input_value(due_on)
   defp task_due_label(_), do: "sem prazo"
 
   defp task_priority_label(:high), do: "Alta"
@@ -1444,4 +1618,96 @@ defmodule OrganizerWeb.DashboardLive.Components.OperationsPanel do
     do: value |> Atom.to_string() |> String.capitalize()
 
   defp finance_payment_label(_), do: "Pagamento"
+
+  defp show_installments_badge?(entry) do
+    entry.kind == :expense and entry.payment_method == :credit and
+      is_integer(entry.installments_count) and entry.installments_count > 1
+  end
+
+  defp finance_entry_category_datalist_id(entry_id, :income),
+    do: "finance-entry-income-categories-#{entry_id}"
+
+  defp finance_entry_category_datalist_id(entry_id, _kind),
+    do: "finance-entry-expense-categories-#{entry_id}"
+
+  defp finance_category_options(:income, suggestions) do
+    default_income_categories()
+    |> merge_with_category_suggestions(Map.get(suggestions, :income, []))
+  end
+
+  defp finance_category_options(_kind, suggestions) do
+    default_expense_categories()
+    |> merge_with_category_suggestions(Map.get(suggestions, :expense, []))
+  end
+
+  defp default_income_categories do
+    ["Salário", "Renda extra", "Freelance", "Reembolso", "Dividendos"]
+  end
+
+  defp default_expense_categories do
+    ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Educação", "Assinaturas"]
+  end
+
+  defp merge_with_category_suggestions(defaults, suggestions) when is_list(suggestions) do
+    (defaults ++ suggestions)
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq_by(&String.downcase/1)
+  end
+
+  defp normalize_task_filters(filters) when is_map(filters) do
+    defaults = %{status: "all", priority: "all", days: "14", q: ""}
+    Map.merge(defaults, filters)
+  end
+
+  defp normalize_task_filters(_filters), do: %{status: "all", priority: "all", days: "14", q: ""}
+
+  defp normalize_finance_filters(filters) when is_map(filters) do
+    defaults = %{
+      period_mode: "rolling",
+      days: "30",
+      month: "",
+      occurred_on: "",
+      occurred_from: "",
+      occurred_to: "",
+      weekday: "all",
+      sort_by: "date_desc",
+      kind: "all",
+      expense_profile: "all",
+      payment_method: "all",
+      category: "",
+      q: "",
+      min_amount_cents: "",
+      max_amount_cents: ""
+    }
+
+    Map.merge(defaults, filters)
+  end
+
+  defp normalize_finance_filters(_filters) do
+    %{
+      period_mode: "rolling",
+      days: "30",
+      month: "",
+      occurred_on: "",
+      occurred_from: "",
+      occurred_to: "",
+      weekday: "all",
+      sort_by: "date_desc",
+      kind: "all",
+      expense_profile: "all",
+      payment_method: "all",
+      category: "",
+      q: "",
+      min_amount_cents: "",
+      max_amount_cents: ""
+    }
+  end
+
+  defp normalize_category_suggestions(suggestions) when is_map(suggestions) do
+    Map.merge(%{income: [], expense: [], all: []}, suggestions)
+  end
+
+  defp normalize_category_suggestions(_suggestions), do: %{income: [], expense: [], all: []}
 end
