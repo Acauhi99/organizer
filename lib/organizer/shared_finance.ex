@@ -233,7 +233,8 @@ defmodule Organizer.SharedFinance do
 
   @doc """
   Lists all FinanceEntries shared with a given AccountLink, with split ratios calculated
-  for each entry month based on each user's reference income.
+  from each user's reference income on the provided `reference_date` (default: today).
+  This keeps shared splits dynamically rebalanced as incomes are added/removed.
   Returns `{:error, :not_found}` if the user is not a participant of the link.
   """
   def list_shared_entries(scope, link_id, params \\ %{}) do
@@ -251,14 +252,11 @@ defmodule Organizer.SharedFinance do
           |> apply_shared_period_filter(period, reference_date)
 
         user_id = scope.user.id
-        ratio_by_period = build_ratio_by_period(entries, link)
+        income_context = build_income_split_context(link, reference_date)
 
         views =
           Enum.map(entries, fn entry ->
-            period_info =
-              Map.fetch!(ratio_by_period, {entry.occurred_on.year, entry.occurred_on.month})
-
-            split = resolve_entry_split(entry, link, user_id, period_info)
+            split = resolve_entry_split(entry, link, user_id, income_context)
 
             %SharedEntryView{
               entry: entry,
@@ -594,38 +592,39 @@ defmodule Organizer.SharedFinance do
     end
   end
 
-  defp build_ratio_by_period(entries, link) do
-    entries
-    |> Enum.map(fn entry -> {entry.occurred_on.year, entry.occurred_on.month} end)
-    |> MapSet.new()
-    |> Enum.reduce(%{}, fn {year, month}, acc ->
-      income_a =
-        SplitCalculator.calculate_reference_income_with_carryover(link.user_a_id, month, year)
+  defp build_income_split_context(link, reference_date) do
+    income_a =
+      SplitCalculator.calculate_reference_income_with_carryover(
+        link.user_a_id,
+        reference_date.month,
+        reference_date.year
+      )
 
-      income_b =
-        SplitCalculator.calculate_reference_income_with_carryover(link.user_b_id, month, year)
+    income_b =
+      SplitCalculator.calculate_reference_income_with_carryover(
+        link.user_b_id,
+        reference_date.month,
+        reference_date.year
+      )
 
-      ratios = SplitCalculator.calculate_split_ratio(income_a, income_b)
-
-      Map.put(acc, {year, month}, %{
-        income_a: income_a,
-        income_b: income_b,
-        ratios: ratios
-      })
-    end)
+    %{
+      income_a: income_a,
+      income_b: income_b,
+      ratios: SplitCalculator.calculate_split_ratio(income_a, income_b)
+    }
   end
 
-  defp resolve_entry_split(entry, link, current_user_id, period_info) do
+  defp resolve_entry_split(entry, link, current_user_id, income_context) do
     if entry.shared_split_mode == :manual and is_integer(entry.shared_manual_mine_cents) do
       resolve_manual_entry_split(entry, current_user_id)
     else
       {ratio_a, ratio_b} =
-        case period_info do
+        case income_context do
           %{income_a: 0, income_b: 0} ->
             owner_fallback_ratios(entry, link)
 
-          %{ratios: {period_ratio_a, period_ratio_b}} ->
-            {period_ratio_a, period_ratio_b}
+          %{ratios: {context_ratio_a, context_ratio_b}} ->
+            {context_ratio_a, context_ratio_b}
         end
 
       {ratio_mine, ratio_theirs} = scoped_ratios(current_user_id, link, ratio_a, ratio_b)

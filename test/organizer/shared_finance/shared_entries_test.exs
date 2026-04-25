@@ -322,7 +322,7 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
       assert view_b.amount_theirs_cents == 0
     end
 
-    test "split ratio is dynamic per shared entry month with income carryover" do
+    test "split ratio uses the same reference month for all shared entries with carryover" do
       user_a = user_fixture()
       user_b = user_fixture()
       link = create_link(user_a, user_b)
@@ -358,19 +358,78 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
           shared_with_link_id: link.id
         })
 
-      {:ok, views} = SharedFinance.list_shared_entries(scope_a, link.id)
+      {:ok, views} =
+        SharedFinance.list_shared_entries(scope_a, link.id, %{reference_date: ~D[2024-02-20]})
+
       views_by_entry = Map.new(views, fn view -> {view.entry.id, view} end)
 
       jan_view = Map.fetch!(views_by_entry, jan_expense.id)
       feb_view = Map.fetch!(views_by_entry, feb_expense.id)
 
-      assert jan_view.split_ratio_mine == 1.0
-      assert jan_view.amount_mine_cents == jan_expense.amount_cents
-      assert jan_view.amount_theirs_cents == 0
+      assert_in_delta jan_view.split_ratio_mine, 0.5555555555, 0.000001
+      assert jan_view.amount_mine_cents == 5_556
+      assert jan_view.amount_theirs_cents == 4_444
 
       assert_in_delta feb_view.split_ratio_mine, 0.5555555555, 0.000001
       assert feb_view.amount_mine_cents == 11_111
       assert feb_view.amount_theirs_cents == 8_889
+    end
+
+    test "rebalances income-ratio split when linked income is added or removed" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+      scope_a = make_scope(user_a)
+
+      _income_a =
+        create_entry(user_a, %{
+          kind: :income,
+          amount_cents: 600_000,
+          category: "Salario",
+          occurred_on: ~D[2026-04-03]
+        })
+
+      expense =
+        create_entry(user_a, %{
+          kind: :expense,
+          amount_cents: 10_000,
+          occurred_on: ~D[2026-04-10],
+          shared_with_link_id: link.id
+        })
+
+      {:ok, [view_only_a_income]} =
+        SharedFinance.list_shared_entries(scope_a, link.id, %{reference_date: ~D[2026-04-20]})
+
+      assert view_only_a_income.entry.id == expense.id
+      assert view_only_a_income.split_ratio_mine == 1.0
+      assert view_only_a_income.amount_mine_cents == 10_000
+      assert view_only_a_income.amount_theirs_cents == 0
+
+      income_b =
+        create_entry(user_b, %{
+          kind: :income,
+          amount_cents: 400_000,
+          category: "Salario",
+          occurred_on: ~D[2026-04-05]
+        })
+
+      {:ok, [view_rebalanced]} =
+        SharedFinance.list_shared_entries(scope_a, link.id, %{reference_date: ~D[2026-04-20]})
+
+      assert view_rebalanced.entry.id == expense.id
+      assert_in_delta view_rebalanced.split_ratio_mine, 0.6, 0.000001
+      assert view_rebalanced.amount_mine_cents == 6_000
+      assert view_rebalanced.amount_theirs_cents == 4_000
+
+      Repo.delete!(income_b)
+
+      {:ok, [view_after_removal]} =
+        SharedFinance.list_shared_entries(scope_a, link.id, %{reference_date: ~D[2026-04-20]})
+
+      assert view_after_removal.entry.id == expense.id
+      assert view_after_removal.split_ratio_mine == 1.0
+      assert view_after_removal.amount_mine_cents == 10_000
+      assert view_after_removal.amount_theirs_cents == 0
     end
 
     test "manual split overrides income ratio for shared entry amounts" do
