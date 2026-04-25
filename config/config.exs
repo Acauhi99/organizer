@@ -30,7 +30,7 @@ config :organizer, OrganizerWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [html: OrganizerWeb.ErrorHTML, json: OrganizerWeb.ErrorJSON],
-    layout: false
+    root_layout: [html: {OrganizerWeb.Layouts, :root}]
   ],
   pubsub_server: Organizer.PubSub,
   live_view: [signing_salt: "UJShmpqZ"]

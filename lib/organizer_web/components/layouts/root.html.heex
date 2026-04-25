@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="organizer_softlight">
+  <% current_scope = assigns[:current_scope] %>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -34,7 +35,7 @@
     <div class="app-layout">
       <aside
         aria-label="Navegação principal"
-        class={["app-sidebar", !@current_scope && "app-sidebar-guest"]}
+        class={["app-sidebar", !current_scope && "app-sidebar-guest"]}
       >
         <div class="app-sidebar-inner">
           <header class="app-sidebar-head">
@@ -58,7 +59,7 @@
             </div>
           </header>
 
-          <div :if={@current_scope} class="app-account-chip">
+          <div :if={current_scope} class="app-account-chip">
             <span class="app-account-avatar" aria-hidden="true">
               <.icon name="hero-user" class="size-4" />
             </span>
@@ -70,7 +71,7 @@
 
           <nav class="app-sidebar-nav" aria-label="Serviços do Organizer">
             <ul>
-              <%= if @current_scope do %>
+              <%= if current_scope do %>
                 <li>
                   <.link href={~p"/finances"} class="app-sidebar-link">
                     <.icon name="hero-banknotes" class="size-5" />
@@ -111,7 +112,7 @@
               <% end %>
             </ul>
 
-            <div :if={@current_scope} class="app-sidebar-footer">
+            <div :if={current_scope} class="app-sidebar-footer">
               <.link
                 href={~p"/users/log-out"}
                 method="delete"

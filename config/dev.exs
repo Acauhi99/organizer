@@ -20,7 +20,9 @@ config :organizer, OrganizerWeb.Endpoint,
   http: [ip: {0, 0, 0, 0}, port: String.to_integer(System.get_env("PORT") || "4000")],
   check_origin: false,
   code_reloader: true,
-  debug_errors: true,
+  # Keep Phoenix debugger opt-in in dev so custom error templates can be tested locally.
+  # Set PHX_DEBUG_ERRORS=true if you want the full debugger page back.
+  debug_errors: System.get_env("PHX_DEBUG_ERRORS", "false") == "true",
   secret_key_base: "R/QDNhhuSQK2Y4r3FLNueX5EeDiHEaVHiTpmO5xmSZkUuXYIbRYo3s+PHgnbONx+",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:organizer, ~w(--sourcemap=inline --watch)]},
