@@ -1345,6 +1345,31 @@ summary:focus-visible {
   width: 100%;
 }
 
+.operations-scroll-area {
+  --operations-scroll-max-height: clamp(16rem, 54vh, 30rem);
+  --operations-scroll-min-height: 0;
+  min-height: var(--operations-scroll-min-height);
+  max-height: var(--operations-scroll-max-height);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+}
+
+.operations-scroll-area--kanban {
+  --operations-scroll-max-height: clamp(12rem, 38vh, 22rem);
+}
+
+.operations-scroll-area--list {
+  --operations-scroll-min-height: 12rem;
+}
+
+@media (min-width: 1280px) {
+  .operations-scroll-area--kanban {
+    --operations-scroll-max-height: clamp(16rem, 54vh, 30rem);
+  }
+}
+
 @media (max-width: 480px) {
   .app-shell-main {
     padding-top: 1.2rem;

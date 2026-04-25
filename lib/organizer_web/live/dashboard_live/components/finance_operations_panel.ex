@@ -277,7 +277,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
         data-has-more={to_string(@finance_has_more?)}
         data-loading={to_string(@finance_loading_more?)}
         data-threshold-px="120"
-        class="mt-2 h-[26rem] overflow-y-auto rounded-xl border border-base-content/12 bg-base-100/28 p-2.5 sm:h-[30rem]"
+        class="operations-scroll-area operations-scroll-area--list mt-2 rounded-xl border border-base-content/12 bg-base-100/28 p-2.5"
       >
         <div id="finances" phx-update="stream" class="space-y-2">
           <div id="finances-empty-wrapper" class="hidden only:block">

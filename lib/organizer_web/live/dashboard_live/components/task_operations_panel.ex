@@ -330,7 +330,7 @@ defmodule OrganizerWeb.DashboardLive.Components.TaskOperationsPanel do
         data-has-more={to_string(@has_more?)}
         data-loading={to_string(@loading_more?)}
         data-threshold-px="120"
-        class="mt-2 h-[30rem] overflow-y-auto pr-1"
+        class="operations-scroll-area operations-scroll-area--kanban mt-2 pr-1"
       >
         <div id={"#{@column_id}-stream"} phx-update="stream" class="min-h-[10rem] space-y-2">
           <div id={"#{@column_id}-empty-wrapper"} class="hidden only:block">
