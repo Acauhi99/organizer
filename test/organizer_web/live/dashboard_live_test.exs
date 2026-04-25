@@ -4,6 +4,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
   import Organizer.AccountsFixtures
   import Phoenix.LiveViewTest
 
+  alias Organizer.Accounts
   alias Organizer.Planning
   alias Organizer.SharedFinance
 
@@ -46,6 +47,95 @@ defmodule OrganizerWeb.DashboardLiveTest do
 
       conn = get(conn, "/analytics")
       assert html_response(conn, 404)
+    end
+  end
+
+  describe "task focus timer persistence" do
+    setup %{conn: conn} do
+      user = user_fixture()
+
+      %{
+        conn: log_in_user(conn, user),
+        user: user,
+        scope: user_scope_fixture(user)
+      }
+    end
+
+    test "persists hook state and restores it on next mount", %{
+      conn: conn,
+      user: user,
+      scope: scope
+    } do
+      assert {:ok, task} =
+               Planning.create_task(scope, %{
+                 "title" => "Planejar sprint",
+                 "priority" => "medium",
+                 "status" => "in_progress"
+               })
+
+      {:ok, view, _html} = live(conn, ~p"/tasks")
+
+      ends_at_ms = DateTime.utc_now() |> DateTime.to_unix(:millisecond) |> Kernel.+(900_000)
+
+      render_hook(view, "task_focus_state_changed", %{
+        "taskId" => to_string(task.id),
+        "taskLabel" => task.title,
+        "durationMinutes" => 30,
+        "remainingSeconds" => 900,
+        "status" => "running",
+        "endsAtMs" => ends_at_ms,
+        "notified" => false
+      })
+
+      assert {:ok, saved_state} = Accounts.get_task_focus_timer_state(user)
+      assert saved_state["taskId"] == to_string(task.id)
+      assert saved_state["taskLabel"] == task.title
+      assert saved_state["status"] == "running"
+      assert saved_state["remainingSeconds"] == 900
+      assert saved_state["endsAtMs"] == ends_at_ms
+
+      {:ok, _second_view, second_html} = live(conn, ~p"/tasks")
+      assert second_html =~ ~s(data-initial-state=)
+      assert second_html =~ "&quot;taskId&quot;:&quot;#{task.id}&quot;"
+    end
+
+    test "syncs timer state in real time across two active sessions", %{conn: conn, scope: scope} do
+      assert {:ok, task} =
+               Planning.create_task(scope, %{
+                 "title" => "Revisar planejamento",
+                 "priority" => "medium",
+                 "status" => "in_progress"
+               })
+
+      {:ok, source_view, _html} = live(conn, ~p"/tasks")
+      {:ok, mirror_view, _html} = live(conn, ~p"/tasks")
+
+      ends_at_ms = DateTime.utc_now() |> DateTime.to_unix(:millisecond) |> Kernel.+(1_200_000)
+
+      payload = %{
+        "taskId" => to_string(task.id),
+        "taskLabel" => task.title,
+        "durationMinutes" => 30,
+        "remainingSeconds" => 1_200,
+        "status" => "running",
+        "endsAtMs" => ends_at_ms,
+        "notified" => false
+      }
+
+      task_id = to_string(task.id)
+      task_title = task.title
+
+      render_hook(source_view, "task_focus_state_changed", payload)
+
+      assert_push_event(mirror_view, "task_focus_state_sync", %{
+        "taskId" => ^task_id,
+        "taskLabel" => ^task_title,
+        "durationMinutes" => 30,
+        "remainingSeconds" => 1_200,
+        "status" => "running",
+        "endsAtMs" => ^ends_at_ms,
+        "notified" => false
+      })
     end
   end
 
@@ -229,6 +319,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
     test "creates task through quick task form", %{conn: conn, scope: scope} do
       {:ok, view, _html} = live(conn, ~p"/tasks")
       today = Date.to_iso8601(Date.utc_today())
+      notes = "Prioridade da manhã\nValidar pendências até o fim do dia"
 
       view
       |> form("#quick-task-form", %{
@@ -237,7 +328,7 @@ defmodule OrganizerWeb.DashboardLiveTest do
           "priority" => "high",
           "status" => "in_progress",
           "due_on" => today,
-          "notes" => "Prioridade da manhã"
+          "notes" => notes
         }
       })
       |> render_submit()
@@ -247,7 +338,8 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert Enum.any?(tasks, fn task ->
                task.title == "Fechar conciliação bancária" and
                  task.priority == :high and
-                 task.status == :in_progress
+                 task.status == :in_progress and
+                 task.notes == notes
              end)
     end
 
@@ -384,6 +476,18 @@ defmodule OrganizerWeb.DashboardLiveTest do
       assert {:ok, task_done} = Planning.get_task(scope, task.id)
       assert task_done.status == :done
       refute is_nil(task_done.completed_at)
+    end
+
+    test "renders in-progress tasks inside timer selector", %{conn: conn, scope: scope} do
+      assert {:ok, task} =
+               Planning.create_task(scope, %{
+                 "title" => "Disponível no timer",
+                 "priority" => "medium",
+                 "status" => "in_progress"
+               })
+
+      {:ok, view, _html} = live(conn, ~p"/tasks")
+      assert has_element?(view, "#task-focus-task option[value=\"#{task.id}\"]")
     end
 
     test "shares a task with linked account from kanban card", %{conn: conn, scope: scope} do

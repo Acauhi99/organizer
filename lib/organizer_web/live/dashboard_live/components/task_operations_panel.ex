@@ -8,6 +8,8 @@ defmodule OrganizerWeb.DashboardLive.Components.TaskOperationsPanel do
   attr :task_filters, :map, required: true
   attr :account_links, :list, default: []
   attr :current_user_id, :integer, default: nil
+  attr :task_focus_timer_state_json, :string, default: "null"
+  attr :task_focus_tasks, :list, default: []
   attr :editing_task_id, :any, default: nil
   attr :task_details_modal_task, :any, default: nil
   attr :ops_counts, :map, required: true
@@ -87,6 +89,7 @@ defmodule OrganizerWeb.DashboardLive.Components.TaskOperationsPanel do
         id="task-focus-timer"
         phx-hook="TaskFocusTimer"
         data-storage-key={"organizer:task-focus-timer:user:#{@current_user_id || "anon"}"}
+        data-initial-state={@task_focus_timer_state_json}
         class="mt-4 rounded-xl border border-base-content/12 bg-base-100/50 p-3"
       >
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -105,7 +108,7 @@ defmodule OrganizerWeb.DashboardLive.Components.TaskOperationsPanel do
         <div class="mt-3 flex flex-col gap-2 xl:flex-row xl:items-center">
           <select id="task-focus-task" class="select select-bordered select-sm w-full xl:flex-1">
             <option value="">Selecione uma tarefa em andamento</option>
-            <option :for={{_dom_id, task} <- @streams.tasks_in_progress} value={task.id}>
+            <option :for={task <- @task_focus_tasks} value={task.id}>
               {task.title || "Tarefa em andamento"}
             </option>
           </select>

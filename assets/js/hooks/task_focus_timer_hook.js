@@ -28,6 +28,24 @@ const taskFocusIsPresetMinute = (value) => {
 
 const taskFocusTotalSeconds = (minutes) => normalizeTaskFocusMinutes(minutes) * 60
 
+const taskFocusValue = (payload, camelKey) => {
+  if (!payload || typeof payload !== "object") {
+    return undefined
+  }
+
+  const snakeKey = camelKey.replace(/[A-Z]/g, (segment) => `_${segment.toLowerCase()}`)
+
+  if (Object.prototype.hasOwnProperty.call(payload, camelKey)) {
+    return payload[camelKey]
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, snakeKey)) {
+    return payload[snakeKey]
+  }
+
+  return undefined
+}
+
 const taskFocusDefaultState = () => ({
   taskId: "",
   taskLabel: "",
@@ -43,17 +61,26 @@ const normalizeTaskFocusState = (payload) => {
     return taskFocusDefaultState()
   }
 
-  const durationMinutes = normalizeTaskFocusMinutes(payload.durationMinutes)
+  const durationMinutes = normalizeTaskFocusMinutes(
+    taskFocusValue(payload, "durationMinutes"),
+    TASK_FOCUS_DEFAULT_MINUTES
+  )
   const totalSeconds = taskFocusTotalSeconds(durationMinutes)
   const statuses = ["idle", "running", "paused", "finished"]
-  const status = statuses.includes(payload.status) ? payload.status : TASK_FOCUS_DEFAULT_STATUS
-  const remainingRaw = Number(payload.remainingSeconds)
+  const statusValue = taskFocusValue(payload, "status")
+  const status = statuses.includes(statusValue) ? statusValue : TASK_FOCUS_DEFAULT_STATUS
+  const remainingRaw = Number(taskFocusValue(payload, "remainingSeconds"))
   const remainingSeconds = Number.isFinite(remainingRaw)
     ? clamp(Math.floor(remainingRaw), 0, totalSeconds)
     : totalSeconds
 
-  const taskId = typeof payload.taskId === "string" ? payload.taskId : ""
-  const taskLabel = typeof payload.taskLabel === "string" ? payload.taskLabel : ""
+  const taskIdValue = taskFocusValue(payload, "taskId")
+  const taskLabelValue = taskFocusValue(payload, "taskLabel")
+  const endsAtMsValue = Number(taskFocusValue(payload, "endsAtMs"))
+  const notifiedValue = taskFocusValue(payload, "notified")
+
+  const taskId = typeof taskIdValue === "string" ? taskIdValue : ""
+  const taskLabel = typeof taskLabelValue === "string" ? taskLabelValue : ""
 
   let normalized = {
     taskId,
@@ -61,8 +88,8 @@ const normalizeTaskFocusState = (payload) => {
     durationMinutes,
     remainingSeconds,
     status,
-    endsAtMs: Number.isFinite(payload.endsAtMs) ? payload.endsAtMs : null,
-    notified: payload.notified === true,
+    endsAtMs: Number.isFinite(endsAtMsValue) ? Math.floor(endsAtMsValue) : null,
+    notified: notifiedValue === true || notifiedValue === "true",
   }
 
   if (normalized.status === "running" && normalized.endsAtMs === null) {
@@ -117,6 +144,8 @@ const TaskFocusTimerHook = {
     this.intervalId = null
     this.startWithoutTask = false
     this.pendingSyncedTask = null
+    this.lastPushedStateHash = null
+    this.handleNotificationPermissionUpdated = () => this.render()
 
     this.handleClick = (event) => {
       const target = event.target
@@ -183,8 +212,14 @@ const TaskFocusTimerHook = {
     this.el.addEventListener("change", this.handleChange)
     this.el.addEventListener("keydown", this.handleKeyDown)
     this.handleEvent("task_focus_sync_target", (payload) => this.syncTaskFromServer(payload))
+    this.handleEvent("task_focus_state_sync", (payload) => this.syncStateFromServer(payload))
+    window.addEventListener(
+      "organizer:notification-permission-updated",
+      this.handleNotificationPermissionUpdated
+    )
 
     this.state = this.loadState()
+    this.lastPushedStateHash = JSON.stringify(this.serverPayload())
     this.syncStateAfterMount()
     this.syncSelectorsFromState()
     this.applyPendingSyncedTask()
@@ -204,6 +239,10 @@ const TaskFocusTimerHook = {
     this.el.removeEventListener("click", this.handleClick)
     this.el.removeEventListener("change", this.handleChange)
     this.el.removeEventListener("keydown", this.handleKeyDown)
+    window.removeEventListener(
+      "organizer:notification-permission-updated",
+      this.handleNotificationPermissionUpdated
+    )
   },
 
   elements() {
@@ -224,6 +263,12 @@ const TaskFocusTimerHook = {
   },
 
   loadState() {
+    const serverState = this.loadInitialStateFromServer()
+
+    if (serverState) {
+      return serverState
+    }
+
     try {
       const rawState = window.localStorage.getItem(this.storageKey)
 
@@ -237,10 +282,60 @@ const TaskFocusTimerHook = {
     }
   },
 
-  persistState() {
+  loadInitialStateFromServer() {
+    try {
+      const rawState = this.el.dataset.initialState
+
+      if (!rawState) {
+        return null
+      }
+
+      const parsed = JSON.parse(rawState)
+
+      if (!parsed || typeof parsed !== "object") {
+        return null
+      }
+
+      return normalizeTaskFocusState(parsed)
+    } catch (_) {
+      return null
+    }
+  },
+
+  persistState(pushServer = true) {
     try {
       window.localStorage.setItem(this.storageKey, JSON.stringify(this.state))
     } catch (_) {}
+
+    if (pushServer) {
+      this.pushStateToServer()
+    }
+  },
+
+  serverPayload() {
+    const totalSeconds = this.totalSeconds()
+
+    return {
+      taskId: this.state.taskId,
+      taskLabel: this.state.taskLabel,
+      durationMinutes: this.state.durationMinutes,
+      remainingSeconds: clamp(this.state.remainingSeconds, 0, totalSeconds),
+      status: this.state.status,
+      endsAtMs: Number.isFinite(this.state.endsAtMs) ? Math.floor(this.state.endsAtMs) : null,
+      notified: this.state.notified === true,
+    }
+  },
+
+  pushStateToServer() {
+    const payload = this.serverPayload()
+    const nextHash = JSON.stringify(payload)
+
+    if (nextHash === this.lastPushedStateHash) {
+      return
+    }
+
+    this.lastPushedStateHash = nextHash
+    this.pushEvent("task_focus_state_changed", payload)
   },
 
   totalSeconds() {
@@ -279,6 +374,18 @@ const TaskFocusTimerHook = {
 
     this.pendingSyncedTask = {taskId, taskTitle}
     this.applyPendingSyncedTask()
+    this.render()
+  },
+
+  syncStateFromServer(payload) {
+    this.state = normalizeTaskFocusState(payload)
+    this.startWithoutTask = false
+    this.lastPushedStateHash = JSON.stringify(this.serverPayload())
+
+    this.syncSelectorsFromState()
+    this.applyPendingSyncedTask()
+    this.ensureTickerState()
+    this.persistState(false)
     this.render()
   },
 
@@ -565,8 +672,8 @@ const TaskFocusTimerHook = {
     this.state.endsAtMs = null
 
     if (!this.state.notified) {
-      this.notifyCompletion()
       this.state.notified = true
+      this.notifyCompletion()
     }
 
     this.persistState()
@@ -578,15 +685,17 @@ const TaskFocusTimerHook = {
       return
     }
 
-    const taskLabel = this.state.taskLabel || "sua tarefa"
-    const notification = new Notification("Time box concluído", {
-      body: `O tempo para ${taskLabel} terminou.`,
-      tag: `task-focus:${this.state.taskId || "general"}`,
-    })
+    try {
+      const taskLabel = this.state.taskLabel || "sua tarefa"
+      const notification = new Notification("Time box concluído", {
+        body: `O tempo para ${taskLabel} terminou.`,
+        tag: `task-focus:${this.state.taskId || "general"}`,
+      })
 
-    window.setTimeout(() => {
-      notification.close?.()
-    }, 10_000)
+      window.setTimeout(() => {
+        notification.close?.()
+      }, 10_000)
+    } catch (_) {}
   },
 
   requestNotificationPermission() {

@@ -24,6 +24,21 @@ mix phx.server
 
 Aplicação disponível em `http://localhost:4000`.
 
+## Testes E2E (Playwright)
+
+```bash
+cd e2e
+npm install
+npm run install:browsers
+npm test
+```
+
+Observações:
+
+- A suíte E2E sobe o Phoenix automaticamente na porta `4010`.
+- Para reaproveitar um servidor já em execução, use `PLAYWRIGHT_BASE_URL`, por exemplo:
+  `PLAYWRIGHT_BASE_URL=http://127.0.0.1:4000 npm test`.
+
 ## Documentação
 
 Toda documentação de produto e engenharia está em [`/docs`](docs/README.md).

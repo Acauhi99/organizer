@@ -17,6 +17,16 @@ Foco em comportamento observável da interface e API.
 - controller/API tests para contratos HTTP
 - component tests para rendering de componentes críticos
 
+## 3) E2E browser (`e2e/**`)
+
+Foco em regressão retroativa dos fluxos completos com browser real:
+
+- público/autenticação (home, cadastro, login/logout, erro de credencial)
+- módulos autenticados (`/finances`, `/tasks`, `/users/settings`)
+- colaboração financeira (`/account-links`, convite, aceite com retomada pós-login, compartilhado, acerto, desativação)
+- experiência transversal (onboarding e atalhos globais)
+- smoke da API autenticada (`/api/v1/*`) via sessão real do browser
+
 Referências oficiais:
 
 - ExUnit: https://hexdocs.pm/ex_unit/ExUnit.html
@@ -42,6 +52,15 @@ Validação completa recomendada antes de commit:
 
 ```bash
 mix precommit
+```
+
+Validação E2E completa:
+
+```bash
+cd e2e
+npm install
+npm run install:browsers
+npm test
 ```
 
 `mix precommit` neste projeto executa:

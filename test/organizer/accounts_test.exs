@@ -283,6 +283,41 @@ defmodule Organizer.AccountsTest do
     end
   end
 
+  describe "task focus timer preferences" do
+    setup do
+      %{user: user_fixture()}
+    end
+
+    test "returns nil when state was never saved", %{user: user} do
+      assert {:ok, nil} = Accounts.get_task_focus_timer_state(user)
+    end
+
+    test "normalizes and persists incoming state payload", %{user: user} do
+      assert {:ok, preferences} =
+               Accounts.set_task_focus_timer_state(user, %{
+                 "task_id" => "42",
+                 "task_label" => "Fechar sprint",
+                 "duration_minutes" => "45",
+                 "remaining_seconds" => "1500",
+                 "status" => "running",
+                 "ends_at_ms" => nil,
+                 "notified" => "true"
+               })
+
+      state = preferences.task_focus_timer_state
+      assert state["taskId"] == "42"
+      assert state["taskLabel"] == "Fechar sprint"
+      assert state["durationMinutes"] == 45
+      assert state["remainingSeconds"] == 1500
+      assert state["status"] == "paused"
+      assert is_nil(state["endsAtMs"])
+      assert state["notified"] == true
+
+      assert {:ok, loaded_state} = Accounts.get_task_focus_timer_state(user)
+      assert loaded_state == state
+    end
+  end
+
   describe "inspect/2 for the User module" do
     test "does not include password" do
       refute inspect(%User{password: "123456"}) =~ "password: \"123456\""

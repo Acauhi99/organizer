@@ -1,6 +1,7 @@
 defmodule OrganizerWeb.DashboardLive do
   use OrganizerWeb, :live_view
 
+  alias Organizer.Accounts
   alias Organizer.Planning
   alias Organizer.Planning.AmountParser
   alias Organizer.SharedFinance
@@ -29,7 +30,11 @@ defmodule OrganizerWeb.DashboardLive do
     case socket.assigns do
       %{current_scope: %{user: user}} when not is_nil(user) ->
         scope = socket.assigns.current_scope
-        initialized = initialize_dashboard_state(socket, scope)
+
+        initialized =
+          socket
+          |> initialize_dashboard_state(scope)
+          |> maybe_subscribe_task_focus_timer()
 
         socket =
           if connected?(initialized) do
@@ -190,6 +195,28 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   @impl true
+  def handle_event("task_focus_state_changed", payload, socket) when is_map(payload) do
+    user = socket.assigns.current_scope.user
+
+    socket =
+      case Accounts.set_task_focus_timer_state(user, payload) do
+        {:ok, preferences} ->
+          broadcast_task_focus_timer_state(user.id, preferences.task_focus_timer_state)
+
+          assign(
+            socket,
+            :task_focus_timer_state_json,
+            task_focus_timer_state_json(preferences.task_focus_timer_state)
+          )
+
+        {:error, _changeset} ->
+          socket
+      end
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event("load_more_tasks", %{"status" => status}, socket) do
     with {:ok, status_key, status_filter, stream_key} <- task_pagination_status(status),
          true <- task_column_has_more?(socket.assigns, status_key) do
@@ -339,9 +366,9 @@ defmodule OrganizerWeb.DashboardLive do
     current_step = socket.assigns.onboarding_step
     new_step = min(current_step + 1, 6)
 
-    case Organizer.Accounts.get_or_create_onboarding_progress(socket.assigns.current_scope.user) do
+    case Accounts.get_or_create_onboarding_progress(socket.assigns.current_scope.user) do
       {:ok, progress} ->
-        case Organizer.Accounts.advance_onboarding_step(progress) do
+        case Accounts.advance_onboarding_step(progress) do
           {:ok, _updated_progress} ->
             {:noreply, assign(socket, :onboarding_step, new_step)}
 
@@ -363,9 +390,9 @@ defmodule OrganizerWeb.DashboardLive do
 
   @impl true
   def handle_event("skip_onboarding", _params, socket) do
-    case Organizer.Accounts.get_or_create_onboarding_progress(socket.assigns.current_scope.user) do
+    case Accounts.get_or_create_onboarding_progress(socket.assigns.current_scope.user) do
       {:ok, progress} ->
-        case Organizer.Accounts.dismiss_onboarding(progress) do
+        case Accounts.dismiss_onboarding(progress) do
           {:ok, _} ->
             {:noreply, assign(socket, :onboarding_active, false)}
 
@@ -383,9 +410,9 @@ defmodule OrganizerWeb.DashboardLive do
 
   @impl true
   def handle_event("complete_onboarding", _params, socket) do
-    case Organizer.Accounts.get_or_create_onboarding_progress(socket.assigns.current_scope.user) do
+    case Accounts.get_or_create_onboarding_progress(socket.assigns.current_scope.user) do
       {:ok, progress} ->
-        case Organizer.Accounts.complete_onboarding(progress) do
+        case Accounts.complete_onboarding(progress) do
           {:ok, _} ->
             {:noreply,
              socket
@@ -743,11 +770,26 @@ defmodule OrganizerWeb.DashboardLive do
     end
   end
 
+  @impl true
+  def handle_info({:task_focus_timer_state_changed, user_id, state}, socket) do
+    current_user_id = socket.assigns.current_scope.user.id
+
+    if current_user_id == user_id and is_map(state) do
+      {:noreply,
+       socket
+       |> assign(:task_focus_timer_state_json, task_focus_timer_state_json(state))
+       |> push_event("task_focus_state_sync", state)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   defp initialize_dashboard_state(socket, scope) do
     {:ok, account_links} = SharedFinance.list_account_links(scope)
 
-    {:ok, user_preferences} = Organizer.Accounts.get_or_create_user_preferences(scope.user)
-    {:ok, onboarding_progress} = Organizer.Accounts.get_or_create_onboarding_progress(scope.user)
+    {:ok, user_preferences} = Accounts.get_or_create_user_preferences(scope.user)
+    {:ok, onboarding_progress} = Accounts.get_or_create_onboarding_progress(scope.user)
+    {:ok, task_focus_timer_state} = Accounts.get_task_focus_timer_state(scope.user)
 
     onboarding_active =
       !user_preferences.onboarding_completed && !onboarding_progress.dismissed &&
@@ -775,6 +817,7 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:task_details_modal_task, nil)
     |> assign(:onboarding_active, onboarding_active)
     |> assign(:onboarding_step, onboarding_progress.current_step)
+    |> assign(:task_focus_timer_state_json, task_focus_timer_state_json(task_focus_timer_state))
     |> assign(:task_delivery_chart, %{loading: true, chart_svg: nil})
     |> assign(:finance_flow_chart, %{loading: true, chart_svg: nil})
     |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})
@@ -838,6 +881,7 @@ defmodule OrganizerWeb.DashboardLive do
       done: length(tasks_done) > length(visible_tasks_done)
     })
     |> assign(:task_loading_more?, %{todo: false, in_progress: false, done: false})
+    |> assign(:task_focus_tasks, tasks_in_progress)
     |> assign(:finance_category_suggestions, finance_category_suggestions)
     |> assign(:finance_visible_count, length(visible_finances))
     |> assign(:finance_has_more?, finance_total > length(visible_finances))
@@ -1545,6 +1589,8 @@ defmodule OrganizerWeb.DashboardLive do
               task_filters={@task_filters}
               account_links={@account_links}
               current_user_id={@current_scope.user.id}
+              task_focus_timer_state_json={@task_focus_timer_state_json}
+              task_focus_tasks={@task_focus_tasks}
               editing_task_id={@editing_task_id}
               task_details_modal_task={@task_details_modal_task}
               ops_counts={@ops_counts}
@@ -1586,4 +1632,27 @@ defmodule OrganizerWeb.DashboardLive do
     </header>
     """
   end
+
+  defp task_focus_timer_state_json(nil), do: "null"
+  defp task_focus_timer_state_json(state) when is_map(state), do: Jason.encode!(state)
+
+  defp maybe_subscribe_task_focus_timer(socket) do
+    if connected?(socket) do
+      user_id = socket.assigns.current_scope.user.id
+      Phoenix.PubSub.subscribe(Organizer.PubSub, task_focus_timer_topic(user_id))
+    end
+
+    socket
+  end
+
+  defp broadcast_task_focus_timer_state(user_id, state)
+       when is_integer(user_id) and is_map(state) do
+    Phoenix.PubSub.broadcast(
+      Organizer.PubSub,
+      task_focus_timer_topic(user_id),
+      {:task_focus_timer_state_changed, user_id, state}
+    )
+  end
+
+  defp task_focus_timer_topic(user_id), do: "task_focus_timer:user:#{user_id}"
 end

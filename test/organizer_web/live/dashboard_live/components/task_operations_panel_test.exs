@@ -55,4 +55,14 @@ defmodule OrganizerWeb.DashboardLive.Components.TaskOperationsPanelTest do
     html = render_component(&TaskOperationsPanel.task_operations_panel/1, base_assigns())
     assert html =~ ~s(id="empty-state-tasks")
   end
+
+  test "renders timer task options from dedicated list" do
+    assigns =
+      base_assigns()
+      |> Map.put(:task_focus_tasks, [%{id: 10, title: "Foco"}])
+
+    html = render_component(&TaskOperationsPanel.task_operations_panel/1, assigns)
+    assert html =~ ~s(<option value="10">)
+    assert html =~ "Foco"
+  end
 end

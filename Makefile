@@ -1,5 +1,6 @@
 .PHONY: help precommit check-format \
         test-domain test-web test-all \
+        test-e2e \
         test-unit test-stage2 \
         test-domain-local test-web-local test-local-all \
         db-create db-migrate db-reset run setup
@@ -19,6 +20,7 @@ help:
 	@echo "  make test-domain        # Suite de domínio via Docker"
 	@echo "  make test-web           # Suite web via Docker"
 	@echo "  make test-all           # Domain + web via Docker"
+	@echo "  make test-e2e           # Suite E2E Playwright"
 	@echo ""
 	@echo "  make test-domain-local  # Suite de domínio sem Docker"
 	@echo "  make test-web-local     # Suite web sem Docker"
@@ -50,6 +52,9 @@ test-web:
 	sh scripts/tests/web_suite.sh
 
 test-all: test-domain test-web
+
+test-e2e:
+	cd e2e && npm install && npm run install:browsers && npm test
 
 # aliases legados
 test-unit: test-domain

@@ -8,6 +8,11 @@ defmodule Organizer.Accounts do
 
   alias Organizer.Accounts.{User, UserToken, UserPreferences, OnboardingProgress}
 
+  @task_focus_timer_statuses ["idle", "running", "paused", "finished"]
+  @task_focus_default_duration_minutes 30
+  @task_focus_min_minutes 1
+  @task_focus_max_minutes 600
+
   ## Database getters
 
   @doc """
@@ -262,6 +267,26 @@ defmodule Organizer.Accounts do
     end
   end
 
+  @doc """
+  Returns the persisted task focus timer state for a user.
+  """
+  def get_task_focus_timer_state(%User{} = user) do
+    with {:ok, preferences} <- get_or_create_user_preferences(user) do
+      {:ok, normalize_task_focus_timer_state(preferences.task_focus_timer_state)}
+    end
+  end
+
+  @doc """
+  Persists task focus timer state for a user.
+  """
+  def set_task_focus_timer_state(%User{} = user, attrs) when is_map(attrs) do
+    normalized_state = normalize_task_focus_timer_state(attrs)
+
+    with {:ok, preferences} <- get_or_create_user_preferences(user) do
+      update_user_preferences(preferences, %{task_focus_timer_state: normalized_state})
+    end
+  end
+
   ## Onboarding Progress
 
   @doc """
@@ -359,4 +384,146 @@ defmodule Organizer.Accounts do
     })
     |> Repo.update()
   end
+
+  defp normalize_task_focus_timer_state(nil), do: nil
+  defp normalize_task_focus_timer_state(%{} = attrs) when map_size(attrs) == 0, do: nil
+
+  defp normalize_task_focus_timer_state(%{} = attrs) do
+    duration_minutes =
+      normalize_integer(
+        timer_state_value(
+          attrs,
+          "durationMinutes",
+          :duration_minutes,
+          @task_focus_default_duration_minutes
+        ),
+        @task_focus_default_duration_minutes,
+        @task_focus_min_minutes,
+        @task_focus_max_minutes
+      )
+
+    total_seconds = duration_minutes * 60
+
+    status =
+      normalize_status(
+        timer_state_value(attrs, "status", :status, "idle"),
+        "idle"
+      )
+
+    remaining_seconds =
+      normalize_integer(
+        timer_state_value(attrs, "remainingSeconds", :remaining_seconds, total_seconds),
+        total_seconds,
+        0,
+        total_seconds
+      )
+
+    task_id = normalize_string(timer_state_value(attrs, "taskId", :task_id, ""))
+    task_label = normalize_string(timer_state_value(attrs, "taskLabel", :task_label, ""))
+    notified = truthy?(timer_state_value(attrs, "notified", :notified, false))
+
+    ends_at_ms =
+      normalize_optional_non_negative_integer(
+        timer_state_value(attrs, "endsAtMs", :ends_at_ms, nil)
+      )
+
+    normalized = %{
+      "taskId" => task_id,
+      "taskLabel" => task_label,
+      "durationMinutes" => duration_minutes,
+      "remainingSeconds" => remaining_seconds,
+      "status" => status,
+      "endsAtMs" => ends_at_ms,
+      "notified" => notified
+    }
+
+    normalized =
+      cond do
+        normalized["status"] == "running" and is_nil(normalized["endsAtMs"]) ->
+          Map.merge(normalized, %{
+            "status" => "paused",
+            "endsAtMs" => nil
+          })
+
+        normalized["status"] == "paused" ->
+          Map.put(normalized, "endsAtMs", nil)
+
+        normalized["status"] == "finished" ->
+          Map.merge(normalized, %{
+            "remainingSeconds" => 0,
+            "endsAtMs" => nil
+          })
+
+        normalized["status"] == "idle" ->
+          Map.merge(normalized, %{
+            "remainingSeconds" =>
+              if(normalized["remainingSeconds"] == 0, do: total_seconds, else: remaining_seconds),
+            "endsAtMs" => nil
+          })
+
+        true ->
+          normalized
+      end
+
+    if normalized["status"] == "running" and normalized["remainingSeconds"] <= 0 do
+      Map.merge(normalized, %{
+        "status" => "finished",
+        "remainingSeconds" => 0,
+        "endsAtMs" => nil
+      })
+    else
+      normalized
+    end
+  end
+
+  defp normalize_task_focus_timer_state(_invalid), do: nil
+
+  defp timer_state_value(attrs, camel_key, snake_key, default) do
+    Map.get(attrs, camel_key) ||
+      Map.get(attrs, Macro.underscore(camel_key)) ||
+      Map.get(attrs, snake_key) ||
+      default
+  end
+
+  defp normalize_string(value) when is_binary(value), do: value
+  defp normalize_string(value) when is_nil(value), do: ""
+  defp normalize_string(value), do: to_string(value)
+
+  defp normalize_status(value, fallback) do
+    normalized = value |> normalize_string() |> String.trim()
+    if normalized in @task_focus_timer_statuses, do: normalized, else: fallback
+  end
+
+  defp normalize_integer(value, fallback, min_value, max_value) do
+    value
+    |> parse_integer()
+    |> case do
+      {:ok, parsed} -> parsed |> max(min_value) |> min(max_value)
+      :error -> fallback
+    end
+  end
+
+  defp normalize_optional_non_negative_integer(value) do
+    case parse_integer(value) do
+      {:ok, parsed} when parsed >= 0 -> parsed
+      _ -> nil
+    end
+  end
+
+  defp parse_integer(value) when is_integer(value), do: {:ok, value}
+
+  defp parse_integer(value) when is_float(value) do
+    {:ok, value |> Float.floor() |> trunc()}
+  end
+
+  defp parse_integer(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, ""} -> {:ok, parsed}
+      _ -> :error
+    end
+  end
+
+  defp parse_integer(_value), do: :error
+
+  defp truthy?(value), do: value in [true, "true", 1, "1"]
 end

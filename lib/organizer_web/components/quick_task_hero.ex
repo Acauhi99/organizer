@@ -67,9 +67,11 @@ defmodule OrganizerWeb.Components.QuickTaskHero do
 
         <.input
           field={@quick_task_form[:notes]}
-          type="text"
+          id="quick-task-notes"
+          type="textarea"
           label="Notas"
           placeholder="Opcional"
+          rows="4"
         />
 
         <.button type="submit" variant="soft" class="w-full sm:w-auto">
