@@ -1350,6 +1350,7 @@ summary:focus-visible {
   --operations-scroll-min-height: 0;
   min-height: var(--operations-scroll-min-height);
   max-height: var(--operations-scroll-max-height);
+  contain: layout paint;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior-y: contain;
