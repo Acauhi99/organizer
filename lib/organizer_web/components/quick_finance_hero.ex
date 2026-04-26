@@ -111,16 +111,10 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           />
 
           <.input
-            :if={@quick_finance_kind == "expense"}
             field={@quick_finance_form[:expense_profile]}
             type="select"
-            label="Natureza"
-            options={[
-              {"Fixa", "fixed"},
-              {"Variável", "variable"},
-              {"Recorrente fixa", "recurring_fixed"},
-              {"Recorrente variável", "recurring_variable"}
-            ]}
+            label={entry_profile_label(@quick_finance_kind)}
+            options={entry_profile_options(@quick_finance_kind)}
           />
 
           <.input
@@ -338,5 +332,24 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
       end
 
     "Compartilhamento ##{link.id} • #{partner_email}"
+  end
+
+  defp entry_profile_label("income"), do: "Natureza da renda"
+  defp entry_profile_label(_kind), do: "Natureza da despesa"
+
+  defp entry_profile_options("income") do
+    [
+      {"Variável", "variable"},
+      {"Fixa (repete mensalmente)", "fixed"}
+    ]
+  end
+
+  defp entry_profile_options(_kind) do
+    [
+      {"Fixa", "fixed"},
+      {"Variável", "variable"},
+      {"Recorrente fixa", "recurring_fixed"},
+      {"Recorrente variável", "recurring_variable"}
+    ]
   end
 end

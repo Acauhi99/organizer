@@ -6,22 +6,31 @@ defmodule Organizer.SharedFinance.SplitCalculator do
 
   alias Organizer.Repo
   import Ecto.Query
+  alias Organizer.Planning.FinanceEntry
+
+  @fixed_profiles [:fixed, :recurring_fixed]
+  @dynamic_profiles [:variable, :recurring_variable]
 
   @doc """
   Calculates the reference income for a user in a given month/year.
-  = sum of FinanceEntry amounts where kind=:income and occurred_on is in month/year.
+  Includes:
+  - dynamic income entries that occurred in the month
+  - projected fixed income entries (fixed/recurring_fixed) started up to the month
   """
   def calculate_reference_income(user_id, month, year, repo \\ Repo) do
-    income_entry_sum = query_income_entries_sum(user_id, month, year, repo)
-    income_entry_sum
+    {start_on, end_on} = month_bounds(month, year)
+    dynamic_income = query_dynamic_income_entries_sum(user_id, start_on, end_on, repo)
+    projected_fixed_income = query_projected_fixed_income_sum(user_id, end_on, repo)
+
+    dynamic_income + projected_fixed_income
   end
 
   @doc """
   Calculates the reference income for a user in a given month/year with carryover.
 
   Priority:
-  1. Income sum in the requested month/year
-  2. If zero, income sum from the latest previous month (<= requested month/year)
+  1. Income sum in the requested month/year (including projected fixed income)
+  2. If zero, dynamic income sum from the latest previous month (<= requested month/year)
   3. If still none, 0
   """
   def calculate_reference_income_with_carryover(user_id, month, year, repo \\ Repo) do
@@ -30,7 +39,7 @@ defmodule Organizer.SharedFinance.SplitCalculator do
     if current_income > 0 do
       current_income
     else
-      query_latest_income_month_sum_until(user_id, month, year, repo)
+      query_latest_dynamic_income_month_sum_until(user_id, month, year, repo)
     end
   end
 
@@ -66,46 +75,66 @@ defmodule Organizer.SharedFinance.SplitCalculator do
   # Private helpers
   # ---------------------------------------------------------------------------
 
-  defp query_income_entries_sum(user_id, month, year, repo) do
+  defp query_dynamic_income_entries_sum(user_id, start_on, end_on, repo) do
     result =
       repo.one(
-        from fe in Organizer.Planning.FinanceEntry,
+        from fe in FinanceEntry,
           where:
             fe.user_id == ^user_id and
               fe.kind == :income and
-              fragment("strftime('%m', ?)", fe.occurred_on) == ^zero_pad(month) and
-              fragment("strftime('%Y', ?)", fe.occurred_on) == ^to_string(year),
+              fe.occurred_on >= ^start_on and
+              fe.occurred_on <= ^end_on and
+              (is_nil(fe.expense_profile) or fe.expense_profile in ^@dynamic_profiles),
           select: sum(fe.amount_cents)
       )
 
     result || 0
   end
 
-  defp query_latest_income_month_sum_until(user_id, month, year, repo) do
+  defp query_projected_fixed_income_sum(user_id, period_end, repo) do
+    result =
+      repo.one(
+        from fe in FinanceEntry,
+          where:
+            fe.user_id == ^user_id and
+              fe.kind == :income and
+              fe.occurred_on <= ^period_end and
+              fe.expense_profile in ^@fixed_profiles,
+          select: sum(fe.amount_cents)
+      )
+
+    result || 0
+  end
+
+  defp query_latest_dynamic_income_month_sum_until(user_id, month, year, repo) do
     period_end = year |> Date.new!(month, 1) |> Date.end_of_month()
 
-    result =
+    latest_income_date =
       repo.one(
-        from fe in Organizer.Planning.FinanceEntry,
+        from fe in FinanceEntry,
           where:
             fe.user_id == ^user_id and
               fe.kind == :income and
+              (is_nil(fe.expense_profile) or fe.expense_profile in ^@dynamic_profiles) and
               fe.occurred_on <= ^period_end,
-          group_by: [
-            fragment("strftime('%Y', ?)", fe.occurred_on),
-            fragment("strftime('%m', ?)", fe.occurred_on)
-          ],
-          order_by: [
-            desc: fragment("strftime('%Y', ?)", fe.occurred_on),
-            desc: fragment("strftime('%m', ?)", fe.occurred_on)
-          ],
           limit: 1,
-          select: sum(fe.amount_cents)
+          order_by: [desc: fe.occurred_on],
+          select: fe.occurred_on
       )
 
-    result || 0
+    case latest_income_date do
+      %Date{} = date ->
+        start_on = Date.beginning_of_month(date)
+        end_on = Date.end_of_month(date)
+        query_dynamic_income_entries_sum(user_id, start_on, end_on, repo)
+
+      _ ->
+        0
+    end
   end
 
-  defp zero_pad(month) when month < 10, do: "0#{month}"
-  defp zero_pad(month), do: to_string(month)
+  defp month_bounds(month, year) do
+    start_on = Date.new!(year, month, 1)
+    {start_on, Date.end_of_month(start_on)}
+  end
 end

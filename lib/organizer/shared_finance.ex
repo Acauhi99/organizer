@@ -13,6 +13,7 @@ defmodule Organizer.SharedFinance do
 
   alias Organizer.SharedFinance.{
     SharedEntryView,
+    SharedSplitSnapshot,
     SplitCalculator,
     LinkMetricsCalculator,
     SettlementCycle,
@@ -244,7 +245,13 @@ defmodule Organizer.SharedFinance do
 
       {:ok, link} ->
         period = normalize_shared_period(params)
-        reference_date = normalize_reference_date(Map.get(params, :reference_date))
+
+        reference_date =
+          normalize_reference_date(
+            Map.get(params, :reference_date) || Map.get(params, "reference_date")
+          )
+
+        persist_snapshots? = normalize_persist_snapshots_flag(params)
 
         entries =
           from(fe in FinanceEntry, where: fe.shared_with_link_id == ^link_id)
@@ -256,19 +263,51 @@ defmodule Organizer.SharedFinance do
 
         views =
           Enum.map(entries, fn entry ->
-            split = resolve_entry_split(entry, link, user_id, income_context)
+            split = resolve_entry_split(entry, link, income_context)
+
+            maybe_persist_split_snapshot(
+              persist_snapshots?,
+              entry,
+              link,
+              reference_date,
+              split,
+              income_context
+            )
+
+            scoped_split = scope_split_for_user(split, user_id, link)
 
             %SharedEntryView{
               entry: entry,
-              split_ratio_mine: split.ratio_mine,
-              split_ratio_theirs: split.ratio_theirs,
-              amount_mine_cents: split.amount_mine_cents,
-              amount_theirs_cents: split.amount_theirs_cents
+              split_ratio_mine: scoped_split.ratio_mine,
+              split_ratio_theirs: scoped_split.ratio_theirs,
+              amount_mine_cents: scoped_split.amount_mine_cents,
+              amount_theirs_cents: scoped_split.amount_theirs_cents
             }
           end)
 
         {:ok, views}
     end
+  end
+
+  @doc """
+  Recalculates and persists temporal split snapshots for all active links from the given user.
+  """
+  def rebalance_user_links(scope, opts \\ %{}) do
+    reference_date =
+      normalize_reference_date(Map.get(opts, :reference_date) || Map.get(opts, "reference_date"))
+
+    with {:ok, links} <- list_account_links(scope) do
+      Enum.each(links, fn link ->
+        _ =
+          list_shared_entries(scope, link.id, %{
+            period: "all",
+            reference_date: reference_date,
+            persist_snapshots: true
+          })
+      end)
+    end
+
+    :ok
   end
 
   # ---------------------------------------------------------------------------
@@ -614,52 +653,77 @@ defmodule Organizer.SharedFinance do
     }
   end
 
-  defp resolve_entry_split(entry, link, current_user_id, income_context) do
+  defp resolve_entry_split(entry, link, income_context) do
     if entry.shared_split_mode == :manual and is_integer(entry.shared_manual_mine_cents) do
-      resolve_manual_entry_split(entry, current_user_id)
+      resolve_manual_entry_split(entry, link)
     else
-      {ratio_a, ratio_b} =
+      {ratio_a, ratio_b, mode} =
         case income_context do
           %{income_a: 0, income_b: 0} ->
-            owner_fallback_ratios(entry, link)
+            {fallback_ratio_a, fallback_ratio_b} = owner_fallback_ratios(entry, link)
+            {fallback_ratio_a, fallback_ratio_b, :owner_fallback}
 
           %{ratios: {context_ratio_a, context_ratio_b}} ->
-            {context_ratio_a, context_ratio_b}
+            {context_ratio_a, context_ratio_b, :income_ratio}
         end
 
-      {ratio_mine, ratio_theirs} = scoped_ratios(current_user_id, link, ratio_a, ratio_b)
-      {amount_mine, amount_theirs} = SplitCalculator.split_amount(entry.amount_cents, ratio_mine)
+      {amount_a, amount_b} = SplitCalculator.split_amount(entry.amount_cents, ratio_a)
 
       %{
-        ratio_mine: ratio_mine,
-        ratio_theirs: ratio_theirs,
-        amount_mine_cents: amount_mine,
-        amount_theirs_cents: amount_theirs
+        mode: mode,
+        ratio_a: ratio_a,
+        ratio_b: ratio_b,
+        amount_a_cents: amount_a,
+        amount_b_cents: amount_b
       }
     end
   end
 
-  defp resolve_manual_entry_split(entry, current_user_id) do
+  defp resolve_manual_entry_split(entry, link) do
     total_cents = entry.amount_cents
     owner_amount_mine_cents = min(max(entry.shared_manual_mine_cents, 0), total_cents)
     owner_amount_theirs_cents = total_cents - owner_amount_mine_cents
 
-    {amount_mine, amount_theirs} =
-      if entry.user_id == current_user_id do
-        {owner_amount_mine_cents, owner_amount_theirs_cents}
-      else
-        {owner_amount_theirs_cents, owner_amount_mine_cents}
+    {amount_a, amount_b} =
+      cond do
+        entry.user_id == link.user_a_id ->
+          {owner_amount_mine_cents, owner_amount_theirs_cents}
+
+        entry.user_id == link.user_b_id ->
+          {owner_amount_theirs_cents, owner_amount_mine_cents}
+
+        true ->
+          {owner_amount_mine_cents, owner_amount_theirs_cents}
       end
 
-    ratio_mine = if total_cents > 0, do: amount_mine / total_cents, else: 0.0
-    ratio_theirs = if total_cents > 0, do: amount_theirs / total_cents, else: 0.0
+    ratio_a = if total_cents > 0, do: amount_a / total_cents, else: 0.0
+    ratio_b = if total_cents > 0, do: amount_b / total_cents, else: 0.0
 
     %{
-      ratio_mine: ratio_mine,
-      ratio_theirs: ratio_theirs,
-      amount_mine_cents: amount_mine,
-      amount_theirs_cents: amount_theirs
+      mode: :manual,
+      ratio_a: ratio_a,
+      ratio_b: ratio_b,
+      amount_a_cents: amount_a,
+      amount_b_cents: amount_b
     }
+  end
+
+  defp scope_split_for_user(split, user_id, link) do
+    if user_id == link.user_a_id do
+      %{
+        ratio_mine: split.ratio_a,
+        ratio_theirs: split.ratio_b,
+        amount_mine_cents: split.amount_a_cents,
+        amount_theirs_cents: split.amount_b_cents
+      }
+    else
+      %{
+        ratio_mine: split.ratio_b,
+        ratio_theirs: split.ratio_a,
+        amount_mine_cents: split.amount_b_cents,
+        amount_theirs_cents: split.amount_a_cents
+      }
+    end
   end
 
   defp resolve_metrics_ratios(income_a, income_b, filtered_views, link) do
@@ -701,6 +765,81 @@ defmodule Organizer.SharedFinance do
       {1.0, 0.0}
     end
   end
+
+  defp maybe_persist_split_snapshot(
+         false,
+         _entry,
+         _link,
+         _reference_date,
+         _split,
+         _income_context
+       ),
+       do: :ok
+
+  defp maybe_persist_split_snapshot(
+         true,
+         entry,
+         link,
+         reference_date,
+         split,
+         income_context
+       ) do
+    latest_snapshot =
+      Repo.one(
+        from ss in SharedSplitSnapshot,
+          where:
+            ss.finance_entry_id == ^entry.id and
+              ss.reference_month == ^reference_date.month and
+              ss.reference_year == ^reference_date.year,
+          order_by: [desc: ss.calculated_at],
+          limit: 1
+      )
+
+    if snapshot_changed?(latest_snapshot, split, income_context) do
+      attrs = %{
+        account_link_id: link.id,
+        finance_entry_id: entry.id,
+        reference_month: reference_date.month,
+        reference_year: reference_date.year,
+        split_mode: split.mode,
+        ratio_a: split.ratio_a,
+        ratio_b: split.ratio_b,
+        amount_a_cents: split.amount_a_cents,
+        amount_b_cents: split.amount_b_cents,
+        income_a_cents: income_context.income_a,
+        income_b_cents: income_context.income_b,
+        calculated_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      }
+
+      %SharedSplitSnapshot{}
+      |> SharedSplitSnapshot.changeset(attrs)
+      |> Repo.insert()
+      |> case do
+        {:ok, _snapshot} -> :ok
+        _ -> :error
+      end
+    else
+      :ok
+    end
+  end
+
+  defp snapshot_changed?(nil, _split, _income_context), do: true
+
+  defp snapshot_changed?(snapshot, split, income_context) do
+    snapshot.split_mode != split.mode or
+      ratio_changed?(snapshot.ratio_a, split.ratio_a) or
+      ratio_changed?(snapshot.ratio_b, split.ratio_b) or
+      snapshot.amount_a_cents != split.amount_a_cents or
+      snapshot.amount_b_cents != split.amount_b_cents or
+      snapshot.income_a_cents != income_context.income_a or
+      snapshot.income_b_cents != income_context.income_b
+  end
+
+  defp ratio_changed?(left, right) when is_number(left) and is_number(right) do
+    abs(left - right) > 1.0e-9
+  end
+
+  defp ratio_changed?(left, right), do: left != right
 
   defp normalize_share_attrs(entry, attrs) when is_map(attrs) do
     mode =
@@ -790,6 +929,18 @@ defmodule Organizer.SharedFinance do
   end
 
   defp normalize_shared_period(_params), do: "all"
+
+  defp normalize_persist_snapshots_flag(params) when is_map(params) do
+    value = Map.get(params, :persist_snapshots, Map.get(params, "persist_snapshots", true))
+
+    case value do
+      false -> false
+      "false" -> false
+      "0" -> false
+      0 -> false
+      _ -> true
+    end
+  end
 
   defp normalize_reference_date(%Date{} = date), do: date
   defp normalize_reference_date(_), do: Date.utc_today()

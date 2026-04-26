@@ -95,12 +95,14 @@ defmodule Organizer.SharedFinance.FinanceEntryPropertyTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Feature: shared-finance, Property 3: Ignorar expense_profile para receitas
+  # Feature: shared-finance, Property 3: Validação de expense_profile para receitas
   # Validates: Requirements 1.3
   # ---------------------------------------------------------------------------
 
   @tag feature: "shared-finance", property: 3
-  property "Property 3: para kind=:income, changeset é válido independente de expense_profile" do
+  property "Property 3: para kind=:income, changeset é válido apenas com perfis permitidos ou nil" do
+    valid_profiles = MapSet.new([:fixed, :variable, :recurring_fixed, :recurring_variable])
+
     check all(
             profile <-
               StreamData.one_of([
@@ -120,8 +122,13 @@ defmodule Organizer.SharedFinance.FinanceEntryPropertyTest do
 
       changeset = FinanceEntry.changeset(%FinanceEntry{user_id: 1}, attrs)
 
-      assert changeset.valid?,
-             "esperado changeset válido para income com expense_profile=#{inspect(profile)}, mas foi inválido: #{inspect(changeset.errors)}"
+      if is_nil(profile) or MapSet.member?(valid_profiles, profile) do
+        assert changeset.valid?,
+               "esperado changeset válido para income com expense_profile=#{inspect(profile)}, mas foi inválido: #{inspect(changeset.errors)}"
+      else
+        refute changeset.valid?,
+               "esperado changeset inválido para income com expense_profile=#{inspect(profile)}, mas foi válido"
+      end
     end
   end
 end

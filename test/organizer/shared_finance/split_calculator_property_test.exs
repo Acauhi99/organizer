@@ -109,6 +109,23 @@ defmodule Organizer.SharedFinance.SplitCalculatorPropertyTest do
     assert SplitCalculator.calculate_reference_income(user.id, today.month, today.year) == 200_000
   end
 
+  test "calculate_reference_income projeta renda fixa para meses futuros" do
+    user = user_fixture()
+
+    %FinanceEntry{}
+    |> FinanceEntry.changeset(%{
+      kind: :income,
+      expense_profile: :fixed,
+      amount_cents: 300_000,
+      category: "salario-fixo",
+      occurred_on: ~D[2026-01-05]
+    })
+    |> Ecto.Changeset.put_assoc(:user, user)
+    |> Repo.insert!()
+
+    assert SplitCalculator.calculate_reference_income(user.id, 4, 2026) == 300_000
+  end
+
   # ---------------------------------------------------------------------------
   # Feature: shared-finance, Property 11: Conservação de valor nos splits
   # Validates: Requirements 4.7

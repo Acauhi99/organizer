@@ -490,6 +490,7 @@ defmodule Organizer.Planning do
 
     with {:ok, _entry} <- result do
       Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
+      SharedFinance.rebalance_user_links(scope)
     end
 
     result
@@ -520,6 +521,7 @@ defmodule Organizer.Planning do
 
     with {:ok, _entry} <- result do
       Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
+      SharedFinance.rebalance_user_links(scope)
     end
 
     result
@@ -538,6 +540,7 @@ defmodule Organizer.Planning do
 
     with {:ok, _entry} <- result do
       Organizer.Planning.AnalyticsCache.invalidate_for_user(scope)
+      SharedFinance.rebalance_user_links(scope)
     end
 
     result

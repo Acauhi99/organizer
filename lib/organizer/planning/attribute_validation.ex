@@ -255,6 +255,13 @@ defmodule Organizer.Planning.AttributeValidation do
      normalized_installments_count, errors}
   end
 
+  defp validate_expense_classification_attrs(attrs, "income", errors) do
+    {expense_profile, errors} =
+      validate_optional_enum(attrs, :expense_profile, @finance_expense_profiles, errors)
+
+    {expense_profile || "variable", nil, nil, nil, errors}
+  end
+
   defp validate_expense_classification_attrs(_attrs, _kind, errors),
     do: {nil, nil, nil, nil, errors}
 

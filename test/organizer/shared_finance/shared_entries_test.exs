@@ -5,6 +5,7 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
 
   alias Organizer.Accounts.Scope
   alias Organizer.SharedFinance
+  alias Organizer.SharedFinance.SharedSplitSnapshot
   alias Organizer.Planning.FinanceEntry
   alias Organizer.Repo
 
@@ -35,6 +36,19 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
     %FinanceEntry{}
     |> Ecto.Changeset.change(Map.merge(defaults, Map.put(attrs, :user_id, user.id)))
     |> Repo.insert!()
+  end
+
+  defp snapshots_for(entry_id, month, year) do
+    import Ecto.Query
+
+    from(ss in SharedSplitSnapshot,
+      where:
+        ss.finance_entry_id == ^entry_id and
+          ss.reference_month == ^month and
+          ss.reference_year == ^year,
+      order_by: [asc: ss.calculated_at, asc: ss.id]
+    )
+    |> Repo.all()
   end
 
   # ---------------------------------------------------------------------------
@@ -289,6 +303,40 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
       assert view_b.amount_theirs_cents == expense.amount_cents
     end
 
+    test "fixed income from prior month is projected into the reference month" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+      scope_a = make_scope(user_a)
+      reference_date = ~D[2026-04-20]
+
+      _income_b_fixed =
+        create_entry(user_b, %{
+          kind: :income,
+          expense_profile: :fixed,
+          amount_cents: 400_000,
+          category: "Salario fixo",
+          occurred_on: ~D[2026-01-05]
+        })
+
+      expense =
+        create_entry(user_a, %{
+          kind: :expense,
+          amount_cents: 10_000,
+          occurred_on: ~D[2026-04-10],
+          shared_with_link_id: link.id
+        })
+
+      {:ok, [view_a]} =
+        SharedFinance.list_shared_entries(scope_a, link.id, %{reference_date: reference_date})
+
+      assert view_a.entry.id == expense.id
+      assert view_a.split_ratio_mine == 0.0
+      assert view_a.split_ratio_theirs == 1.0
+      assert view_a.amount_mine_cents == 0
+      assert view_a.amount_theirs_cents == 10_000
+    end
+
     test "when both accounts have zero income in month, split is 100% for entry owner" do
       user_a = user_fixture()
       user_b = user_fixture()
@@ -430,6 +478,97 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
       assert view_after_removal.split_ratio_mine == 1.0
       assert view_after_removal.amount_mine_cents == 10_000
       assert view_after_removal.amount_theirs_cents == 0
+    end
+
+    test "persists temporal split snapshots when income changes rebalance a shared entry" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+      scope_a = make_scope(user_a)
+      reference_date = ~D[2026-04-20]
+
+      _income_a =
+        create_entry(user_a, %{
+          kind: :income,
+          expense_profile: :variable,
+          amount_cents: 600_000,
+          category: "Salario",
+          occurred_on: ~D[2026-04-03]
+        })
+
+      expense =
+        create_entry(user_a, %{
+          kind: :expense,
+          amount_cents: 10_000,
+          occurred_on: ~D[2026-04-10],
+          shared_with_link_id: link.id
+        })
+
+      assert {:ok, [_]} =
+               SharedFinance.list_shared_entries(scope_a, link.id, %{
+                 reference_date: reference_date
+               })
+
+      snapshots_initial = snapshots_for(expense.id, reference_date.month, reference_date.year)
+      assert length(snapshots_initial) == 1
+      [initial_snapshot] = snapshots_initial
+      assert initial_snapshot.split_mode == :income_ratio
+      assert initial_snapshot.amount_a_cents == 10_000
+      assert initial_snapshot.amount_b_cents == 0
+      assert initial_snapshot.income_a_cents == 600_000
+      assert initial_snapshot.income_b_cents == 0
+
+      _income_b =
+        create_entry(user_b, %{
+          kind: :income,
+          expense_profile: :variable,
+          amount_cents: 400_000,
+          category: "Salario",
+          occurred_on: ~D[2026-04-05]
+        })
+
+      assert {:ok, [_]} =
+               SharedFinance.list_shared_entries(scope_a, link.id, %{
+                 reference_date: reference_date
+               })
+
+      snapshots_rebalanced = snapshots_for(expense.id, reference_date.month, reference_date.year)
+      assert length(snapshots_rebalanced) == 2
+
+      [_first, second] = snapshots_rebalanced
+      assert_in_delta second.ratio_a, 0.6, 0.000001
+      assert second.amount_a_cents == 6_000
+      assert second.amount_b_cents == 4_000
+      assert second.income_a_cents == 600_000
+      assert second.income_b_cents == 400_000
+    end
+
+    test "persists manual split snapshots as manual mode" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+      scope_a = make_scope(user_a)
+      reference_date = ~D[2026-04-20]
+
+      entry = create_entry(user_a, %{amount_cents: 50_000})
+
+      {:ok, _shared} =
+        SharedFinance.share_finance_entry(scope_a, entry.id, link.id, %{
+          "shared_split_mode" => "manual",
+          "shared_manual_mine_amount" => "200"
+        })
+
+      assert {:ok, [_]} =
+               SharedFinance.list_shared_entries(scope_a, link.id, %{
+                 reference_date: reference_date
+               })
+
+      snapshots = snapshots_for(entry.id, reference_date.month, reference_date.year)
+      assert length(snapshots) == 1
+      [snapshot] = snapshots
+      assert snapshot.split_mode == :manual
+      assert snapshot.amount_a_cents == 20_000
+      assert snapshot.amount_b_cents == 30_000
     end
 
     test "manual split overrides income ratio for shared entry amounts" do

@@ -301,7 +301,7 @@ defmodule Organizer.PlanningTest do
                  "category" => "salario"
                })
 
-      assert is_nil(income_entry.expense_profile)
+      assert income_entry.expense_profile == :variable
       assert is_nil(income_entry.payment_method)
       assert is_nil(income_entry.installment_number)
       assert is_nil(income_entry.installments_count)

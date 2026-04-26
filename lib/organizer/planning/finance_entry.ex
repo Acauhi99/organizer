@@ -61,6 +61,7 @@ defmodule Organizer.Planning.FinanceEntry do
     entry
     |> cast(attrs, [
       :kind,
+      :expense_profile,
       :payment_method,
       :installment_number,
       :installments_count,
@@ -72,7 +73,6 @@ defmodule Organizer.Planning.FinanceEntry do
       :shared_split_mode,
       :shared_manual_mine_cents
     ])
-    |> cast_expense_profile(attrs)
     |> validate_required([:kind, :amount_cents, :category, :occurred_on])
     |> validate_number(:amount_cents, greater_than: 0, less_than_or_equal_to: 1_000_000_000)
     |> validate_number(:installment_number, greater_than: 0, less_than_or_equal_to: 120)
@@ -87,13 +87,6 @@ defmodule Organizer.Planning.FinanceEntry do
     |> assoc_constraint(:user)
   end
 
-  defp cast_expense_profile(changeset, attrs) do
-    case get_field(changeset, :kind) do
-      :income -> changeset
-      _ -> cast(changeset, attrs, [:expense_profile])
-    end
-  end
-
   defp validate_expense_classification(changeset) do
     case get_field(changeset, :kind) do
       :expense ->
@@ -101,9 +94,23 @@ defmodule Organizer.Planning.FinanceEntry do
         |> validate_required([:expense_profile, :payment_method])
         |> validate_installments_for_payment_method()
 
+      :income ->
+        changeset
+        |> ensure_income_profile()
+        |> put_change(:payment_method, nil)
+        |> put_change(:installments_count, nil)
+        |> put_change(:installment_number, nil)
+
       _ ->
         put_change(changeset, :installments_count, nil)
         |> put_change(:installment_number, nil)
+    end
+  end
+
+  defp ensure_income_profile(changeset) do
+    case get_field(changeset, :expense_profile) do
+      nil -> put_change(changeset, :expense_profile, :variable)
+      _ -> changeset
     end
   end
 

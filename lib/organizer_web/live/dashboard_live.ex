@@ -1081,7 +1081,10 @@ defmodule OrganizerWeb.DashboardLive do
 
     if kind == "income" do
       merged
-      |> Map.put("expense_profile", "")
+      |> Map.update!(
+        "expense_profile",
+        &default_if_blank(&1, default_quick_expense_profile(kind))
+      )
       |> Map.put("payment_method", "")
       |> Map.put("installment_number", "")
       |> Map.put("installments_count", "")
@@ -1390,7 +1393,7 @@ defmodule OrganizerWeb.DashboardLive do
   defp default_quick_finance_category("income"), do: "Salário"
   defp default_quick_finance_category(_kind), do: "Alimentação"
 
-  defp default_quick_expense_profile("income"), do: ""
+  defp default_quick_expense_profile("income"), do: "variable"
   defp default_quick_expense_profile(_kind), do: "variable"
 
   defp default_quick_payment_method("income"), do: ""
