@@ -622,9 +622,14 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
             <div
               :if={@split_type == "income_ratio"}
-              class="rounded-xl border border-info/35 bg-info/14 px-3 py-2 text-xs font-medium text-info-content"
+              class="rounded-xl border border-info/45 bg-info/16 px-3 py-2 text-[0.78rem] font-semibold leading-5 text-base-content/88"
             >
-              A divisão automática usa a proporção de renda de referência do mês da transação.
+              <div class="flex items-start gap-2">
+                <.icon name="hero-information-circle" class="mt-0.5 size-4 shrink-0 text-info" />
+                <span>
+                  A divisão automática usa a proporção de renda de referência do mês da transação.
+                </span>
+              </div>
             </div>
           </section>
 
