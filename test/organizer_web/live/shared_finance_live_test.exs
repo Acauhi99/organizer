@@ -34,6 +34,22 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
     updated_entry
   end
 
+  defp create_shared_expense_entry(scope, link_id, attrs \\ %{}) do
+    defaults = %{
+      "description" => "Despesa compartilhada",
+      "amount_cents" => 10_000,
+      "kind" => "expense",
+      "category" => "Moradia",
+      "occurred_on" => Date.to_iso8601(Date.utc_today())
+    }
+
+    {:ok, entry} =
+      Planning.create_finance_entry(scope, Map.merge(defaults, attrs))
+
+    {:ok, updated_entry} = SharedFinance.share_finance_entry(scope, entry.id, link_id)
+    updated_entry
+  end
+
   defp create_shared_entry_on(scope, link_id, date, amount_cents) do
     {:ok, entry} =
       Planning.create_finance_entry(scope, %{
@@ -65,9 +81,9 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
 
   describe "renders shared entries list" do
     setup %{conn: conn} do
-      %{user_a: user_a, scope_a: scope_a, link: link} = setup_linked_users()
+      %{user_a: user_a, scope_a: scope_a, scope_b: scope_b, link: link} = setup_linked_users()
       conn = log_in_user(conn, user_a)
-      %{conn: conn, scope_a: scope_a, link: link}
+      %{conn: conn, scope_a: scope_a, scope_b: scope_b, link: link}
     end
 
     test "renders the shared entries list container", %{conn: conn, link: link} do
@@ -99,6 +115,75 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       entry = create_shared_entry(scope_a, link.id)
       {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
       assert has_element?(view, "#unshare-entry-#{entry.id}")
+    end
+
+    test "renders edit button only for entries created by current user", %{
+      conn: conn,
+      scope_a: scope_a,
+      scope_b: scope_b,
+      link: link
+    } do
+      my_entry = create_shared_expense_entry(scope_a, link.id)
+      other_entry = create_shared_expense_entry(scope_b, link.id)
+
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+
+      assert has_element?(view, "#edit-shared-entry-#{my_entry.id}")
+      refute has_element?(view, "#edit-shared-entry-#{other_entry.id}")
+    end
+
+    test "opens modal and updates shared entry using percentage split", %{
+      conn: conn,
+      scope_a: scope_a,
+      link: link
+    } do
+      entry =
+        create_shared_expense_entry(scope_a, link.id, %{
+          "description" => "Mercado antigo",
+          "amount_cents" => 20_000
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+
+      view
+      |> element("#edit-shared-entry-#{entry.id}")
+      |> render_click()
+
+      assert has_element?(view, "#shared-entry-edit-modal")
+      assert has_element?(view, "#shared-entry-edit-form")
+
+      view
+      |> form("#shared-entry-edit-form", %{
+        "shared_entry_edit" => %{
+          "split_type" => "percentage"
+        }
+      })
+      |> render_change()
+
+      today = Date.utc_today() |> Organizer.DateSupport.format_pt_br()
+
+      view
+      |> form("#shared-entry-edit-form", %{
+        "shared_entry_edit" => %{
+          "description" => "Mercado ajustado",
+          "category" => "Alimentação",
+          "amount_cents" => "300,00",
+          "occurred_on" => today,
+          "split_type" => "percentage",
+          "split_mine_percentage" => "30,0",
+          "split_mine_amount" => "90,00"
+        }
+      })
+      |> render_submit()
+
+      refute has_element?(view, "#shared-entry-edit-modal")
+
+      assert {:ok, updated} = Planning.get_finance_entry(scope_a, entry.id)
+      assert updated.amount_cents == 30_000
+      assert updated.category == "Alimentação"
+      assert updated.description == "Mercado ajustado"
+      assert updated.shared_split_mode == :manual
+      assert updated.shared_manual_mine_cents == 9_000
     end
 
     test "filters shared entries by selected period", %{conn: conn, scope_a: scope_a, link: link} do

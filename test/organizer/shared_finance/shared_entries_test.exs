@@ -192,6 +192,113 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
   end
 
   # ---------------------------------------------------------------------------
+  # update_shared_finance_entry/4
+  # ---------------------------------------------------------------------------
+
+  describe "update_shared_finance_entry/4" do
+    test "updates shared entry fields and split using percentage" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+      scope_a = make_scope(user_a)
+
+      entry =
+        create_entry(user_a, %{
+          amount_cents: 20_000,
+          category: "Moradia",
+          description: "Anterior",
+          occurred_on: ~D[2026-04-10],
+          shared_with_link_id: link.id,
+          shared_split_mode: :income_ratio,
+          shared_manual_mine_cents: nil
+        })
+
+      assert {:ok, updated} =
+               SharedFinance.update_shared_finance_entry(scope_a, link.id, entry.id, %{
+                 "amount_cents" => "300,00",
+                 "category" => "Casa",
+                 "description" => "Conta corrigida",
+                 "occurred_on" => "12/04/2026",
+                 "split_type" => "percentage",
+                 "split_mine_percentage" => "25,0"
+               })
+
+      assert updated.amount_cents == 30_000
+      assert updated.category == "Casa"
+      assert updated.description == "Conta corrigida"
+      assert updated.occurred_on == ~D[2026-04-12]
+      assert updated.shared_split_mode == :manual
+      assert updated.shared_manual_mine_cents == 7_500
+      assert updated.shared_with_link_id == link.id
+    end
+
+    test "updates split using fixed amount" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+      scope_a = make_scope(user_a)
+
+      entry =
+        create_entry(user_a, %{
+          amount_cents: 40_000,
+          shared_with_link_id: link.id,
+          shared_split_mode: :income_ratio
+        })
+
+      assert {:ok, updated} =
+               SharedFinance.update_shared_finance_entry(scope_a, link.id, entry.id, %{
+                 "amount_cents" => "400,00",
+                 "split_type" => "fixed_amount",
+                 "split_mine_amount" => "100,00"
+               })
+
+      assert updated.amount_cents == 40_000
+      assert updated.shared_split_mode == :manual
+      assert updated.shared_manual_mine_cents == 10_000
+    end
+
+    test "returns not_found when entry is not owned by current user" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+      scope_a = make_scope(user_a)
+
+      entry =
+        create_entry(user_b, %{
+          amount_cents: 15_000,
+          shared_with_link_id: link.id,
+          shared_split_mode: :income_ratio
+        })
+
+      assert {:error, :not_found} =
+               SharedFinance.update_shared_finance_entry(scope_a, link.id, entry.id, %{
+                 "split_type" => "percentage",
+                 "split_mine_percentage" => "50,0"
+               })
+    end
+
+    test "returns validation error when percentage exceeds 100" do
+      user_a = user_fixture()
+      user_b = user_fixture()
+      link = create_link(user_a, user_b)
+      scope_a = make_scope(user_a)
+
+      entry =
+        create_entry(user_a, %{
+          amount_cents: 15_000,
+          shared_with_link_id: link.id,
+          shared_split_mode: :income_ratio
+        })
+
+      assert {:error, {:validation, %{split_mine_percentage: _}}} =
+               SharedFinance.update_shared_finance_entry(scope_a, link.id, entry.id, %{
+                 "split_type" => "percentage",
+                 "split_mine_percentage" => "120"
+               })
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # list_shared_entries/3
   # ---------------------------------------------------------------------------
 

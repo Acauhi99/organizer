@@ -6,8 +6,10 @@ defmodule Organizer.SharedFinance do
 
   import Ecto.Query
 
+  alias Organizer.DateSupport
   alias Organizer.Repo
   alias Organizer.Planning.AmountParser
+  alias Organizer.Planning.AnalyticsCache
   alias Organizer.SharedFinance.{AccountLink, Invite}
   alias Organizer.Planning.FinanceEntry
 
@@ -250,6 +252,36 @@ defmodule Organizer.SharedFinance do
           error ->
             error
         end
+    end
+  end
+
+  @doc """
+  Updates a shared FinanceEntry owned by the authenticated user.
+
+  Supports editing core transaction fields and split type:
+  - `income_ratio` (automatic by reference income)
+  - `percentage` (fixed percentage for owner side)
+  - `fixed_amount` (fixed amount for owner side)
+
+  Returns `{:error, :not_found}` when entry/link is not accessible by the user.
+  """
+  def update_shared_finance_entry(scope, link_id, entry_id, attrs) when is_map(attrs) do
+    user_id = scope.user.id
+
+    with {:ok, _link} <- get_account_link(scope, link_id),
+         %FinanceEntry{} = entry <- shared_entry_owned_by_user(user_id, link_id, entry_id),
+         {:ok, updated_attrs} <- normalize_shared_entry_update_attrs(entry, attrs),
+         {:ok, updated_entry} <- entry |> FinanceEntry.changeset(updated_attrs) |> Repo.update() do
+      AnalyticsCache.invalidate_for_user(scope)
+      rebalance_user_links(scope)
+      :ok = broadcast_shared_entry_updated(updated_entry)
+      {:ok, updated_entry}
+    else
+      nil ->
+        {:error, :not_found}
+
+      {:error, _reason} = error ->
+        error
     end
   end
 
@@ -957,6 +989,190 @@ defmodule Organizer.SharedFinance do
               _ -> :error
             end
         end
+    end
+  end
+
+  defp shared_entry_owned_by_user(user_id, link_id, entry_id) do
+    Repo.one(
+      from fe in FinanceEntry,
+        where:
+          fe.id == ^entry_id and
+            fe.user_id == ^user_id and
+            fe.shared_with_link_id == ^link_id
+    )
+  end
+
+  defp normalize_shared_entry_update_attrs(entry, attrs) when is_map(attrs) do
+    with {:ok, amount_cents} <- parse_shared_entry_update_amount(attrs, entry),
+         {:ok, occurred_on} <- parse_shared_entry_update_occurred_on(attrs, entry),
+         {:ok, split_attrs} <- normalize_shared_entry_update_split_attrs(attrs, amount_cents) do
+      category =
+        attrs
+        |> Map.get("category", Map.get(attrs, :category, entry.category))
+        |> to_string()
+        |> String.trim()
+
+      description =
+        attrs
+        |> Map.get("description", Map.get(attrs, :description, entry.description))
+        |> normalize_optional_description()
+
+      {:ok,
+       %{
+         kind: entry.kind,
+         expense_profile: entry.expense_profile,
+         payment_method: entry.payment_method,
+         installment_number: entry.installment_number,
+         installments_count: entry.installments_count,
+         amount_cents: amount_cents,
+         category: category,
+         description: description,
+         occurred_on: occurred_on,
+         shared_with_link_id: entry.shared_with_link_id,
+         shared_split_mode: split_attrs.shared_split_mode,
+         shared_manual_mine_cents: split_attrs.shared_manual_mine_cents
+       }}
+    end
+  end
+
+  defp normalize_optional_description(nil), do: nil
+
+  defp normalize_optional_description(value) when is_binary(value) do
+    cleaned = String.trim(value)
+    if cleaned == "", do: nil, else: cleaned
+  end
+
+  defp normalize_optional_description(value), do: to_string(value)
+
+  defp parse_shared_entry_update_amount(attrs, entry) do
+    value = Map.get(attrs, "amount_cents", Map.get(attrs, :amount_cents, entry.amount_cents))
+
+    case parse_non_negative_amount(value) do
+      {:ok, cents} when cents > 0 ->
+        {:ok, cents}
+
+      _ ->
+        {:error, {:validation, %{amount_cents: ["must be a valid positive monetary value"]}}}
+    end
+  end
+
+  defp parse_shared_entry_update_occurred_on(attrs, entry) do
+    value = Map.get(attrs, "occurred_on", Map.get(attrs, :occurred_on, entry.occurred_on))
+
+    case DateSupport.parse_date(value) do
+      {:ok, date} ->
+        {:ok, date}
+
+      :error ->
+        {:error, {:validation, %{occurred_on: ["must be a valid date"]}}}
+    end
+  end
+
+  defp normalize_shared_entry_update_split_attrs(attrs, total_cents) do
+    split_type =
+      attrs
+      |> Map.get("split_type", Map.get(attrs, :split_type, "income_ratio"))
+      |> to_string()
+      |> String.trim()
+      |> case do
+        "percentage" -> "percentage"
+        "fixed_amount" -> "fixed_amount"
+        _ -> "income_ratio"
+      end
+
+    case split_type do
+      "income_ratio" ->
+        {:ok, %{shared_split_mode: :income_ratio, shared_manual_mine_cents: nil}}
+
+      "percentage" ->
+        attrs
+        |> Map.get("split_mine_percentage", Map.get(attrs, :split_mine_percentage))
+        |> parse_shared_split_percentage()
+        |> case do
+          {:ok, pct} ->
+            if pct < 0.0 or pct > 100.0 do
+              {:error, {:validation, %{split_mine_percentage: ["must be between 0 and 100"]}}}
+            else
+              mine_cents = round(total_cents * pct / 100)
+              {:ok, %{shared_split_mode: :manual, shared_manual_mine_cents: mine_cents}}
+            end
+
+          :error ->
+            {:error, {:validation, %{split_mine_percentage: ["must be a valid percentage"]}}}
+        end
+
+      "fixed_amount" ->
+        attrs
+        |> Map.get("split_mine_amount", Map.get(attrs, :split_mine_amount))
+        |> parse_non_negative_amount()
+        |> case do
+          {:ok, mine_cents} when mine_cents >= 0 and mine_cents <= total_cents ->
+            {:ok, %{shared_split_mode: :manual, shared_manual_mine_cents: mine_cents}}
+
+          {:ok, _mine_cents} ->
+            {:error,
+             {:validation,
+              %{split_mine_amount: ["must be greater than or equal to 0 and up to total amount"]}}}
+
+          _ ->
+            {:error,
+             {:validation, %{split_mine_amount: ["must be a valid non-negative monetary value"]}}}
+        end
+    end
+  end
+
+  defp parse_non_negative_amount(value) when is_integer(value), do: AmountParser.parse(value)
+
+  defp parse_non_negative_amount(value) when is_binary(value),
+    do: AmountParser.parse(String.trim(value))
+
+  defp parse_non_negative_amount(_value), do: :error
+
+  defp parse_shared_split_percentage(value) when is_binary(value) do
+    cleaned =
+      value
+      |> String.trim()
+      |> String.replace("%", "")
+
+    if cleaned == "" do
+      :error
+    else
+      normalized =
+        cond do
+          String.contains?(cleaned, ",") and String.contains?(cleaned, ".") ->
+            if last_char_index(cleaned, ",") > last_char_index(cleaned, ".") do
+              cleaned |> String.replace(".", "") |> String.replace(",", ".")
+            else
+              String.replace(cleaned, ",", "")
+            end
+
+          String.contains?(cleaned, ",") ->
+            String.replace(cleaned, ",", ".")
+
+          true ->
+            cleaned
+        end
+
+      case Float.parse(normalized) do
+        {pct, ""} -> {:ok, pct}
+        _ -> :error
+      end
+    end
+  end
+
+  defp parse_shared_split_percentage(value) when is_integer(value), do: {:ok, value * 1.0}
+  defp parse_shared_split_percentage(value) when is_float(value), do: {:ok, value}
+  defp parse_shared_split_percentage(_value), do: :error
+
+  defp last_char_index(string, char) do
+    string
+    |> String.graphemes()
+    |> Enum.with_index()
+    |> Enum.filter(fn {value, _index} -> value == char end)
+    |> List.last()
+    |> case do
+      {_, index} -> index
+      nil -> -1
     end
   end
 
