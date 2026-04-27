@@ -481,7 +481,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
     <div
       :if={is_map(@entry)}
       id="shared-entry-edit-modal"
-      class="fixed inset-0 z-[85] flex items-end justify-center px-3 py-4 sm:items-center sm:p-6"
+      class="fixed inset-0 z-[120] flex items-end justify-center px-3 py-4 sm:items-center sm:p-6"
       phx-window-keydown="cancel_shared_entry_edit"
       phx-key="escape"
       aria-hidden="false"
@@ -489,7 +489,8 @@ defmodule OrganizerWeb.SharedFinanceLive do
       <div
         id="shared-entry-edit-modal-backdrop"
         aria-hidden="true"
-        class="absolute inset-0 bg-slate-950/44"
+        phx-click="cancel_shared_entry_edit"
+        class="absolute inset-0 bg-slate-950/66 backdrop-blur-[3px]"
       >
       </div>
 
@@ -498,16 +499,16 @@ defmodule OrganizerWeb.SharedFinanceLive do
         role="dialog"
         aria-modal="true"
         aria-labelledby={"shared-entry-edit-title-#{@entry.id}"}
-        class="relative z-10 w-full max-w-3xl rounded-3xl border border-base-content/14 bg-base-100/98 p-5 shadow-[0_28px_70px_rgba(14,27,44,0.32)] sm:p-6"
+        class="relative z-10 w-full max-w-4xl max-h-[88vh] overflow-y-auto rounded-3xl border border-base-content/16 bg-base-100 p-5 shadow-[0_40px_120px_rgba(8,19,35,0.55)] sm:p-6"
       >
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/70">
               Lançamento compartilhado
             </p>
             <h2
               id={"shared-entry-edit-title-#{@entry.id}"}
-              class="mt-1 text-xl font-bold text-base-content"
+              class="mt-1 text-2xl font-black tracking-[-0.01em] text-base-content"
             >
               Ajustar divisão e transação
             </h2>
@@ -517,7 +518,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
             id="shared-entry-edit-close-btn"
             type="button"
             phx-click="cancel_shared_entry_edit"
-            class="btn btn-ghost btn-sm border border-base-content/16"
+            class="btn btn-ghost btn-sm border border-base-content/25 bg-base-100 shadow-sm"
           >
             <.icon name="hero-x-mark" class="size-4" />
           </button>
@@ -528,22 +529,30 @@ defmodule OrganizerWeb.SharedFinanceLive do
           id="shared-entry-edit-form"
           phx-change="change_shared_entry_edit"
           phx-submit="save_shared_entry_edit"
-          class="mt-4 space-y-4"
+          class="mt-5 space-y-4"
         >
-          <div class="grid gap-3 sm:grid-cols-2">
+          <div class="grid gap-3 rounded-2xl border border-base-content/12 bg-base-100 p-3 sm:grid-cols-2 sm:p-4">
             <.input
               field={@form[:description]}
               type="text"
               label="Descrição"
+              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
               placeholder="Ex: Aluguel, mercado, conta de luz..."
             />
-            <.input field={@form[:category]} type="text" label="Categoria" required />
+            <.input
+              field={@form[:category]}
+              type="text"
+              label="Categoria"
+              required
+              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+            />
             <.input
               field={@form[:amount_cents]}
               type="text"
               label="Valor total"
               inputmode="decimal"
               required
+              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
               placeholder="Ex: 350,55"
             />
             <.input
@@ -555,10 +564,11 @@ defmodule OrganizerWeb.SharedFinanceLive do
               pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
               placeholder="dd/mm/aaaa"
               required
+              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
             />
           </div>
 
-          <section class="rounded-2xl border border-base-content/14 bg-base-100/75 p-4">
+          <section class="rounded-2xl border border-base-content/14 bg-base-100 p-4 shadow-sm">
             <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
               Tipo de divisão
             </h3>
@@ -567,6 +577,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
               type="select"
               options={@split_type_options}
               label="Como dividir entre as contas?"
+              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
             />
 
             <div :if={@split_type == "percentage"} class="grid gap-3 sm:grid-cols-2">
@@ -576,6 +587,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 label="Sua porcentagem (%)"
                 inputmode="decimal"
                 placeholder="Ex: 56,7"
+                class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
               />
               <.input
                 field={@form[:split_mine_amount]}
@@ -584,6 +596,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 inputmode="decimal"
                 placeholder="Calculado automaticamente"
                 readonly
+                class="w-full rounded-xl border border-base-content/18 bg-base-200/70 px-3 py-2 text-sm text-base-content/86"
               />
             </div>
 
@@ -594,6 +607,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 label="Seu valor fixo (R$)"
                 inputmode="decimal"
                 placeholder="Ex: 120,00"
+                class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
               />
               <.input
                 field={@form[:split_mine_percentage]}
@@ -602,12 +616,13 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 inputmode="decimal"
                 placeholder="Calculada automaticamente"
                 readonly
+                class="w-full rounded-xl border border-base-content/18 bg-base-200/70 px-3 py-2 text-sm text-base-content/86"
               />
             </div>
 
             <div
               :if={@split_type == "income_ratio"}
-              class="rounded-xl border border-info/28 bg-info/10 px-3 py-2 text-xs text-info-content"
+              class="rounded-xl border border-info/35 bg-info/14 px-3 py-2 text-xs font-medium text-info-content"
             >
               A divisão automática usa a proporção de renda de referência do mês da transação.
             </div>
@@ -615,29 +630,29 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
           <section
             id="shared-entry-edit-preview"
-            class="rounded-2xl border border-base-content/14 bg-base-100/72 p-4"
+            class="rounded-2xl border border-base-content/14 bg-base-100 p-4 shadow-sm"
           >
             <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
               Prévia da divisão entre as duas contas
             </h3>
-            <div class="mt-3 grid gap-2 sm:grid-cols-2">
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
               <article
                 id="shared-entry-edit-preview-mine"
-                class="rounded-xl border border-info/35 bg-info/10 p-3"
+                class="rounded-xl border border-info/45 bg-info/14 p-3 shadow-sm"
               >
-                <p class="text-xs font-semibold uppercase tracking-[0.12em] text-info">Você</p>
-                <p class="mt-1 text-sm font-mono text-base-content">
+                <p class="text-xs font-bold uppercase tracking-[0.12em] text-info">Você</p>
+                <p class="mt-1 text-base font-semibold font-mono text-base-content">
                   {format_pct(@preview.split_ratio_mine)} ({format_cents(@preview.amount_mine_cents)})
                 </p>
               </article>
               <article
                 id="shared-entry-edit-preview-theirs"
-                class="rounded-xl border border-success/35 bg-success/12 p-3"
+                class="rounded-xl border border-success/45 bg-success/14 p-3 shadow-sm"
               >
-                <p class="text-xs font-semibold uppercase tracking-[0.12em] text-success">
+                <p class="text-xs font-bold uppercase tracking-[0.12em] text-success">
                   Outra conta
                 </p>
-                <p class="mt-1 text-sm font-mono text-base-content">
+                <p class="mt-1 text-base font-semibold font-mono text-base-content">
                   {format_pct(@preview.split_ratio_theirs)} ({format_cents(
                     @preview.amount_theirs_cents
                   )})
@@ -646,11 +661,15 @@ defmodule OrganizerWeb.SharedFinanceLive do
             </div>
           </section>
 
-          <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <button type="button" phx-click="cancel_shared_entry_edit" class="btn btn-ghost btn-sm">
+          <div class="flex flex-col-reverse gap-2 border-t border-base-content/12 pt-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              phx-click="cancel_shared_entry_edit"
+              class="btn btn-ghost btn-sm border border-base-content/20"
+            >
               Cancelar
             </button>
-            <button type="submit" class="btn btn-primary btn-sm">
+            <button type="submit" class="btn btn-primary btn-sm shadow-md shadow-primary/30">
               Salvar alterações
             </button>
           </div>
