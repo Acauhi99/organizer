@@ -15,14 +15,15 @@ defmodule Organizer.SharedFinance.SplitCalculator do
   Calculates the reference income for a user in a given month/year.
   Includes:
   - dynamic income entries that occurred in the month
-  - projected fixed income entries (fixed/recurring_fixed) started up to the month
+  - fixed income entries from the month, with carryover from the latest prior month
+    that has fixed income (fixed/recurring_fixed)
   """
   def calculate_reference_income(user_id, month, year, repo \\ Repo) do
     {start_on, end_on} = month_bounds(month, year)
     dynamic_income = query_dynamic_income_entries_sum(user_id, start_on, end_on, repo)
-    projected_fixed_income = query_projected_fixed_income_sum(user_id, end_on, repo)
+    fixed_income = query_fixed_income_with_carryover(user_id, month, year, repo)
 
-    dynamic_income + projected_fixed_income
+    dynamic_income + fixed_income
   end
 
   @doc """
@@ -91,19 +92,58 @@ defmodule Organizer.SharedFinance.SplitCalculator do
     result || 0
   end
 
-  defp query_projected_fixed_income_sum(user_id, period_end, repo) do
+  defp query_fixed_income_with_carryover(user_id, month, year, repo) do
+    {start_on, end_on} = month_bounds(month, year)
+    current_fixed_income = query_fixed_income_entries_sum(user_id, start_on, end_on, repo)
+
+    if current_fixed_income > 0 do
+      current_fixed_income
+    else
+      query_latest_fixed_income_month_sum_until(user_id, month, year, repo)
+    end
+  end
+
+  defp query_fixed_income_entries_sum(user_id, start_on, end_on, repo) do
     result =
       repo.one(
         from fe in FinanceEntry,
           where:
             fe.user_id == ^user_id and
               fe.kind == :income and
-              fe.occurred_on <= ^period_end and
+              fe.occurred_on >= ^start_on and
+              fe.occurred_on <= ^end_on and
               fe.expense_profile in ^@fixed_profiles,
           select: sum(fe.amount_cents)
       )
 
     result || 0
+  end
+
+  defp query_latest_fixed_income_month_sum_until(user_id, month, year, repo) do
+    period_end = year |> Date.new!(month, 1) |> Date.end_of_month()
+
+    latest_fixed_income_date =
+      repo.one(
+        from fe in FinanceEntry,
+          where:
+            fe.user_id == ^user_id and
+              fe.kind == :income and
+              fe.expense_profile in ^@fixed_profiles and
+              fe.occurred_on <= ^period_end,
+          limit: 1,
+          order_by: [desc: fe.occurred_on],
+          select: fe.occurred_on
+      )
+
+    case latest_fixed_income_date do
+      %Date{} = date ->
+        start_on = Date.beginning_of_month(date)
+        end_on = Date.end_of_month(date)
+        query_fixed_income_entries_sum(user_id, start_on, end_on, repo)
+
+      _ ->
+        0
+    end
   end
 
   defp query_latest_dynamic_income_month_sum_until(user_id, month, year, repo) do

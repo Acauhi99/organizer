@@ -370,7 +370,7 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
       assert view_b.amount_theirs_cents == 0
     end
 
-    test "split ratio uses the same reference month for all shared entries with carryover" do
+    test "split ratio is calculated using each entry month with carryover" do
       user_a = user_fixture()
       user_b = user_fixture()
       link = create_link(user_a, user_b)
@@ -414,9 +414,9 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
       jan_view = Map.fetch!(views_by_entry, jan_expense.id)
       feb_view = Map.fetch!(views_by_entry, feb_expense.id)
 
-      assert_in_delta jan_view.split_ratio_mine, 0.5555555555, 0.000001
-      assert jan_view.amount_mine_cents == 5_556
-      assert jan_view.amount_theirs_cents == 4_444
+      assert jan_view.split_ratio_mine == 1.0
+      assert jan_view.amount_mine_cents == 10_000
+      assert jan_view.amount_theirs_cents == 0
 
       assert_in_delta feb_view.split_ratio_mine, 0.5555555555, 0.000001
       assert feb_view.amount_mine_cents == 11_111
@@ -563,7 +563,7 @@ defmodule Organizer.SharedFinance.SharedEntriesTest do
                  reference_date: reference_date
                })
 
-      snapshots = snapshots_for(entry.id, reference_date.month, reference_date.year)
+      snapshots = snapshots_for(entry.id, entry.occurred_on.month, entry.occurred_on.year)
       assert length(snapshots) == 1
       [snapshot] = snapshots
       assert snapshot.split_mode == :manual

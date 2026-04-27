@@ -234,8 +234,9 @@ defmodule Organizer.SharedFinance do
 
   @doc """
   Lists all FinanceEntries shared with a given AccountLink, with split ratios calculated
-  from each user's reference income on the provided `reference_date` (default: today).
-  This keeps shared splits dynamically rebalanced as incomes are added/removed.
+  from each user's reference income in the month of each entry (`occurred_on`),
+  using carryover rules when needed.
+  `reference_date` controls period filtering and snapshot boundaries, not the per-entry month basis.
   Returns `{:error, :not_found}` if the user is not a participant of the link.
   """
   def list_shared_entries(scope, link_id, params \\ %{}) do
@@ -259,30 +260,41 @@ defmodule Organizer.SharedFinance do
           |> apply_shared_period_filter(period, reference_date)
 
         user_id = scope.user.id
-        income_context = build_income_split_context(link, reference_date)
 
-        views =
-          Enum.map(entries, fn entry ->
+        {views, _income_context_cache} =
+          Enum.map_reduce(entries, %{}, fn entry, income_context_cache ->
+            {entry_reference_date, income_context} =
+              income_context_for_entry(entry, link, income_context_cache)
+
+            updated_cache =
+              Map.put(
+                income_context_cache,
+                {entry_reference_date.year, entry_reference_date.month},
+                income_context
+              )
+
             split = resolve_entry_split(entry, link, income_context)
 
             maybe_persist_split_snapshot(
               persist_snapshots?,
               entry,
               link,
-              reference_date,
+              entry_reference_date,
               split,
               income_context
             )
 
             scoped_split = scope_split_for_user(split, user_id, link)
 
-            %SharedEntryView{
+            view = %SharedEntryView{
               entry: entry,
               split_ratio_mine: scoped_split.ratio_mine,
               split_ratio_theirs: scoped_split.ratio_theirs,
               amount_mine_cents: scoped_split.amount_mine_cents,
               amount_theirs_cents: scoped_split.amount_theirs_cents
             }
+
+            {view, updated_cache}
           end)
 
         {:ok, views}
@@ -651,6 +663,20 @@ defmodule Organizer.SharedFinance do
       income_b: income_b,
       ratios: SplitCalculator.calculate_split_ratio(income_a, income_b)
     }
+  end
+
+  defp income_context_for_entry(entry, link, income_context_cache) do
+    entry_reference_date = entry.occurred_on
+    cache_key = {entry_reference_date.year, entry_reference_date.month}
+
+    case Map.get(income_context_cache, cache_key) do
+      nil ->
+        income_context = build_income_split_context(link, entry_reference_date)
+        {entry_reference_date, income_context}
+
+      cached_income_context ->
+        {entry_reference_date, cached_income_context}
+    end
   end
 
   defp resolve_entry_split(entry, link, income_context) do
