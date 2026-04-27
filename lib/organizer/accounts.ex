@@ -104,6 +104,34 @@ defmodule Organizer.Accounts do
     User.registration_changeset(user, attrs, Keyword.put_new(opts, :confirm, false))
   end
 
+  @doc """
+  Finds or creates a user authenticated by Google OAuth.
+
+  Matching priority:
+  1. Existing user with the same `google_sub`
+  2. Existing user with the same email (links `google_sub`)
+  3. New user creation
+  """
+  def find_or_create_user_by_google(%{email: email, google_sub: google_sub})
+      when is_binary(email) and is_binary(google_sub) do
+    normalized_email = email |> String.trim() |> String.downcase()
+    normalized_google_sub = String.trim(google_sub)
+
+    if normalized_email == "" or normalized_google_sub == "" do
+      {:error, :invalid_google_profile}
+    else
+      case Repo.get_by(User, google_sub: normalized_google_sub) do
+        %User{} = user ->
+          {:ok, user}
+
+        nil ->
+          find_or_create_user_by_google_email(normalized_email, normalized_google_sub)
+      end
+    end
+  end
+
+  def find_or_create_user_by_google(_attrs), do: {:error, :invalid_google_profile}
+
   ## Settings
 
   @doc """
@@ -204,6 +232,56 @@ defmodule Organizer.Accounts do
 
         {:ok, {user, tokens_to_expire}}
       end
+    end)
+  end
+
+  defp find_or_create_user_by_google_email(email, google_sub) do
+    case Repo.get_by(User, email: email) do
+      nil ->
+        create_user_from_google_profile(email, google_sub)
+
+      %User{google_sub: nil} = user ->
+        link_google_account(user, google_sub)
+
+      %User{google_sub: ^google_sub} = user ->
+        {:ok, user}
+
+      %User{} ->
+        {:error, :google_account_conflict}
+    end
+  end
+
+  defp create_user_from_google_profile(email, google_sub) do
+    attrs = %{email: email, google_sub: google_sub}
+
+    %User{}
+    |> User.google_registration_changeset(attrs, confirm: true)
+    |> Repo.insert()
+  end
+
+  defp link_google_account(%User{} = user, google_sub) do
+    confirmed_at = user.confirmed_at || DateTime.utc_now(:second)
+
+    user
+    |> User.google_link_changeset(%{google_sub: google_sub, confirmed_at: confirmed_at})
+    |> Repo.update()
+    |> case do
+      {:ok, linked_user} ->
+        {:ok, linked_user}
+
+      {:error, changeset} ->
+        if google_sub_taken?(changeset) do
+          {:error, :google_account_conflict}
+        else
+          {:error, changeset}
+        end
+    end
+  end
+
+  defp google_sub_taken?(changeset) do
+    Enum.any?(changeset.errors, fn
+      {:google_sub, {"has already been taken", _}} -> true
+      _ -> false
     end)
   end
 

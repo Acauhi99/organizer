@@ -110,6 +110,8 @@ defmodule OrganizerWeb.Router do
 
     get "/users/log-in", UserSessionController, :new
     post "/users/log-in", UserSessionController, :create
+    get "/users/auth/google", UserGoogleOAuthController, :request
+    get "/users/auth/google/callback", UserGoogleOAuthController, :callback
     delete "/users/log-out", UserSessionController, :delete
   end
 end
