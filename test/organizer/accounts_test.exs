@@ -87,6 +87,82 @@ defmodule Organizer.AccountsTest do
     end
   end
 
+  describe "find_or_create_user_by_google/1" do
+    test "creates a new user when email does not exist" do
+      assert {:ok, user} =
+               Accounts.find_or_create_user_by_google(%{
+                 email: "google-new-user@example.com",
+                 google_sub: "google-sub-new-123456"
+               })
+
+      assert user.email == "google-new-user@example.com"
+      assert user.google_sub == "google-sub-new-123456"
+      assert user.confirmed_at
+      assert is_nil(user.hashed_password)
+    end
+
+    test "links existing user by email when not previously linked" do
+      existing_user = user_fixture(email: "google-link-existing@example.com")
+
+      assert {:ok, linked_user} =
+               Accounts.find_or_create_user_by_google(%{
+                 email: existing_user.email,
+                 google_sub: "google-sub-link-existing-123"
+               })
+
+      assert linked_user.id == existing_user.id
+      assert linked_user.google_sub == "google-sub-link-existing-123"
+    end
+
+    test "returns existing user when same google_sub is already linked" do
+      assert {:ok, linked_user} =
+               Accounts.find_or_create_user_by_google(%{
+                 email: "existing-by-sub@example.com",
+                 google_sub: "google-sub-same-001"
+               })
+
+      assert {:ok, same_user} =
+               Accounts.find_or_create_user_by_google(%{
+                 email: "different-email@example.com",
+                 google_sub: "google-sub-same-001"
+               })
+
+      assert same_user.id == linked_user.id
+      assert same_user.email == linked_user.email
+    end
+
+    test "returns conflict when email is linked to another google_sub" do
+      assert {:ok, _user} =
+               Accounts.find_or_create_user_by_google(%{
+                 email: "conflict-google@example.com",
+                 google_sub: "google-sub-original-123"
+               })
+
+      assert {:error, :google_account_conflict} =
+               Accounts.find_or_create_user_by_google(%{
+                 email: "conflict-google@example.com",
+                 google_sub: "google-sub-other-987"
+               })
+    end
+
+    test "normalizes email before lookup" do
+      assert {:ok, user} =
+               Accounts.find_or_create_user_by_google(%{
+                 email: "Case.Sensitive@example.com",
+                 google_sub: "google-sub-case-123"
+               })
+
+      assert {:ok, same_user} =
+               Accounts.find_or_create_user_by_google(%{
+                 email: "  case.sensitive@EXAMPLE.com ",
+                 google_sub: "google-sub-case-123"
+               })
+
+      assert same_user.id == user.id
+      assert same_user.email == "case.sensitive@example.com"
+    end
+  end
+
   describe "sudo_mode?/2" do
     test "validates the authenticated_at time" do
       now = DateTime.utc_now()

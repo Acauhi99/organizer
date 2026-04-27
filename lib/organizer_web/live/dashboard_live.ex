@@ -5,6 +5,7 @@ defmodule OrganizerWeb.DashboardLive do
   alias Organizer.DateSupport
   alias Organizer.Planning
   alias Organizer.Planning.AmountParser
+  alias Organizer.Repo
   alias Organizer.SharedFinance
   alias OrganizerWeb.DashboardLive.{Filters, Insights}
 
@@ -73,44 +74,32 @@ defmodule OrganizerWeb.DashboardLive do
     normalized =
       normalize_quick_finance_attrs(attrs, socket.assigns.account_links, parse_amount?: true)
 
-    case Planning.create_finance_entry(socket.assigns.current_scope, normalized) do
-      {:ok, entry} ->
-        share_result =
-          maybe_share_quick_finance_entry(socket.assigns.current_scope, entry, normalized)
-
+    case create_quick_finance_entry(socket.assigns.current_scope, normalized) do
+      {:ok, _entry, share_result} ->
         kind = normalized["kind"]
         reset_form = quick_finance_defaults(kind, socket.assigns.account_links)
 
         flash_message =
           case share_result do
-            :shared ->
-              "Lançamento registrado e compartilhado no compartilhamento."
-
-            {:share_failed, reason} ->
-              "Lançamento registrado, mas #{reason}."
-
-            :not_shared ->
-              "Lançamento registrado."
+            :shared -> "Lançamento registrado e compartilhado no compartilhamento."
+            :not_shared -> "Lançamento registrado."
           end
-
-        flash_level =
-          if match?({:share_failed, _reason}, share_result), do: :error, else: :info
 
         {:noreply,
          socket
          |> assign(:quick_finance_kind, kind)
          |> assign(:quick_finance_preset, default_quick_finance_preset(kind))
          |> assign(:quick_finance_form, to_form(reset_form, as: :quick_finance))
-         |> put_flash(flash_level, flash_message)
+         |> put_flash(:info, flash_message)
          |> load_operation_collections()
          |> refresh_dashboard_insights()}
 
-      {:error, {:validation, _details}} ->
+      {:error, {:validation, details}} ->
         {:noreply,
          socket
          |> assign(:quick_finance_kind, normalized["kind"])
          |> assign(:quick_finance_form, to_form(normalized, as: :quick_finance))
-         |> put_flash(:error, "Verifique os campos para registrar o lançamento.")}
+         |> put_flash(:error, quick_finance_creation_error_message(details))}
 
       _ ->
         {:noreply,
@@ -711,30 +700,48 @@ defmodule OrganizerWeb.DashboardLive do
   defp truthy_quick_finance_value?(value) when value in ["true", "on", "1"], do: true
   defp truthy_quick_finance_value?(_value), do: false
 
-  defp maybe_share_quick_finance_entry(_scope, _entry, %{"kind" => "income"}), do: :not_shared
+  defp create_quick_finance_entry(scope, attrs) do
+    if quick_finance_share_enabled?(attrs) do
+      create_quick_finance_entry_with_share(scope, attrs)
+    else
+      case Planning.create_finance_entry(scope, attrs) do
+        {:ok, entry} -> {:ok, entry, :not_shared}
+        {:error, _reason} = error -> error
+      end
+    end
+  end
 
-  defp maybe_share_quick_finance_entry(scope, entry, attrs) do
-    if truthy_quick_finance_value?(Map.get(attrs, "share_with_link")) do
-      case parse_quick_share_link_id(Map.get(attrs, "shared_with_link_id")) do
-        {:ok, link_id} ->
-          share_attrs = build_quick_share_attrs(attrs, entry.amount_cents)
+  defp quick_finance_share_enabled?(%{"kind" => "expense"} = attrs),
+    do: truthy_quick_finance_value?(Map.get(attrs, "share_with_link"))
 
-          case SharedFinance.share_finance_entry(scope, entry.id, link_id, share_attrs) do
-            {:ok, _shared_entry} ->
-              :shared
+  defp quick_finance_share_enabled?(_attrs), do: false
 
-            {:error, {:validation, details}} ->
-              {:share_failed, quick_share_validation_message(details)}
+  defp create_quick_finance_entry_with_share(scope, attrs) do
+    with {:ok, link_id} <- parse_quick_share_link_id(Map.get(attrs, "shared_with_link_id")) do
+      Repo.transaction(fn ->
+        with {:ok, entry} <- Planning.create_finance_entry(scope, attrs),
+             share_attrs = build_quick_share_attrs(attrs, entry.amount_cents),
+             {:ok, shared_entry} <-
+               SharedFinance.share_finance_entry(scope, entry.id, link_id, share_attrs,
+                 broadcast?: false
+               ) do
+          {entry, shared_entry}
+        else
+          {:error, _reason} = error ->
+            Repo.rollback(error)
+        end
+      end)
+      |> case do
+        {:ok, {entry, shared_entry}} ->
+          :ok = SharedFinance.broadcast_shared_entry_updated(shared_entry)
+          {:ok, entry, :shared}
 
-            _ ->
-              {:share_failed, "não foi possível aplicar o compartilhamento"}
-          end
-
-        :error ->
-          {:share_failed, "compartilhamento inválido para compartilhamento"}
+        {:error, _reason} = error ->
+          error
       end
     else
-      :not_shared
+      :error ->
+        {:error, {:validation, %{shared_with_link_id: ["is invalid"]}}}
     end
   end
 
@@ -770,17 +777,21 @@ defmodule OrganizerWeb.DashboardLive do
     end
   end
 
-  defp quick_share_validation_message(details) when is_map(details) do
+  defp quick_finance_creation_error_message(details) when is_map(details) do
     cond do
       Map.has_key?(details, :shared_manual_mine_cents) ->
-        "no modo manual, informe um valor válido para você sem exceder o total"
+        "No modo manual, informe um valor válido para você sem exceder o total."
+
+      Map.has_key?(details, :shared_with_link_id) ->
+        "Selecione um compartilhamento válido para registrar o lançamento."
 
       true ->
-        "validação do compartilhamento falhou"
+        "Verifique os campos para registrar o lançamento."
     end
   end
 
-  defp quick_share_validation_message(_details), do: "validação do compartilhamento falhou"
+  defp quick_finance_creation_error_message(_details),
+    do: "Não foi possível registrar o lançamento."
 
   defp format_amount_input(cents) when is_integer(cents) and cents >= 0 do
     integer_part = cents |> div(100) |> Integer.to_string()

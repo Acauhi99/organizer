@@ -4,6 +4,7 @@ defmodule Organizer.Accounts.User do
 
   schema "users" do
     field :email, :string
+    field :google_sub, :string
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
     field :confirmed_at, :utc_datetime
@@ -48,6 +49,26 @@ defmodule Organizer.Accounts.User do
     |> maybe_confirm_user(opts)
   end
 
+  @doc """
+  A user changeset for registration via Google OAuth.
+  """
+  def google_registration_changeset(user, attrs, opts \\ []) do
+    user
+    |> cast(attrs, [:email, :google_sub])
+    |> validate_email(opts)
+    |> validate_google_sub()
+    |> maybe_confirm_user(opts)
+  end
+
+  @doc """
+  A user changeset for linking a Google account to an existing user.
+  """
+  def google_link_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:google_sub, :confirmed_at])
+    |> validate_google_sub()
+  end
+
   defp validate_email(changeset, opts) do
     changeset =
       changeset
@@ -65,6 +86,14 @@ defmodule Organizer.Accounts.User do
     else
       changeset
     end
+  end
+
+  defp validate_google_sub(changeset) do
+    changeset
+    |> validate_required([:google_sub])
+    |> validate_length(:google_sub, min: 6, max: 255)
+    |> unsafe_validate_unique(:google_sub, Organizer.Repo)
+    |> unique_constraint(:google_sub)
   end
 
   defp validate_email_changed(changeset) do

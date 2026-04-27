@@ -2,10 +2,12 @@ defmodule OrganizerWeb.SharedFinanceLive do
   use OrganizerWeb, :live_view
 
   alias Contex.{Dataset, Plot}
+  alias Organizer.DateSupport
+  alias Organizer.Planning.AmountParser
   alias Organizer.SharedFinance
+  alias Organizer.SharedFinance.SplitCalculator
 
   @shared_period_filters ["current_month", "last_3_months", "all"]
-
   @impl true
   def mount(%{"link_id" => link_id_param} = params, _session, socket) do
     scope = socket.assigns.current_scope
@@ -36,6 +38,9 @@ defmodule OrganizerWeb.SharedFinanceLive do
         |> assign(:shared_balance_chart, shared_balance_chart_svg(metrics))
         |> assign(:shared_trend_chart, shared_trend_chart_svg(trend))
         |> assign(:shared_entries_count, length(views))
+        |> assign(:shared_entry_edit_entry, nil)
+        |> assign(:shared_entry_edit_form, to_form(%{}, as: :shared_entry_edit))
+        |> assign(:shared_entry_edit_preview, nil)
         |> assign(:page_title, "Finanças Compartilhadas")
         |> stream_configure(:shared_entries, dom_id: &"shared-entry-view-#{&1.entry.id}")
         |> stream(:shared_entries, views)
@@ -68,6 +73,125 @@ defmodule OrganizerWeb.SharedFinanceLive do
     else
       _ -> {:noreply, put_flash(socket, :error, "Não foi possível remover o compartilhamento.")}
     end
+  end
+
+  @impl true
+  def handle_event("open_shared_entry_edit", %{"entry_id" => entry_id}, socket) do
+    scope = socket.assigns.current_scope
+    link_id = socket.assigns.link_id
+    selected_period = socket.assigns.selected_shared_period
+
+    with {:ok, parsed_entry_id} <- parse_int(entry_id),
+         {:ok, view} <-
+           shared_entry_view_for_edit(scope, link_id, selected_period, parsed_entry_id),
+         true <- view.entry.user_id == scope.user.id do
+      form_params = shared_entry_edit_form_params(view)
+      preview = shared_entry_preview_from_view(view)
+
+      {:noreply,
+       socket
+       |> assign(:shared_entry_edit_entry, view.entry)
+       |> assign(:shared_entry_edit_form, to_form(form_params, as: :shared_entry_edit))
+       |> assign(:shared_entry_edit_preview, preview)}
+    else
+      false ->
+        {:noreply,
+         put_flash(socket, :error, "Você só pode editar lançamentos compartilhados da sua conta.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Não foi possível abrir a edição do lançamento.")}
+    end
+  end
+
+  @impl true
+  def handle_event("change_shared_entry_edit", %{"shared_entry_edit" => params}, socket) do
+    normalized_params =
+      normalize_shared_entry_edit_params(
+        params,
+        socket.assigns.shared_entry_edit_entry,
+        socket.assigns.shared_entry_edit_preview
+      )
+
+    preview =
+      build_shared_entry_preview(
+        normalized_params,
+        socket.assigns.shared_entry_edit_entry,
+        socket.assigns.link,
+        socket.assigns.current_scope.user.id,
+        socket.assigns.shared_entry_edit_preview
+      )
+
+    enriched_params = enrich_shared_entry_form_params(normalized_params, preview)
+
+    {:noreply,
+     socket
+     |> assign(:shared_entry_edit_form, to_form(enriched_params, as: :shared_entry_edit))
+     |> assign(:shared_entry_edit_preview, preview)}
+  end
+
+  @impl true
+  def handle_event("save_shared_entry_edit", %{"shared_entry_edit" => params}, socket) do
+    scope = socket.assigns.current_scope
+    entry = socket.assigns.shared_entry_edit_entry
+    link_id = socket.assigns.link_id
+
+    case entry do
+      %{} ->
+        case SharedFinance.update_shared_finance_entry(scope, link_id, entry.id, params) do
+          {:ok, _updated_entry} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Lançamento compartilhado atualizado.")
+             |> close_shared_entry_edit_modal()
+             |> reload_shared_data()}
+
+          {:error, {:validation, details}} ->
+            normalized_params =
+              normalize_shared_entry_edit_params(
+                params,
+                entry,
+                socket.assigns.shared_entry_edit_preview
+              )
+
+            preview =
+              build_shared_entry_preview(
+                normalized_params,
+                entry,
+                socket.assigns.link,
+                scope.user.id,
+                socket.assigns.shared_entry_edit_preview
+              )
+
+            {:noreply,
+             socket
+             |> assign(
+               :shared_entry_edit_form,
+               to_form(enrich_shared_entry_form_params(normalized_params, preview),
+                 as: :shared_entry_edit
+               )
+             )
+             |> assign(:shared_entry_edit_preview, preview)
+             |> put_flash(:error, shared_entry_edit_validation_message(details))}
+
+          {:error, :not_found} ->
+            {:noreply,
+             socket
+             |> close_shared_entry_edit_modal()
+             |> reload_shared_data()
+             |> put_flash(:error, "Lançamento compartilhado não encontrado para edição.")}
+
+          _ ->
+            {:noreply, put_flash(socket, :error, "Não foi possível atualizar o lançamento.")}
+        end
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Nenhum lançamento foi selecionado para edição.")}
+    end
+  end
+
+  @impl true
+  def handle_event("cancel_shared_entry_edit", _params, socket) do
+    {:noreply, close_shared_entry_edit_modal(socket)}
   end
 
   @impl true
@@ -274,15 +398,27 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 </p>
               </div>
 
-              <button
-                id={"unshare-entry-#{view.entry.id}"}
-                type="button"
-                phx-click="unshare_entry"
-                phx-value-entry_id={view.entry.id}
-                class="btn btn-outline btn-xs btn-error shrink-0"
-              >
-                Remover
-              </button>
+              <div class="flex items-center gap-1.5">
+                <button
+                  :if={view.entry.user_id == @current_scope.user.id}
+                  id={"edit-shared-entry-#{view.entry.id}"}
+                  type="button"
+                  phx-click="open_shared_entry_edit"
+                  phx-value-entry_id={view.entry.id}
+                  class="btn btn-outline btn-xs shrink-0"
+                >
+                  Editar
+                </button>
+                <button
+                  id={"unshare-entry-#{view.entry.id}"}
+                  type="button"
+                  phx-click="unshare_entry"
+                  phx-value-entry_id={view.entry.id}
+                  class="btn btn-outline btn-xs btn-error shrink-0"
+                >
+                  Remover
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -307,8 +443,244 @@ defmodule OrganizerWeb.SharedFinanceLive do
             </ul>
           <% end %>
         </section>
+
+        <.shared_entry_edit_modal
+          form={@shared_entry_edit_form}
+          preview={@shared_entry_edit_preview}
+          entry={@shared_entry_edit_entry}
+          split_type_options={shared_split_type_options()}
+        />
       </section>
     </Layouts.app>
+    """
+  end
+
+  attr :form, :any, required: true
+  attr :preview, :map, default: nil
+  attr :entry, :any, default: nil
+  attr :split_type_options, :list, default: []
+
+  defp shared_entry_edit_modal(assigns) do
+    split_type = assigns.form[:split_type].value || "income_ratio"
+
+    preview =
+      assigns.preview ||
+        %{
+          split_ratio_mine: 0.0,
+          split_ratio_theirs: 0.0,
+          amount_mine_cents: 0,
+          amount_theirs_cents: 0
+        }
+
+    assigns =
+      assigns
+      |> assign(:split_type, split_type)
+      |> assign(:preview, preview)
+
+    ~H"""
+    <div
+      :if={is_map(@entry)}
+      id="shared-entry-edit-modal"
+      class="fixed inset-0 z-[120] flex items-end justify-center px-3 py-4 sm:items-center sm:p-6"
+      phx-window-keydown="cancel_shared_entry_edit"
+      phx-key="escape"
+      aria-hidden="false"
+    >
+      <div
+        id="shared-entry-edit-modal-backdrop"
+        aria-hidden="true"
+        phx-click="cancel_shared_entry_edit"
+        class="absolute inset-0 bg-slate-950/66 backdrop-blur-[3px]"
+      >
+      </div>
+
+      <section
+        id="shared-entry-edit-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={"shared-entry-edit-title-#{@entry.id}"}
+        class="relative z-10 w-full max-w-4xl max-h-[88vh] overflow-y-auto rounded-3xl border border-base-content/16 bg-base-100 p-5 shadow-[0_40px_120px_rgba(8,19,35,0.55)] sm:p-6"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/70">
+              Lançamento compartilhado
+            </p>
+            <h2
+              id={"shared-entry-edit-title-#{@entry.id}"}
+              class="mt-1 text-2xl font-black tracking-[-0.01em] text-base-content"
+            >
+              Ajustar divisão e transação
+            </h2>
+          </div>
+
+          <button
+            id="shared-entry-edit-close-btn"
+            type="button"
+            phx-click="cancel_shared_entry_edit"
+            class="btn btn-ghost btn-sm border border-base-content/25 bg-base-100 shadow-sm"
+          >
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </div>
+
+        <.form
+          for={@form}
+          id="shared-entry-edit-form"
+          phx-change="change_shared_entry_edit"
+          phx-submit="save_shared_entry_edit"
+          class="mt-5 space-y-4"
+        >
+          <div class="grid gap-3 rounded-2xl border border-base-content/12 bg-base-100 p-3 sm:grid-cols-2 sm:p-4">
+            <.input
+              field={@form[:description]}
+              type="text"
+              label="Descrição"
+              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+              placeholder="Ex: Aluguel, mercado, conta de luz..."
+            />
+            <.input
+              field={@form[:category]}
+              type="text"
+              label="Categoria"
+              required
+              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+            />
+            <.input
+              field={@form[:amount_cents]}
+              type="text"
+              label="Valor total"
+              inputmode="decimal"
+              required
+              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+              placeholder="Ex: 350,55"
+            />
+            <.input
+              field={@form[:occurred_on]}
+              type="text"
+              label="Data"
+              inputmode="numeric"
+              maxlength="10"
+              pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
+              placeholder="dd/mm/aaaa"
+              required
+              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+            />
+          </div>
+
+          <section class="rounded-2xl border border-base-content/14 bg-base-100 p-4 shadow-sm">
+            <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
+              Tipo de divisão
+            </h3>
+            <.input
+              field={@form[:split_type]}
+              type="select"
+              options={@split_type_options}
+              label="Como dividir entre as contas?"
+              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+            />
+
+            <div :if={@split_type == "percentage"} class="grid gap-3 sm:grid-cols-2">
+              <.input
+                field={@form[:split_mine_percentage]}
+                type="text"
+                label="Sua porcentagem (%)"
+                inputmode="decimal"
+                placeholder="Ex: 56,7"
+                class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+              />
+              <.input
+                field={@form[:split_mine_amount]}
+                type="text"
+                label="Seu valor (R$)"
+                inputmode="decimal"
+                placeholder="Calculado automaticamente"
+                readonly
+                class="w-full rounded-xl border border-base-content/18 bg-base-200/70 px-3 py-2 text-sm text-base-content/86"
+              />
+            </div>
+
+            <div :if={@split_type == "fixed_amount"} class="grid gap-3 sm:grid-cols-2">
+              <.input
+                field={@form[:split_mine_amount]}
+                type="text"
+                label="Seu valor fixo (R$)"
+                inputmode="decimal"
+                placeholder="Ex: 120,00"
+                class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+              />
+              <.input
+                field={@form[:split_mine_percentage]}
+                type="text"
+                label="Sua porcentagem (%)"
+                inputmode="decimal"
+                placeholder="Calculada automaticamente"
+                readonly
+                class="w-full rounded-xl border border-base-content/18 bg-base-200/70 px-3 py-2 text-sm text-base-content/86"
+              />
+            </div>
+
+            <div
+              :if={@split_type == "income_ratio"}
+              class="rounded-xl border border-info/45 bg-info/16 px-3 py-2 text-[0.78rem] font-semibold leading-5 text-base-content/88"
+            >
+              <div class="flex items-start gap-2">
+                <.icon name="hero-information-circle" class="mt-0.5 size-4 shrink-0 text-info" />
+                <span>
+                  A divisão automática usa a proporção de renda de referência do mês da transação.
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section
+            id="shared-entry-edit-preview"
+            class="rounded-2xl border border-base-content/14 bg-base-100 p-4 shadow-sm"
+          >
+            <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
+              Prévia da divisão entre as duas contas
+            </h3>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <article
+                id="shared-entry-edit-preview-mine"
+                class="rounded-xl border border-info/45 bg-info/14 p-3 shadow-sm"
+              >
+                <p class="text-xs font-bold uppercase tracking-[0.12em] text-info">Você</p>
+                <p class="mt-1 text-base font-semibold font-mono text-base-content">
+                  {format_pct(@preview.split_ratio_mine)} ({format_cents(@preview.amount_mine_cents)})
+                </p>
+              </article>
+              <article
+                id="shared-entry-edit-preview-theirs"
+                class="rounded-xl border border-success/45 bg-success/14 p-3 shadow-sm"
+              >
+                <p class="text-xs font-bold uppercase tracking-[0.12em] text-success">
+                  Outra conta
+                </p>
+                <p class="mt-1 text-base font-semibold font-mono text-base-content">
+                  {format_pct(@preview.split_ratio_theirs)} ({format_cents(
+                    @preview.amount_theirs_cents
+                  )})
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <div class="flex flex-col-reverse gap-2 border-t border-base-content/12 pt-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              phx-click="cancel_shared_entry_edit"
+              class="btn btn-ghost btn-sm border border-base-content/20"
+            >
+              Cancelar
+            </button>
+            <button type="submit" class="btn btn-primary btn-sm shadow-md shadow-primary/30">
+              Salvar alterações
+            </button>
+          </div>
+        </.form>
+      </section>
+    </div>
     """
   end
 
@@ -332,6 +704,317 @@ defmodule OrganizerWeb.SharedFinanceLive do
     |> assign(:shared_entries_count, length(views))
     |> stream(:shared_entries, views, reset: true)
   end
+
+  defp close_shared_entry_edit_modal(socket) do
+    socket
+    |> assign(:shared_entry_edit_entry, nil)
+    |> assign(:shared_entry_edit_form, to_form(%{}, as: :shared_entry_edit))
+    |> assign(:shared_entry_edit_preview, nil)
+  end
+
+  defp shared_entry_view_for_edit(scope, link_id, period, entry_id) do
+    with {:ok, views} <- SharedFinance.list_shared_entries(scope, link_id, %{period: period}),
+         %{} = view <- Enum.find(views, &(&1.entry.id == entry_id)) do
+      {:ok, view}
+    else
+      nil -> {:error, :not_found}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp shared_entry_edit_form_params(view) do
+    %{
+      "description" => view.entry.description || "",
+      "category" => view.entry.category || "",
+      "amount_cents" => format_amount_input(view.entry.amount_cents),
+      "occurred_on" => DateSupport.format_pt_br(view.entry.occurred_on),
+      "split_type" => split_type_for_entry(view.entry),
+      "split_mine_percentage" => format_decimal_ptbr(view.split_ratio_mine * 100, 1),
+      "split_mine_amount" => format_amount_input(view.amount_mine_cents)
+    }
+  end
+
+  defp split_type_for_entry(entry) do
+    if entry.shared_split_mode == :income_ratio, do: "income_ratio", else: "fixed_amount"
+  end
+
+  defp shared_entry_preview_from_view(view) do
+    %{
+      split_ratio_mine: view.split_ratio_mine,
+      split_ratio_theirs: view.split_ratio_theirs,
+      amount_mine_cents: view.amount_mine_cents,
+      amount_theirs_cents: view.amount_theirs_cents
+    }
+  end
+
+  defp build_shared_entry_preview(_params, nil, _link, _user_id, fallback_preview) do
+    fallback_preview ||
+      %{
+        split_ratio_mine: 0.0,
+        split_ratio_theirs: 0.0,
+        amount_mine_cents: 0,
+        amount_theirs_cents: 0
+      }
+  end
+
+  defp build_shared_entry_preview(params, entry, link, current_user_id, fallback_preview) do
+    split_type = normalize_shared_split_type(Map.get(params, "split_type"))
+    total_cents = parse_amount_or_default(Map.get(params, "amount_cents"), entry.amount_cents)
+
+    case split_type do
+      "income_ratio" ->
+        reference_date = parse_date_or_default(Map.get(params, "occurred_on"), entry.occurred_on)
+
+        {ratio_mine, ratio_theirs} =
+          scoped_income_ratios_for_preview(entry, link, current_user_id, reference_date)
+
+        {mine_cents, theirs_cents} = SplitCalculator.split_amount(total_cents, ratio_mine)
+
+        %{
+          split_ratio_mine: ratio_mine,
+          split_ratio_theirs: ratio_theirs,
+          amount_mine_cents: mine_cents,
+          amount_theirs_cents: theirs_cents
+        }
+
+      "percentage" ->
+        default_pct = fallback_percentage(fallback_preview)
+
+        pct_value =
+          params
+          |> Map.get("split_mine_percentage")
+          |> parse_percentage_or_default(default_pct)
+
+        ratio_mine = clamp_ratio(pct_value / 100.0)
+        ratio_theirs = 1.0 - ratio_mine
+        {mine_cents, theirs_cents} = SplitCalculator.split_amount(total_cents, ratio_mine)
+
+        %{
+          split_ratio_mine: ratio_mine,
+          split_ratio_theirs: ratio_theirs,
+          amount_mine_cents: mine_cents,
+          amount_theirs_cents: theirs_cents
+        }
+
+      "fixed_amount" ->
+        default_mine_cents = fallback_mine_cents(fallback_preview)
+
+        mine_cents =
+          params
+          |> Map.get("split_mine_amount")
+          |> parse_amount_or_default(default_mine_cents)
+          |> clamp_cents(total_cents)
+
+        theirs_cents = max(total_cents - mine_cents, 0)
+        ratio_mine = if total_cents > 0, do: mine_cents / total_cents, else: 0.0
+        ratio_theirs = if total_cents > 0, do: theirs_cents / total_cents, else: 0.0
+
+        %{
+          split_ratio_mine: ratio_mine,
+          split_ratio_theirs: ratio_theirs,
+          amount_mine_cents: mine_cents,
+          amount_theirs_cents: theirs_cents
+        }
+    end
+  end
+
+  defp normalize_shared_entry_edit_params(params, entry, preview) when is_map(params) do
+    safe_preview =
+      preview ||
+        %{
+          split_ratio_mine: 0.0,
+          amount_mine_cents: 0
+        }
+
+    defaults =
+      entry
+      |> shared_entry_edit_form_params_from_entry()
+      |> Map.merge(%{
+        "split_mine_percentage" => format_decimal_ptbr(safe_preview.split_ratio_mine * 100, 1),
+        "split_mine_amount" => format_amount_input(safe_preview.amount_mine_cents)
+      })
+
+    Map.merge(defaults, params)
+  end
+
+  defp normalize_shared_entry_edit_params(params, _entry, _preview), do: params
+
+  defp shared_entry_edit_form_params_from_entry(nil) do
+    %{
+      "description" => "",
+      "category" => "",
+      "amount_cents" => "",
+      "occurred_on" => "",
+      "split_type" => "income_ratio",
+      "split_mine_percentage" => "0,0",
+      "split_mine_amount" => "0,00"
+    }
+  end
+
+  defp shared_entry_edit_form_params_from_entry(entry) do
+    %{
+      "description" => entry.description || "",
+      "category" => entry.category || "",
+      "amount_cents" => format_amount_input(entry.amount_cents),
+      "occurred_on" => DateSupport.format_pt_br(entry.occurred_on),
+      "split_type" => split_type_for_entry(entry),
+      "split_mine_percentage" => "0,0",
+      "split_mine_amount" => "0,00"
+    }
+  end
+
+  defp enrich_shared_entry_form_params(params, preview) when is_map(params) and is_map(preview) do
+    split_type = normalize_shared_split_type(Map.get(params, "split_type"))
+
+    case split_type do
+      "income_ratio" ->
+        params
+        |> Map.put(
+          "split_mine_percentage",
+          format_decimal_ptbr(preview.split_ratio_mine * 100, 1)
+        )
+        |> Map.put("split_mine_amount", format_amount_input(preview.amount_mine_cents))
+
+      "percentage" ->
+        Map.put(params, "split_mine_amount", format_amount_input(preview.amount_mine_cents))
+
+      "fixed_amount" ->
+        Map.put(
+          params,
+          "split_mine_percentage",
+          format_decimal_ptbr(preview.split_ratio_mine * 100, 1)
+        )
+    end
+  end
+
+  defp enrich_shared_entry_form_params(params, _preview), do: params
+
+  defp normalize_shared_split_type(value) do
+    value
+    |> to_string()
+    |> String.trim()
+    |> case do
+      "percentage" -> "percentage"
+      "fixed_amount" -> "fixed_amount"
+      _ -> "income_ratio"
+    end
+  end
+
+  defp scoped_income_ratios_for_preview(entry, link, current_user_id, reference_date) do
+    income_a =
+      SplitCalculator.calculate_reference_income_with_carryover(
+        link.user_a_id,
+        reference_date.month,
+        reference_date.year
+      )
+
+    income_b =
+      SplitCalculator.calculate_reference_income_with_carryover(
+        link.user_b_id,
+        reference_date.month,
+        reference_date.year
+      )
+
+    {ratio_a, ratio_b} =
+      if income_a == 0 and income_b == 0 do
+        if entry.user_id == link.user_b_id, do: {0.0, 1.0}, else: {1.0, 0.0}
+      else
+        SplitCalculator.calculate_split_ratio(income_a, income_b)
+      end
+
+    if current_user_id == link.user_a_id, do: {ratio_a, ratio_b}, else: {ratio_b, ratio_a}
+  end
+
+  defp parse_amount_or_default(value, default) do
+    cond do
+      is_integer(value) ->
+        case AmountParser.parse(value) do
+          {:ok, cents} when cents >= 0 -> cents
+          _ -> default
+        end
+
+      is_binary(value) ->
+        case AmountParser.parse(String.trim(value)) do
+          {:ok, cents} when cents >= 0 -> cents
+          _ -> default
+        end
+
+      true ->
+        default
+    end
+  end
+
+  defp parse_date_or_default(value, default) do
+    case DateSupport.parse_date(value) do
+      {:ok, %Date{} = date} -> date
+      :error -> default
+    end
+  end
+
+  defp parse_percentage_or_default(value, default) when is_binary(value) do
+    value
+    |> String.trim()
+    |> String.replace("%", "")
+    |> String.replace(",", ".")
+    |> case do
+      "" ->
+        default
+
+      normalized ->
+        case Float.parse(normalized) do
+          {parsed, ""} -> parsed
+          _ -> default
+        end
+    end
+  end
+
+  defp parse_percentage_or_default(value, _default) when is_float(value), do: value
+  defp parse_percentage_or_default(value, _default) when is_integer(value), do: value * 1.0
+  defp parse_percentage_or_default(_value, default), do: default
+
+  defp fallback_percentage(%{split_ratio_mine: ratio}) when is_number(ratio), do: ratio * 100
+  defp fallback_percentage(_preview), do: 0.0
+
+  defp fallback_mine_cents(%{amount_mine_cents: cents}) when is_integer(cents), do: cents
+  defp fallback_mine_cents(_preview), do: 0
+
+  defp clamp_ratio(value) when value < 0.0, do: 0.0
+  defp clamp_ratio(value) when value > 1.0, do: 1.0
+  defp clamp_ratio(value), do: value
+
+  defp clamp_cents(value, _total_cents) when value < 0, do: 0
+  defp clamp_cents(value, total_cents) when value > total_cents, do: total_cents
+  defp clamp_cents(value, _total_cents), do: value
+
+  defp shared_entry_edit_validation_message(details) when is_map(details) do
+    cond do
+      Map.has_key?(details, :split_mine_percentage) ->
+        "Informe uma porcentagem válida entre 0% e 100%."
+
+      Map.has_key?(details, :split_mine_amount) ->
+        "No valor fixo, informe um valor entre R$ 0,00 e o total da transação."
+
+      Map.has_key?(details, :amount_cents) ->
+        "Informe um valor total válido para a transação."
+
+      Map.has_key?(details, :occurred_on) ->
+        "Informe uma data válida para atualizar o lançamento."
+
+      true ->
+        "Verifique os campos da edição antes de salvar."
+    end
+  end
+
+  defp shared_entry_edit_validation_message(_details),
+    do: "Não foi possível atualizar o lançamento compartilhado."
+
+  defp format_amount_input(cents) when is_integer(cents) and cents >= 0 do
+    integer_part = cents |> div(100) |> Integer.to_string()
+    decimal_part = cents |> rem(100) |> Integer.to_string() |> String.pad_leading(2, "0")
+    integer_part <> "," <> decimal_part
+  end
+
+  defp format_amount_input(_cents), do: ""
 
   defp parse_int(value) when is_integer(value), do: {:ok, value}
 
@@ -451,5 +1134,13 @@ defmodule OrganizerWeb.SharedFinanceLive do
       "last_3_months" -> "last_3_months"
       _ -> "all"
     end
+  end
+
+  defp shared_split_type_options do
+    [
+      {"Automática por renda", "income_ratio"},
+      {"Percentual fixo", "percentage"},
+      {"Valor fixo para você", "fixed_amount"}
+    ]
   end
 end
