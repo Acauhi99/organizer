@@ -292,6 +292,76 @@ defmodule OrganizerWeb.DashboardLiveTest do
              end)
     end
 
+    test "does not persist quick entry when manual share data is invalid", %{
+      conn: conn,
+      scope: scope
+    } do
+      linked_user = user_fixture()
+      linked_scope = user_scope_fixture(linked_user)
+      {:ok, invite} = SharedFinance.create_invite(scope)
+      {:ok, link} = SharedFinance.accept_invite(linked_scope, invite.token)
+
+      {:ok, view, _html} = live(conn, ~p"/finances")
+      today = Date.to_iso8601(Date.utc_today())
+      description = "nao deve persistir por share invalido"
+
+      view
+      |> form("#quick-finance-form", %{
+        "quick_finance" => %{
+          "kind" => "expense",
+          "amount_cents" => "500",
+          "category" => "Moradia",
+          "description" => description,
+          "occurred_on" => today,
+          "expense_profile" => "fixed",
+          "payment_method" => "debit",
+          "share_with_link" => "true"
+        }
+      })
+      |> render_change()
+
+      view
+      |> form("#quick-finance-form", %{
+        "quick_finance" => %{
+          "kind" => "expense",
+          "amount_cents" => "500",
+          "category" => "Moradia",
+          "description" => description,
+          "occurred_on" => today,
+          "expense_profile" => "fixed",
+          "payment_method" => "debit",
+          "share_with_link" => "true",
+          "shared_with_link_id" => to_string(link.id),
+          "shared_split_mode" => "manual"
+        }
+      })
+      |> render_change()
+
+      view
+      |> form("#quick-finance-form", %{
+        "quick_finance" => %{
+          "kind" => "expense",
+          "amount_cents" => "500",
+          "category" => "Moradia",
+          "description" => description,
+          "occurred_on" => today,
+          "expense_profile" => "fixed",
+          "payment_method" => "debit",
+          "share_with_link" => "true",
+          "shared_with_link_id" => to_string(link.id),
+          "shared_split_mode" => "manual",
+          "shared_manual_mine_amount" => "abc"
+        }
+      })
+      |> render_submit()
+
+      {:ok, finances} = Planning.list_finance_entries(scope, %{})
+
+      refute Enum.any?(finances, fn entry ->
+               entry.description == description
+             end)
+    end
+
     test "applies quick preset for income", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/finances")
 

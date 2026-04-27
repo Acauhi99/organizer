@@ -153,8 +153,16 @@ defmodule Organizer.SharedFinance do
   Verifies the entry belongs to the user and the user is a participant of the link.
   Broadcasts a PubSub event after successful update.
   """
-  def share_finance_entry(scope, entry_id, link_id, attrs \\ %{}) do
+  def share_finance_entry(scope, entry_id, link_id, attrs \\ %{})
+
+  def share_finance_entry(scope, entry_id, link_id, attrs) do
+    share_finance_entry(scope, entry_id, link_id, attrs, [])
+  end
+
+  def share_finance_entry(scope, entry_id, link_id, attrs, opts)
+      when is_map(attrs) and is_list(opts) do
     user_id = scope.user.id
+    broadcast? = Keyword.get(opts, :broadcast?, true)
 
     entry_query =
       from fe in FinanceEntry,
@@ -175,11 +183,9 @@ defmodule Organizer.SharedFinance do
                    entry
                    |> Ecto.Changeset.change(Map.put(share_attrs, :shared_with_link_id, link_id))
                    |> Repo.update() do
-              Phoenix.PubSub.broadcast(
-                Organizer.PubSub,
-                "account_link:#{link_id}",
-                {:shared_entry_updated, updated_entry}
-              )
+              if broadcast? do
+                broadcast_shared_entry_updated(updated_entry)
+              end
 
               {:ok, updated_entry}
             else
@@ -187,6 +193,21 @@ defmodule Organizer.SharedFinance do
             end
         end
     end
+  end
+
+  @doc """
+  Broadcasts a shared entry update event to its account link topic.
+  """
+  def broadcast_shared_entry_updated(%FinanceEntry{} = entry) do
+    if is_integer(entry.shared_with_link_id) do
+      Phoenix.PubSub.broadcast(
+        Organizer.PubSub,
+        "account_link:#{entry.shared_with_link_id}",
+        {:shared_entry_updated, entry}
+      )
+    end
+
+    :ok
   end
 
   @doc """
@@ -907,10 +928,6 @@ defmodule Organizer.SharedFinance do
               %{shared_manual_mine_cents: ["must be a valid non-negative monetary value"]}}}
         end
     end
-  end
-
-  defp normalize_share_attrs(_entry, _attrs) do
-    {:ok, %{shared_split_mode: :income_ratio, shared_manual_mine_cents: nil}}
   end
 
   defp parse_manual_share_mine_cents(attrs) when is_map(attrs) do
