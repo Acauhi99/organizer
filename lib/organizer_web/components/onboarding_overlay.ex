@@ -123,7 +123,7 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
     %{
       title: "Bem-vindo ao Organizer!",
       description:
-        "O Organizer permite organizar tarefas e finanças com formulários objetivos e fluxo guiado.",
+        "O Organizer permite organizar finanças com formulários objetivos e fluxo guiado.",
       example: "Tipo: Gasto\nValor: 12990\nCategoria: Alimentação\nData: hoje"
     }
   end
@@ -149,8 +149,7 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
   defp step_content(4) do
     %{
       title: "Edição Direta",
-      description:
-        "Edite tarefas e lançamentos direto na lista quando precisar ajustar detalhes.",
+      description: "Edite lançamentos direto na lista quando precisar ajustar detalhes.",
       example: nil
     }
   end
@@ -159,7 +158,7 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
     %{
       title: "Áreas de operação",
       description:
-        "Use os painéis de métricas e operação em Tarefas e Finanças para agir sem misturar contextos.",
+        "Use os painéis de métricas e operação em Finanças para agir sem misturar contextos.",
       example: nil
     }
   end
@@ -175,8 +174,8 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
 
   defp spotlight_target(1), do: "#quick-finance-hero"
   defp spotlight_target(2), do: "#quick-finance-form"
-  defp spotlight_target(3), do: "#finance-operations-panel, #task-operations-panel"
-  defp spotlight_target(4), do: "#finance-operations-panel, #task-operations-panel"
-  defp spotlight_target(5), do: "#finance-metrics-panel, #task-metrics-panel"
+  defp spotlight_target(3), do: "#finance-operations-panel"
+  defp spotlight_target(4), do: "#finance-operations-panel"
+  defp spotlight_target(5), do: "#finance-metrics-panel"
   defp spotlight_target(6), do: "a[href='/account-links']"
 end

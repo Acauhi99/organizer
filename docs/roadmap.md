@@ -5,8 +5,7 @@
 A base técnica principal está concluída:
 
 - autenticação e escopo de usuário
-- módulos LiveView de finanças (`/finances`) e tarefas (`/tasks`)
-- analytics com cache OTP
+- módulos LiveView de finanças (`/finances`) e colaboração (`/account-links`)
 - fluxo de finanças compartilhadas entre contas
 - suíte de testes extensa (unit, web e property-based)
 

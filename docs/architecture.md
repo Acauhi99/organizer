@@ -4,7 +4,7 @@
 
 O Organizer é uma aplicação Phoenix com dois canais principais de entrada:
 
-- Interface web com LiveView (`/finances`, `/tasks` e fluxos de vínculo entre contas)
+- Interface web com LiveView (`/finances` e fluxos de vínculo entre contas)
 - API REST (`/api/v1`) para operações de domínio
 
 Ambos convergem para contexts de domínio que aplicam regras de negócio com isolamento por usuário (`current_scope`).
@@ -31,7 +31,6 @@ flowchart TD
   SharedFinance --> Repo
   Repo --> DB[(SQLite)]
 
-  Planning --> AnalyticsCache[AnalyticsCache GenServer + ETS]
 ```
 
 ## Módulos principais
@@ -39,26 +38,22 @@ flowchart TD
 ### Web
 
 - `lib/organizer_web/router.ex`: roteamento e boundaries de autenticação
-- `lib/organizer_web/live/*.ex`: LiveViews de finanças, tarefas e colaboração
+- `lib/organizer_web/live/*.ex`: LiveViews de finanças e colaboração
 - `lib/organizer_web/components/*.ex`: function components reutilizáveis
 - `assets/js/app.js`: hooks e interop JS do LiveView
 
 ### Domínio
 
-- `lib/organizer/planning.ex`: tarefas, finanças, checklist e analytics
+- `lib/organizer/planning.ex`: finanças, custos fixos e datas importantes
 - `lib/organizer/shared_finance.ex`: vínculo de contas e colaboração financeira
 - `lib/organizer/accounts.ex`: autenticação, usuários e preferências
-
-### Infra OTP
-
-- `Organizer.Planning.AnalyticsCache`: cache de analytics por usuário (ETS)
 
 ## Roteamento e autenticação
 
 A estratégia segue o padrão oficial de pipelines Phoenix + `live_session` para LiveView autenticado:
 
 - Pipeline `:browser` com `fetch_current_scope_for_user`
-- `live_session :authenticated` para páginas LiveView protegidas (`/finances`, `/tasks`, `/account-links...`)
+- `live_session :authenticated` para páginas LiveView protegidas (`/finances`, `/account-links...`)
 - Pipeline `:api` + `:require_authenticated_api_user` para API REST
 
 Referências oficiais:

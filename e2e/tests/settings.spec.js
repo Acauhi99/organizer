@@ -16,6 +16,6 @@ test.describe("account settings", () => {
 
     await logoutUser(page);
     await loginUser(page, { email: credentials.email, password: newPassword });
-    await expect(page).toHaveURL(/\/finances|\/tasks/);
+    await expect(page).toHaveURL(/\/finances|\/account-links/);
   });
 });

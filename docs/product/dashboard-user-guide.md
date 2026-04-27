@@ -1,6 +1,6 @@
 # Dashboard — Guia do Usuário
 
-Este guia cobre os fluxos autenticados atuais da aplicação: módulo de finanças (`/finances`), módulo de tarefas (`/tasks`) e colaboração financeira (`/account-links`).
+Este guia cobre os fluxos autenticados atuais da aplicação: módulo de finanças (`/finances`) e colaboração financeira (`/account-links`).
 
 ## Visão geral
 
@@ -8,12 +8,7 @@ Este guia cobre os fluxos autenticados atuais da aplicação: módulo de finanç
   - lançamento rápido de receita/despesa
   - métricas e gráficos financeiros
   - operação diária com filtros e edição inline
-2. **Módulo de tarefas (`/tasks`)**:
-  - lançamento rápido de tarefas
-  - kanban operacional (todo, em andamento, concluídas)
-  - checklist por tarefa e Time Box de foco
-  - métricas de execução e capacidade
-3. **Colaboração (`/account-links`)**:
+2. **Colaboração (`/account-links`)**:
   - criação e aceite de convite
   - finanças compartilhadas por vínculo
   - acerto com confirmação bilateral
@@ -29,11 +24,6 @@ Este guia cobre os fluxos autenticados atuais da aplicação: módulo de finanç
   - modo `income_ratio`
   - modo `manual` (definição da parcela de cada lado)
 
-### Tarefas (`/tasks`)
-
-- Cadastro rápido com título, prioridade, status, prazo e notas.
-- Fluxo pensado para registro rápido e posterior organização no kanban.
-
 ## Operação diária
 
 ### Finanças
@@ -42,38 +32,12 @@ Este guia cobre os fluxos autenticados atuais da aplicação: módulo de finanç
 - Filtros por tipo, categoria, método, perfil, texto e faixa de valor.
 - Edição e exclusão de lançamentos direto na lista.
 
-### Tarefas
-
-- Filtros por status, prioridade, período e busca textual.
-- Kanban com movimentação por status.
-- Checklist por tarefa:
-  - adicionar item
-  - editar rótulo
-  - marcar/desmarcar
-  - remover item
-- Vincular tarefa a um compartilhamento (modo sincronizado).
-
 ## Métricas e analytics
 
 ### Finanças
 
 - KPIs de saldo, ticket médio, categoria dominante e volume do período.
 - Gráficos de fluxo, composição e ranking por categoria.
-
-### Tarefas
-
-- KPIs de entrega, backlog crítico, capacidade e risco de burnout.
-- Gráficos de criadas x concluídas e backlog por prioridade.
-
-## Time Box de foco
-
-No módulo de tarefas existe um timer de foco para tarefas em andamento:
-
-- seleção de tarefa em execução
-- presets de duração e duração personalizada
-- iniciar, pausar e resetar
-- estado persistido por usuário no navegador
-- suporte a notificações de conclusão
 
 ## Onboarding
 

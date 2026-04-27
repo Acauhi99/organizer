@@ -45,7 +45,7 @@ Referências oficiais:
 
 ## Definition of done para agentes
 
-Uma tarefa só está concluída quando:
+Uma entrega só está concluída quando:
 
 1. Regras de domínio foram implementadas no context correto.
 2. Rotas/autenticação estão no escopo correto.

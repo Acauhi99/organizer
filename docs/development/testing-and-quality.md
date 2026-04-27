@@ -22,7 +22,7 @@ Foco em comportamento observável da interface e API.
 Foco em regressão retroativa dos fluxos completos com browser real:
 
 - público/autenticação (home, cadastro, login/logout, erro de credencial)
-- módulos autenticados (`/finances`, `/tasks`, `/users/settings`)
+- módulos autenticados (`/finances`, `/account-links`, `/users/settings`)
 - colaboração financeira (`/account-links`, convite, aceite com retomada pós-login, compartilhado, acerto, desativação)
 - experiência transversal (onboarding e atalhos globais)
 - smoke da API autenticada (`/api/v1/*`) via sessão real do browser
@@ -44,8 +44,8 @@ Referências oficiais:
 Validação rápida por área:
 
 ```bash
-mix test test/organizer_web/live/dashboard_live_test.exs
-mix test test/organizer/planning_test.exs
+mix test test/organizer_web/controllers/api/v1/finance_entry_controller_test.exs
+mix test test/organizer/shared_finance/shared_entries_test.exs
 ```
 
 Validação completa recomendada antes de commit:

@@ -5,32 +5,11 @@ defmodule Organizer.Planning.AttributeValidation do
 
   alias Organizer.DateSupport
 
-  @task_statuses ~w(todo in_progress done)
-  @task_priorities ~w(low medium high)
   @finance_kinds ~w(income expense)
   @finance_expense_profiles ~w(fixed variable recurring_fixed recurring_variable)
   @finance_payment_methods ~w(credit debit)
   @important_date_categories ~w(personal finance work)
   @max_installments_count 120
-
-  def validate_task_attrs(attrs) when is_map(attrs) do
-    attrs = normalize_keys(attrs)
-
-    {title, errors} = validate_required_string(attrs, :title, 3, 120, %{})
-    {notes, errors} = validate_optional_string(attrs, :notes, 1_000, errors)
-    {status, errors} = validate_enum(attrs, :status, @task_statuses, "todo", errors)
-    {priority, errors} = validate_enum(attrs, :priority, @task_priorities, "medium", errors)
-    {due_on, errors} = validate_optional_date(attrs, :due_on, errors)
-
-    build_result(errors, %{
-      title: title,
-      notes: notes,
-      status: String.to_existing_atom(status),
-      priority: String.to_existing_atom(priority),
-      due_on: due_on,
-      completed_at: completed_at_for(status)
-    })
-  end
 
   def validate_finance_entry_attrs(attrs) when is_map(attrs) do
     attrs = normalize_keys(attrs)
@@ -398,7 +377,4 @@ defmodule Organizer.Planning.AttributeValidation do
   # Safe to use String.to_atom/1 here because values were already validated
   # against strict allow-lists in this module.
   defp safe_existing_atom(value) when is_binary(value), do: String.to_atom(value)
-
-  defp completed_at_for("done"), do: DateTime.utc_now(:second)
-  defp completed_at_for(_), do: nil
 end

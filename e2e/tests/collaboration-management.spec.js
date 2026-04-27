@@ -1,6 +1,5 @@
 const { test, expect } = require("@playwright/test");
 const { dismissBlockingOverlays, logoutUser, registerUser, todayPtBr, uniqueEmail } = require("./support/auth");
-const { suffixFromId } = require("./support/ui");
 
 const normalizeInviteToCurrentOrigin = (inviteUrl, pageUrl) => {
   const origin = new URL(pageUrl).origin;
@@ -105,55 +104,4 @@ test.describe("collaboration management journeys", () => {
     }
   });
 
-  test("shares task with an active link in sync mode", async ({ browser }) => {
-    const contextA = await browser.newContext();
-    const contextB = await browser.newContext();
-    const pageA = await contextA.newPage();
-    const pageB = await contextB.newPage();
-
-    try {
-      await registerUser(pageA, { email: uniqueEmail("collab-task-a") });
-      await pageA.goto("/account-links/invite", { waitUntil: "networkidle" });
-      await pageA.click("#create-invite-btn");
-
-      const inviteUrl = (await pageA.locator("#invite-url").textContent())?.trim() || "";
-      expect(inviteUrl).toContain("/account-links/accept/");
-
-      await registerUser(pageB, { email: uniqueEmail("collab-task-b") });
-      await pageB.goto(normalizeInviteToCurrentOrigin(inviteUrl, pageB.url()), { waitUntil: "networkidle" });
-      await dismissBlockingOverlays(pageB);
-      await expect(pageB).toHaveURL(/\/account-links\/\d+/);
-
-      const linkId = extractLinkIdFromUrl(pageB.url());
-      const runId = Date.now();
-      const title = `Tarefa compartilhada E2E ${runId}`;
-
-      await pageA.goto("/tasks", { waitUntil: "networkidle" });
-      await dismissBlockingOverlays(pageA);
-      await pageA.fill("#quick-task-title", title);
-      await pageA.fill('input[name="quick_task[due_on]"]', todayPtBr());
-      await pageA.click('#quick-task-form button[type="submit"]');
-
-      const taskCard = pageA.locator("article").filter({ hasText: title }).first();
-      await expect(taskCard).toBeVisible();
-
-      const taskEditButtonId = await taskCard
-        .locator('button[id^="task-edit-btn-"]')
-        .first()
-        .getAttribute("id");
-      expect(taskEditButtonId).not.toBeNull();
-      const taskId = suffixFromId(taskEditButtonId, "task-edit-btn-");
-
-      await pageA.click(`label[for="task-share-check-${taskId}"]`);
-      await expect(pageA.locator(`#task-share-link-${taskId}`)).toBeVisible();
-      await pageA.selectOption(`#task-share-link-${taskId}`, linkId);
-      await pageA.click(`#task-share-btn-${taskId}`);
-
-      await expect(pageA.locator(`#task-share-state-${taskId}`)).toBeVisible();
-      await expect(pageA.locator(`#task-share-state-${taskId}`)).toContainText("Atrelada ao compartilhamento");
-    } finally {
-      await safeCloseContext(contextA);
-      await safeCloseContext(contextB);
-    }
-  });
 });

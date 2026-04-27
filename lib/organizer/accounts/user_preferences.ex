@@ -6,7 +6,6 @@ defmodule Organizer.Accounts.UserPreferences do
     field :analytics_panel_default_visible, :boolean, default: true
     field :operations_panel_default_visible, :boolean, default: true
     field :onboarding_completed, :boolean, default: false
-    field :task_focus_timer_state, :map
 
     field :preferred_layout_mode, Ecto.Enum,
       values: [:expanded, :focused, :minimal],
@@ -24,7 +23,6 @@ defmodule Organizer.Accounts.UserPreferences do
       :analytics_panel_default_visible,
       :operations_panel_default_visible,
       :onboarding_completed,
-      :task_focus_timer_state,
       :preferred_layout_mode
     ])
     |> validate_required([:user_id])

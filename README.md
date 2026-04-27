@@ -4,7 +4,7 @@ Aplicação de organização pessoal construída com **Elixir + Phoenix 1.8 + Li
 
 ## Objetivo
 
-Centralizar tarefas e finanças em fluxos operacionais rápidos (`/tasks` e `/finances`), com análise contínua e colaboração entre contas por convite.
+Centralizar finanças e compartilhamentos em fluxos operacionais rápidos (`/finances` e `/account-links`), com análise contínua e colaboração entre contas por convite.
 
 ## Stack
 

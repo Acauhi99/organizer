@@ -700,17 +700,14 @@ summary:focus-visible {
   fill: color-mix(in oklab, var(--color-base-content) 80%, transparent) !important;
 }
 
-#task-metrics-panel .contex-plot svg,
 #finance-metrics-panel .contex-plot svg {
   min-width: 240px;
 }
 
-#task-metrics-panel .contex-plot text,
 #finance-metrics-panel .contex-plot text {
   font-size: 0.72rem;
 }
 
-#task-metrics-panel .contex-plot .exc-title,
 #finance-metrics-panel .contex-plot .exc-title {
   font-size: 0.84rem;
 }
@@ -1357,18 +1354,8 @@ summary:focus-visible {
   scrollbar-gutter: stable;
 }
 
-.operations-scroll-area--kanban {
-  --operations-scroll-max-height: clamp(12rem, 38vh, 22rem);
-}
-
 .operations-scroll-area--list {
   --operations-scroll-min-height: 12rem;
-}
-
-@media (min-width: 1280px) {
-  .operations-scroll-area--kanban {
-    --operations-scroll-max-height: clamp(16rem, 54vh, 30rem);
-  }
 }
 
 @media (max-width: 480px) {
@@ -1387,41 +1374,28 @@ summary:focus-visible {
     border-radius: 1rem;
   }
 
-  .operations-shell #task-filters,
   .operations-shell #finance-filters {
     grid-template-columns: 1fr;
   }
 
-  .operations-shell #tasks [id^="task-checklist-item-form-"] .input,
-  .operations-shell #tasks [id^="task-checklist-add-form-"] .input {
-    min-width: 100%;
-  }
-
   .contex-plot svg,
-  #task-metrics-panel .contex-plot svg,
   #finance-metrics-panel .contex-plot svg {
     min-width: 0;
   }
 }
 
 @media (min-width: 481px) and (max-width: 767px) {
-  .operations-shell #task-filters,
   .operations-shell #finance-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .contex-plot svg,
-  #task-metrics-panel .contex-plot svg,
   #finance-metrics-panel .contex-plot svg {
     min-width: 0;
   }
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
-  .operations-shell #task-filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .operations-shell #finance-filters {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }

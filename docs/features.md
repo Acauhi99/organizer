@@ -25,19 +25,6 @@
   - filtros avançados (janela móvel, data, mês, intervalo, dia da semana, ordenação e faixa de valor)
   - edição e exclusão inline de lançamentos
 
-### Tarefas (`/tasks`)
-
-- Lançamento rápido de tarefas (título, prioridade, status, prazo e notas).
-- Kanban com colunas `todo`, `in_progress` e `done`.
-- Checklist por tarefa (adicionar, editar, marcar e remover itens).
-- Edição e exclusão de tarefa diretamente na operação.
-- Vincular tarefa a compartilhamento (modo sincronizado) quando existir vínculo ativo.
-- Time Box de foco com timer no browser e integração de notificação.
-- Métricas de tarefas com filtros de período/capacidade e gráficos:
-  - criadas x concluídas
-  - backlog por prioridade
-  - indicadores de risco e capacidade
-
 ### Experiência transversal
 
 - Onboarding guiado em 6 passos para primeira experiência.
@@ -64,7 +51,6 @@
 
 Recursos disponíveis:
 
-- `tasks`
 - `finance-entries`
 - `fixed-costs`
 - `important-dates`
@@ -72,7 +58,7 @@ Recursos disponíveis:
 Notas:
 
 - Todas as rotas exigem autenticação e escopo válido.
-- O front atual usa principalmente tarefas, finanças e colaboração; `fixed-costs` e `important-dates` estão disponíveis no domínio/API.
+- O front atual usa principalmente finanças e colaboração; `fixed-costs` e `important-dates` estão disponíveis no domínio/API.
 
 ## Autenticação e segurança
 

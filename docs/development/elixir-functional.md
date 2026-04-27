@@ -28,16 +28,6 @@ Referências oficiais:
 - Módulos de apoio devem ter fronteira semântica clara (`AmountParser`, `FilterNormalization`, `LinkMetricsCalculator`, etc).
 - Evite módulos “util” genéricos sem domínio explícito.
 
-## OTP no projeto
-
-Use GenServer quando existir estado compartilhado e ciclo de vida contínuo:
-
-- Cache por usuário (`AnalyticsCache`)
-
-Referência oficial:
-
-- https://hexdocs.pm/elixir/GenServer.html
-
 ## Anti-patterns que devemos evitar
 
 - `with` com `else` muito complexo.

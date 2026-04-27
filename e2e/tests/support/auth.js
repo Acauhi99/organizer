@@ -24,7 +24,7 @@ async function registerUser(page, { email = uniqueEmail("register"), password = 
   await page.fill('input[name="user[password]"]', password);
   await page.fill('input[name="user[password_confirmation]"]', password);
   await page.click("#registration_form_password button");
-  await page.waitForURL(/\/finances|\/tasks/, { timeout: 20_000 });
+  await page.waitForURL(/\/finances|\/account-links/, { timeout: 20_000 });
   await dismissBlockingOverlays(page);
   return { email, password };
 }
@@ -35,7 +35,7 @@ async function loginUser(page, { email, password = DEFAULT_PASSWORD } = {}) {
   await page.fill('input[name="user[email]"]', email);
   await page.fill('input[name="user[password]"]', password);
   await page.locator("#login_form_password button").first().click();
-  await page.waitForURL(/\/finances|\/tasks/, { timeout: 20_000 });
+  await page.waitForURL(/\/finances|\/account-links/, { timeout: 20_000 });
   await dismissBlockingOverlays(page);
 }
 

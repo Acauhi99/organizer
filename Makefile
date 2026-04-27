@@ -63,16 +63,13 @@ test-stage2: test-web
 test-domain-local:
 	MIX_ENV=test mix test \
 	  test/organizer/accounts_test.exs \
-	  test/organizer/planning_test.exs \
-	  test/organizer/planning/analytics_test.exs
+	  test/organizer/planning/amount_parser_test.exs \
+	  test/organizer/planning/amount_parser_property_test.exs
 
 test-web-local:
 	MIX_ENV=test mix test \
-	  test/organizer_web/live/dashboard_live_test.exs \
 	  test/organizer_web/live/auth_flow_live_test.exs \
-	  test/organizer_web/controllers/api/v1/task_controller_test.exs \
 	  test/organizer_web/controllers/api/v1/finance_entry_controller_test.exs \
-	  test/organizer_web/controllers/api/v1/goal_controller_test.exs \
 	  test/organizer_web/controllers/api/v1/fixed_cost_controller_test.exs \
 	  test/organizer_web/controllers/api/v1/important_date_controller_test.exs
 

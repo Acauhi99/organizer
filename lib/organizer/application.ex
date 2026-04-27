@@ -16,8 +16,6 @@ defmodule Organizer.Application do
       {Phoenix.PubSub, name: Organizer.PubSub},
       # Task supervisor for async work (email delivery, etc.)
       {Task.Supervisor, name: Organizer.TaskSupervisor},
-      # Analytics cache: GenServer + ETS for read-through caching
-      {Organizer.Planning.AnalyticsCache, []},
       # Start a worker by calling: Organizer.Worker.start_link(arg)
       # {Organizer.Worker, arg},
       # Start to serve requests, typically the last entry

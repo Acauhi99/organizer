@@ -12,12 +12,9 @@ if ! docker image inspect "$TEST_IMAGE" >/dev/null 2>&1; then
   TEST_IMAGE="elixir:1.17"
 fi
 
-TEST_FILES="test/organizer_web/controllers/api/v1/task_controller_test.exs \
-test/organizer_web/controllers/api/v1/finance_entry_controller_test.exs \
-test/organizer_web/controllers/api/v1/goal_controller_test.exs \
+TEST_FILES="test/organizer_web/controllers/api/v1/finance_entry_controller_test.exs \
 test/organizer_web/controllers/api/v1/fixed_cost_controller_test.exs \
 test/organizer_web/controllers/api/v1/important_date_controller_test.exs \
-test/organizer_web/live/dashboard_live_test.exs \
 test/organizer_web/live/auth_flow_live_test.exs"
 
 echo "[web-tests] Running focused web suite in Docker image: $TEST_IMAGE"

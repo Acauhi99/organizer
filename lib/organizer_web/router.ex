@@ -32,7 +32,6 @@ defmodule OrganizerWeb.Router do
 
     live_session :authenticated, on_mount: {OrganizerWeb.UserAuth, :authenticated} do
       live "/finances", DashboardLive, :finances
-      live "/tasks", DashboardLive, :tasks
       live "/account-links", AccountLinkLive, :index
       live "/account-links/invite", AccountLinkLive, :new_invite
       live "/account-links/:link_id", SharedFinanceLive, :show
@@ -42,12 +41,6 @@ defmodule OrganizerWeb.Router do
 
   scope "/api/v1", OrganizerWeb.API.V1 do
     pipe_through [:api, :require_authenticated_api_user]
-
-    get "/tasks", TaskController, :index
-    post "/tasks", TaskController, :create
-    get "/tasks/:id", TaskController, :show
-    put "/tasks/:id", TaskController, :update
-    delete "/tasks/:id", TaskController, :delete
 
     get "/finance-entries", FinanceEntryController, :index
     post "/finance-entries", FinanceEntryController, :create

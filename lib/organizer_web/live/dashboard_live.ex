@@ -2,39 +2,29 @@ defmodule OrganizerWeb.DashboardLive do
   use OrganizerWeb, :live_view
 
   alias Organizer.Accounts
+  alias Organizer.DateSupport
   alias Organizer.Planning
   alias Organizer.Planning.AmountParser
   alias Organizer.SharedFinance
-  alias Organizer.DateSupport
   alias OrganizerWeb.DashboardLive.{Filters, Insights}
 
   alias OrganizerWeb.DashboardLive.Components.{
     FinanceMetricsPanel,
-    FinanceOperationsPanel,
-    TaskMetricsPanel,
-    TaskOperationsPanel
+    FinanceOperationsPanel
   }
 
-  alias OrganizerWeb.Components.{QuickFinanceHero, QuickTaskHero}
+  alias OrganizerWeb.Components.QuickFinanceHero
 
-  @task_metrics_days_filters ["7", "15", "30", "90", "365"]
-  @task_metrics_capacity_filters ["5", "10", "15", "20", "30"]
   @finance_metrics_days_filters ["7", "30", "90", "365"]
-  @task_page_size 10
   @finance_page_size 10
 
   @impl true
   def mount(_params, _session, socket) do
-    # Authentication is handled by live_session :authenticated on_mount callback
-    # which ensures current_scope is already assigned to the socket
     case socket.assigns do
       %{current_scope: %{user: user}} when not is_nil(user) ->
         scope = socket.assigns.current_scope
 
-        initialized =
-          socket
-          |> initialize_dashboard_state(scope)
-          |> maybe_subscribe_task_focus_timer()
+        initialized = initialize_dashboard_state(socket, scope)
 
         socket =
           if connected?(initialized) do
@@ -46,16 +36,13 @@ defmodule OrganizerWeb.DashboardLive do
         {:ok, socket}
 
       _ ->
-        # Fallback redirect if authentication somehow failed
         {:ok, redirect(socket, to: ~p"/users/log-in")}
     end
   end
 
   @impl true
   def handle_params(_params, _uri, socket) do
-    live_action = socket.assigns.live_action || :finances
-
-    {:noreply, assign(socket, :page_title, page_title(live_action))}
+    {:noreply, assign(socket, :page_title, page_title(:finances))}
   end
 
   @impl true
@@ -135,53 +122,6 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   @impl true
-  def handle_event("quick_task_validate", %{"quick_task" => attrs}, socket) do
-    normalized = normalize_quick_task_attrs(attrs)
-
-    {:noreply, assign(socket, :quick_task_form, to_form(normalized, as: :quick_task))}
-  end
-
-  @impl true
-  def handle_event("create_quick_task", %{"quick_task" => attrs}, socket) do
-    normalized = normalize_quick_task_attrs(attrs)
-
-    case Planning.create_task(socket.assigns.current_scope, normalized) do
-      {:ok, _task} ->
-        {:noreply,
-         socket
-         |> assign(:quick_task_form, to_form(quick_task_defaults(), as: :quick_task))
-         |> put_flash(:info, "Tarefa registrada.")
-         |> load_operation_collections()
-         |> refresh_dashboard_insights()}
-
-      {:error, {:validation, _details}} ->
-        {:noreply,
-         socket
-         |> assign(:quick_task_form, to_form(normalized, as: :quick_task))
-         |> put_flash(:error, "Verifique os campos para registrar a tarefa.")}
-
-      _ ->
-        {:noreply,
-         socket
-         |> assign(:quick_task_form, to_form(normalized, as: :quick_task))
-         |> put_flash(:error, "Não foi possível registrar a tarefa.")}
-    end
-  end
-
-  @impl true
-  def handle_event("filter_tasks", %{"filters" => filters}, socket) do
-    task_filters =
-      socket.assigns.task_filters
-      |> Map.merge(Filters.normalize_task_filters(filters))
-      |> Filters.sanitize_task_filters()
-
-    {:noreply,
-     socket
-     |> assign(:task_filters, task_filters)
-     |> load_operation_collections()}
-  end
-
-  @impl true
   def handle_event("filter_finances", %{"filters" => filters}, socket) do
     finance_filters =
       socket.assigns.finance_filters
@@ -192,74 +132,6 @@ defmodule OrganizerWeb.DashboardLive do
      socket
      |> assign(:finance_filters, finance_filters)
      |> load_operation_collections()}
-  end
-
-  @impl true
-  def handle_event("task_focus_state_changed", payload, socket) when is_map(payload) do
-    user = socket.assigns.current_scope.user
-
-    socket =
-      case Accounts.set_task_focus_timer_state(user, payload) do
-        {:ok, preferences} ->
-          broadcast_task_focus_timer_state(user.id, preferences.task_focus_timer_state)
-
-          assign(
-            socket,
-            :task_focus_timer_state_json,
-            task_focus_timer_state_json(preferences.task_focus_timer_state)
-          )
-
-        {:error, _changeset} ->
-          socket
-      end
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("load_more_tasks", %{"status" => status}, socket) do
-    with {:ok, status_key, status_filter, stream_key} <- task_pagination_status(status),
-         true <- task_column_has_more?(socket.assigns, status_key) do
-      offset = task_column_visible_count(socket.assigns, status_key)
-
-      paged_filters =
-        socket.assigns.task_filters
-        |> Map.put(:status, status_filter)
-        |> Map.put(:offset, offset)
-        |> Map.put(:limit, @task_page_size)
-
-      case Planning.list_tasks(socket.assigns.current_scope, paged_filters) do
-        {:ok, next_tasks} ->
-          loaded_count = offset + length(next_tasks)
-          total_count = task_column_total_count(socket.assigns, status_key)
-
-          {:noreply,
-           socket
-           |> stream(stream_key, next_tasks, dom_id: &task_stream_dom_id(stream_key, &1))
-           |> assign(
-             :task_visible_count,
-             Map.put(socket.assigns.task_visible_count, status_key, loaded_count)
-           )
-           |> assign(
-             :task_has_more?,
-             Map.put(socket.assigns.task_has_more?, status_key, loaded_count < total_count)
-           )
-           |> assign(
-             :task_loading_more?,
-             Map.put(socket.assigns.task_loading_more?, status_key, false)
-           )}
-
-        _ ->
-          {:noreply,
-           assign(
-             socket,
-             :task_loading_more?,
-             Map.put(socket.assigns.task_loading_more?, status_key, false)
-           )}
-      end
-    else
-      _ -> {:noreply, socket}
-    end
   end
 
   @impl true
@@ -295,40 +167,6 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   @impl true
-  def handle_event("set_task_metrics_days", %{"days" => days}, socket)
-      when days in @task_metrics_days_filters do
-    task_metrics_filters =
-      socket.assigns.task_metrics_filters
-      |> Map.put(:days, days)
-      |> Filters.sanitize_task_metrics_filters()
-
-    {:noreply,
-     socket
-     |> assign(:task_metrics_filters, task_metrics_filters)
-     |> assign(:task_delivery_chart, %{loading: true, chart_svg: nil})
-     |> assign(:task_priority_chart, %{loading: true, chart_svg: nil})
-     |> refresh_dashboard_insights()
-     |> load_chart_svgs()}
-  end
-
-  @impl true
-  def handle_event("set_task_metrics_capacity", %{"planned_capacity" => capacity}, socket)
-      when capacity in @task_metrics_capacity_filters do
-    task_metrics_filters =
-      socket.assigns.task_metrics_filters
-      |> Map.put(:planned_capacity, capacity)
-      |> Filters.sanitize_task_metrics_filters()
-
-    {:noreply,
-     socket
-     |> assign(:task_metrics_filters, task_metrics_filters)
-     |> assign(:task_delivery_chart, %{loading: true, chart_svg: nil})
-     |> assign(:task_priority_chart, %{loading: true, chart_svg: nil})
-     |> refresh_dashboard_insights()
-     |> load_chart_svgs()}
-  end
-
-  @impl true
   def handle_event("set_finance_metrics_days", %{"days" => days}, socket)
       when days in @finance_metrics_days_filters do
     finance_metrics_filters =
@@ -343,22 +181,6 @@ defmodule OrganizerWeb.DashboardLive do
      |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})
      |> assign(:finance_composition_chart, %{loading: true, chart_svg: nil})
      |> load_chart_svgs()}
-  end
-
-  @impl true
-  def handle_event("open_task_details", %{"id" => id}, socket) do
-    {:noreply,
-     socket
-     |> assign(:task_details_modal_task_id, id)
-     |> load_operation_collections()}
-  end
-
-  @impl true
-  def handle_event("close_task_details", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:task_details_modal_task_id, nil)
-     |> assign(:task_details_modal_task, nil)}
   end
 
   @impl true
@@ -460,243 +282,6 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   @impl true
-  def handle_event("start_edit_task", %{"id" => id}, socket) do
-    {:noreply,
-     socket
-     |> assign(:editing_task_id, id)
-     |> assign(:task_details_modal_task_id, nil)
-     |> assign(:task_details_modal_task, nil)
-     |> load_operation_collections()}
-  end
-
-  @impl true
-  def handle_event("cancel_edit_task", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:editing_task_id, nil)
-     |> load_operation_collections()}
-  end
-
-  @impl true
-  def handle_event("save_task", %{"_id" => id, "task" => attrs}, socket) do
-    case Planning.update_task(socket.assigns.current_scope, id, attrs) do
-      {:ok, _task} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Tarefa atualizada.")
-         |> assign(:editing_task_id, nil)
-         |> load_operation_collections()
-         |> refresh_dashboard_insights()}
-
-      {:error, {:validation, _details}} ->
-        {:noreply, put_flash(socket, :error, "Verifique os campos da tarefa.")}
-
-      {:error, :not_found} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Tarefa não encontrada.")
-         |> assign(:editing_task_id, nil)}
-
-      _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível atualizar a tarefa.")}
-    end
-  end
-
-  @impl true
-  def handle_event("set_task_status", %{"id" => id, "status" => status}, socket) do
-    with normalized when normalized in ["todo", "in_progress", "done"] <- to_string(status),
-         {:ok, task} <-
-           Planning.update_task(socket.assigns.current_scope, id, %{"status" => normalized}) do
-      {:noreply,
-       socket
-       |> load_operation_collections()
-       |> refresh_dashboard_insights()
-       |> maybe_push_task_focus_target(normalized, task)}
-    else
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Tarefa não encontrada.")}
-
-      {:error, {:validation, _details}} ->
-        {:noreply, put_flash(socket, :error, "Status de tarefa inválido.")}
-
-      _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível atualizar o status da tarefa.")}
-    end
-  end
-
-  @impl true
-  def handle_event(
-        "share_task_with_link",
-        %{"task_id" => task_id, "share_task" => share_task_params},
-        socket
-      ) do
-    link_id = Map.get(share_task_params, "link_id")
-    attach_to_link? = truthy_task_share_value?(Map.get(share_task_params, "attach_to_link"))
-
-    if !attach_to_link? do
-      {:noreply, put_flash(socket, :info, "Tarefa privada mantida.")}
-    else
-      case parse_quick_share_link_id(link_id) do
-        {:ok, parsed_link_id} ->
-          case Planning.share_task_with_link(
-                 socket.assigns.current_scope,
-                 task_id,
-                 parsed_link_id,
-                 %{"mode" => "sync"}
-               ) do
-            {:ok, _shared_task} ->
-              {:noreply,
-               socket
-               |> put_flash(:info, "Tarefa atrelada ao compartilhamento em modo sincronizado.")
-               |> load_operation_collections()}
-
-            {:error, :not_found} ->
-              {:noreply, put_flash(socket, :error, "Tarefa ou compartilhamento não encontrado.")}
-
-            {:error, {:validation, details}} ->
-              {:noreply, put_flash(socket, :error, task_share_validation_message(details))}
-
-            _ ->
-              {:noreply,
-               put_flash(socket, :error, "Não foi possível atrelar a tarefa ao compartilhamento.")}
-          end
-
-        :error ->
-          {:noreply,
-           put_flash(socket, :error, "Selecione um compartilhamento válido para compartilhar.")}
-      end
-    end
-  end
-
-  @impl true
-  def handle_event(
-        "add_task_checklist_item",
-        %{"task_id" => task_id, "checklist_item" => %{"label" => label}},
-        socket
-      ) do
-    case Planning.add_task_checklist_item(socket.assigns.current_scope, task_id, %{
-           "label" => label
-         }) do
-      {:ok, _item} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Item adicionado na checklist.")
-         |> load_operation_collections()
-         |> refresh_dashboard_insights()}
-
-      {:error, {:validation, _details}} ->
-        {:noreply, put_flash(socket, :error, "Informe um nome válido para o item da checklist.")}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Tarefa não encontrada.")}
-
-      _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível adicionar o item da checklist.")}
-    end
-  end
-
-  @impl true
-  def handle_event(
-        "save_task_checklist_item_label",
-        %{
-          "task_id" => task_id,
-          "item_id" => item_id,
-          "checklist_item" => %{"label" => label}
-        },
-        socket
-      ) do
-    case Planning.update_task_checklist_item(
-           socket.assigns.current_scope,
-           task_id,
-           item_id,
-           %{"label" => label}
-         ) do
-      {:ok, _item} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Item da checklist atualizado.")
-         |> load_operation_collections()
-         |> refresh_dashboard_insights()}
-
-      {:error, {:validation, _details}} ->
-        {:noreply, put_flash(socket, :error, "Informe um nome válido para o item da checklist.")}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Item da checklist não encontrado.")}
-
-      _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível atualizar o item da checklist.")}
-    end
-  end
-
-  @impl true
-  def handle_event(
-        "toggle_task_checklist_item",
-        %{"task_id" => task_id, "item_id" => item_id, "checked" => checked},
-        socket
-      ) do
-    case Planning.toggle_task_checklist_item(
-           socket.assigns.current_scope,
-           task_id,
-           item_id,
-           checked
-         ) do
-      {:ok, _item} ->
-        {:noreply,
-         socket
-         |> load_operation_collections()
-         |> refresh_dashboard_insights()}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Item da checklist não encontrado.")}
-
-      _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível atualizar o item da checklist.")}
-    end
-  end
-
-  @impl true
-  def handle_event(
-        "delete_task_checklist_item",
-        %{"task_id" => task_id, "item_id" => item_id},
-        socket
-      ) do
-    case Planning.delete_task_checklist_item(socket.assigns.current_scope, task_id, item_id) do
-      :ok ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Item removido da checklist.")
-         |> load_operation_collections()
-         |> refresh_dashboard_insights()}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Item da checklist não encontrado.")}
-
-      _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível remover o item da checklist.")}
-    end
-  end
-
-  @impl true
-  def handle_event("delete_task", %{"id" => id}, socket) do
-    case Planning.delete_task(socket.assigns.current_scope, id) do
-      {:ok, _task} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Tarefa removida.")
-         |> assign(:editing_task_id, nil)
-         |> load_operation_collections()
-         |> refresh_dashboard_insights()}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Tarefa não encontrada.")}
-
-      _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível remover a tarefa.")}
-    end
-  end
-
-  @impl true
   def handle_event("start_edit_finance", %{"id" => id}, socket) do
     case Planning.get_finance_entry(socket.assigns.current_scope, id) do
       {:ok, entry} ->
@@ -770,29 +355,14 @@ defmodule OrganizerWeb.DashboardLive do
     end
   end
 
-  @impl true
-  def handle_info({:task_focus_timer_state_changed, user_id, state}, socket) do
-    current_user_id = socket.assigns.current_scope.user.id
-
-    if current_user_id == user_id and is_map(state) do
-      {:noreply,
-       socket
-       |> assign(:task_focus_timer_state_json, task_focus_timer_state_json(state))
-       |> push_event("task_focus_state_sync", state)}
-    else
-      {:noreply, socket}
-    end
-  end
-
   defp initialize_dashboard_state(socket, scope) do
     {:ok, account_links} = SharedFinance.list_account_links(scope)
 
     {:ok, user_preferences} = Accounts.get_or_create_user_preferences(scope.user)
     {:ok, onboarding_progress} = Accounts.get_or_create_onboarding_progress(scope.user)
-    {:ok, task_focus_timer_state} = Accounts.get_task_focus_timer_state(scope.user)
 
     onboarding_active =
-      !user_preferences.onboarding_completed && !onboarding_progress.dismissed &&
+      !user_preferences.onboarding_completed and !onboarding_progress.dismissed and
         is_nil(onboarding_progress.completed_at)
 
     socket
@@ -803,40 +373,23 @@ defmodule OrganizerWeb.DashboardLive do
       :quick_finance_form,
       to_form(quick_finance_defaults("expense", account_links), as: :quick_finance)
     )
-    |> assign(:quick_task_form, to_form(quick_task_defaults(), as: :quick_task))
     |> assign(:account_links, account_links)
-    |> assign(:task_filters, Filters.default_task_filters())
     |> assign(:finance_filters, Filters.default_finance_filters())
-    |> assign(:task_metrics_filters, Filters.default_task_metrics_filters())
     |> assign(:finance_metrics_filters, Filters.default_finance_metrics_filters())
     |> assign(:finance_category_suggestions, %{income: [], expense: [], all: []})
-    |> assign(:editing_task_id, nil)
     |> assign(:editing_finance_id, nil)
     |> assign(:finance_edit_modal_entry, nil)
-    |> assign(:task_details_modal_task_id, nil)
-    |> assign(:task_details_modal_task, nil)
     |> assign(:onboarding_active, onboarding_active)
     |> assign(:onboarding_step, onboarding_progress.current_step)
-    |> assign(:task_focus_timer_state_json, task_focus_timer_state_json(task_focus_timer_state))
-    |> assign(:task_delivery_chart, %{loading: true, chart_svg: nil})
     |> assign(:finance_flow_chart, %{loading: true, chart_svg: nil})
     |> assign(:finance_category_chart, %{loading: true, chart_svg: nil})
-    |> assign(:task_priority_chart, %{loading: true, chart_svg: nil})
     |> assign(:finance_composition_chart, %{loading: true, chart_svg: nil})
-    |> assign(:task_highlights, Insights.default_task_highlights())
     |> assign(:finance_highlights, Insights.default_finance_highlights())
     |> load_operation_collections()
     |> refresh_dashboard_insights()
   end
 
   defp load_operation_collections(socket) do
-    {:ok, tasks} = Planning.list_tasks(socket.assigns.current_scope, socket.assigns.task_filters)
-    {tasks_todo, tasks_in_progress, tasks_done} = split_tasks_by_status(tasks)
-    visible_tasks_todo = Enum.take(tasks_todo, @task_page_size)
-    visible_tasks_in_progress = Enum.take(tasks_in_progress, @task_page_size)
-    visible_tasks_done = Enum.take(tasks_done, @task_page_size)
-    selected_task = selected_task_for_modal(tasks, socket.assigns.task_details_modal_task_id)
-
     {:ok, finances} =
       Planning.list_finance_entries(socket.assigns.current_scope, socket.assigns.finance_filters)
 
@@ -851,50 +404,15 @@ defmodule OrganizerWeb.DashboardLive do
     visible_finances = Enum.take(finances, @finance_page_size)
     finance_total = length(finances)
     shared_finances_total = Enum.count(finances, &is_integer(&1.shared_with_link_id))
-    shared_tasks_total = Enum.count(tasks, &is_integer(Map.get(&1, :shared_with_link_id)))
     shared_links_active = length(socket.assigns.account_links)
 
     socket
-    |> stream(:tasks_todo, visible_tasks_todo,
-      reset: true,
-      dom_id: &task_stream_dom_id(:tasks_todo, &1)
-    )
-    |> stream(
-      :tasks_in_progress,
-      visible_tasks_in_progress,
-      reset: true,
-      dom_id: &task_stream_dom_id(:tasks_in_progress, &1)
-    )
-    |> stream(:tasks_done, visible_tasks_done,
-      reset: true,
-      dom_id: &task_stream_dom_id(:tasks_done, &1)
-    )
     |> stream(:finances, visible_finances, reset: true)
-    |> assign(:task_visible_count, %{
-      todo: length(visible_tasks_todo),
-      in_progress: length(visible_tasks_in_progress),
-      done: length(visible_tasks_done)
-    })
-    |> assign(:task_has_more?, %{
-      todo: length(tasks_todo) > length(visible_tasks_todo),
-      in_progress: length(tasks_in_progress) > length(visible_tasks_in_progress),
-      done: length(tasks_done) > length(visible_tasks_done)
-    })
-    |> assign(:task_loading_more?, %{todo: false, in_progress: false, done: false})
-    |> assign(:task_focus_tasks, tasks_in_progress)
     |> assign(:finance_category_suggestions, finance_category_suggestions)
     |> assign(:finance_visible_count, length(visible_finances))
     |> assign(:finance_has_more?, finance_total > length(visible_finances))
     |> assign(:finance_loading_more?, false)
-    |> assign(:task_details_modal_task, selected_task)
-    |> assign(:task_details_modal_task_id, selected_task && selected_task.id)
     |> assign(:ops_counts, %{
-      tasks_total: length(tasks),
-      tasks_open: Enum.count(tasks, &(&1.status != :done)),
-      tasks_todo: length(tasks_todo),
-      tasks_in_progress: length(tasks_in_progress),
-      tasks_done: length(tasks_done),
-      tasks_shared_total: shared_tasks_total,
       finances_total: finance_total,
       finances_income_total: length(finance_income),
       finances_expense_total: length(finance_expenses),
@@ -902,65 +420,9 @@ defmodule OrganizerWeb.DashboardLive do
       finances_income_cents: Enum.reduce(finance_income, 0, &(&1.amount_cents + &2)),
       finances_expense_cents: Enum.reduce(finance_expenses, 0, &(&1.amount_cents + &2)),
       shared_links_active: shared_links_active,
-      shared_total: shared_tasks_total + shared_finances_total
+      shared_total: shared_finances_total
     })
   end
-
-  defp split_tasks_by_status(tasks) do
-    todo = Enum.filter(tasks, &(&1.status == :todo))
-    in_progress = Enum.filter(tasks, &(&1.status == :in_progress))
-    done = Enum.filter(tasks, &(&1.status == :done))
-    {todo, in_progress, done}
-  end
-
-  defp task_pagination_status("todo"), do: {:ok, :todo, "todo", :tasks_todo}
-
-  defp task_pagination_status("in_progress"),
-    do: {:ok, :in_progress, "in_progress", :tasks_in_progress}
-
-  defp task_pagination_status("done"), do: {:ok, :done, "done", :tasks_done}
-  defp task_pagination_status(_status), do: :error
-
-  defp task_column_has_more?(assigns, status_key) do
-    assigns
-    |> Map.get(:task_has_more?, %{})
-    |> Map.get(status_key, false)
-  end
-
-  defp task_column_visible_count(assigns, status_key) do
-    assigns
-    |> Map.get(:task_visible_count, %{})
-    |> Map.get(status_key, 0)
-  end
-
-  defp task_column_total_count(assigns, :todo),
-    do: get_in(assigns, [:ops_counts, :tasks_todo]) || 0
-
-  defp task_column_total_count(assigns, :in_progress),
-    do: get_in(assigns, [:ops_counts, :tasks_in_progress]) || 0
-
-  defp task_column_total_count(assigns, :done),
-    do: get_in(assigns, [:ops_counts, :tasks_done]) || 0
-
-  defp task_stream_dom_id(:tasks_todo, task), do: "tasks-todo-#{task.id}"
-  defp task_stream_dom_id(:tasks_in_progress, task), do: "tasks-in-progress-#{task.id}"
-  defp task_stream_dom_id(:tasks_done, task), do: "tasks-done-#{task.id}"
-
-  defp selected_task_for_modal(_tasks, nil), do: nil
-
-  defp selected_task_for_modal(tasks, selected_id) do
-    normalized_selected_id = to_string(selected_id)
-    Enum.find(tasks, &(to_string(&1.id) == normalized_selected_id))
-  end
-
-  defp maybe_push_task_focus_target(socket, "in_progress", task) when is_map(task) do
-    push_event(socket, "task_focus_sync_target", %{
-      task_id: task.id,
-      task_title: task.title
-    })
-  end
-
-  defp maybe_push_task_focus_target(socket, _normalized_status, _task), do: socket
 
   defp refresh_dashboard_insights(socket) do
     Insights.refresh_dashboard_insights(socket)
@@ -1027,28 +489,6 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   defp quick_finance_preset_attrs(_preset), do: quick_finance_defaults()
-
-  defp quick_task_defaults do
-    %{
-      "title" => "",
-      "priority" => "medium",
-      "status" => "todo",
-      "due_on" => DateSupport.format_pt_br(Date.utc_today()),
-      "notes" => ""
-    }
-  end
-
-  defp normalize_quick_task_attrs(attrs) when is_map(attrs) do
-    defaults = quick_task_defaults()
-
-    attrs
-    |> string_key_map()
-    |> Map.merge(defaults, fn _key, incoming, default -> default_if_blank(incoming, default) end)
-    |> Map.update!("priority", &normalize_quick_task_priority/1)
-    |> Map.update!("status", &normalize_quick_task_status/1)
-  end
-
-  defp normalize_quick_task_attrs(_attrs), do: quick_task_defaults()
 
   defp normalize_quick_finance_attrs(attrs, account_links, opts \\ [])
 
@@ -1359,24 +799,6 @@ defmodule OrganizerWeb.DashboardLive do
     end
   end
 
-  defp truthy_task_share_value?(value), do: truthy_quick_finance_value?(value)
-
-  defp task_share_validation_message(details) when is_map(details) do
-    cond do
-      Map.has_key?(details, :mode) ->
-        "Essa tarefa já está atrelada a um compartilhamento em modo sincronizado."
-
-      Map.has_key?(details, :link_id) ->
-        "Selecione um compartilhamento válido para atrelar a tarefa."
-
-      true ->
-        "Verifique os dados para atrelar a tarefa ao compartilhamento."
-    end
-  end
-
-  defp task_share_validation_message(_details),
-    do: "Verifique os dados para atrelar a tarefa ao compartilhamento."
-
   defp string_key_map(attrs) do
     Enum.reduce(attrs, %{}, fn {key, value}, acc ->
       Map.put(acc, to_string(key), value)
@@ -1405,63 +827,24 @@ defmodule OrganizerWeb.DashboardLive do
   defp default_quick_installments_count("income"), do: ""
   defp default_quick_installments_count(_kind), do: "1"
 
-  defp normalize_quick_task_priority(priority) do
-    case to_string(priority) |> String.trim() do
-      "low" -> "low"
-      "high" -> "high"
-      _ -> "medium"
-    end
-  end
-
-  defp normalize_quick_task_status(status) do
-    case to_string(status) |> String.trim() do
-      "in_progress" -> "in_progress"
-      "done" -> "done"
-      _ -> "todo"
-    end
-  end
-
   defp default_quick_finance_preset("income"), do: "income_salary"
   defp default_quick_finance_preset(_kind), do: "expense_variable"
 
   defp page_title(:finances), do: "Finanças"
-  defp page_title(:tasks), do: "Tarefas"
-  defp page_title(_), do: "Finanças"
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
       <nav aria-label="Atalhos de navegação">
-        <a :if={(@live_action || :finances) == :finances} href="#quick-finance-hero" class="skip-link">
+        <a href="#quick-finance-hero" class="skip-link">
           Ir para finanças
         </a>
-        <a :if={(@live_action || :finances) == :tasks} href="#quick-task-hero" class="skip-link">
-          Ir para tarefas
-        </a>
-        <a
-          :if={(@live_action || :finances) == :finances}
-          href="#finance-metrics-panel"
-          class="skip-link"
-        >
+        <a href="#finance-metrics-panel" class="skip-link">
           Ir para métricas financeiras
         </a>
-        <a
-          :if={(@live_action || :finances) == :finances}
-          href="#finance-operations-panel"
-          class="skip-link"
-        >
+        <a href="#finance-operations-panel" class="skip-link">
           Ir para operação financeira
-        </a>
-        <a :if={(@live_action || :finances) == :tasks} href="#task-metrics-panel" class="skip-link">
-          Ir para métricas de tarefas
-        </a>
-        <a
-          :if={(@live_action || :finances) == :tasks}
-          href="#task-operations-panel"
-          class="skip-link"
-        >
-          Ir para operação de tarefas
         </a>
       </nav>
 
@@ -1473,135 +856,46 @@ defmodule OrganizerWeb.DashboardLive do
       />
 
       <div
-        id="notification-permission-modal"
-        phx-hook="NotificationPermissionModal"
-        phx-update="ignore"
-        data-remind-after-days="7"
-        class="fixed inset-0 z-[75] hidden items-end justify-center bg-base-content/45 p-3 backdrop-blur-[1px] sm:items-center sm:p-6"
-        aria-hidden="true"
-      >
-        <section
-          id="notification-permission-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="notification-permission-title"
-          class="w-full max-w-lg rounded-2xl border border-base-content/15 bg-base-100 p-5 shadow-[0_24px_70px_rgba(23,33,47,0.34)] sm:p-6"
-        >
-          <div class="flex items-start gap-3">
-            <div class="mt-0.5 rounded-xl border border-info/30 bg-info/10 p-2 text-info">
-              <.icon name="hero-bell-alert" class="size-5" />
-            </div>
-
-            <div class="space-y-1">
-              <h2
-                id="notification-permission-title"
-                class="text-lg font-semibold leading-tight text-base-content"
-              >
-                Ativar notificações de foco
-              </h2>
-              <p class="text-sm leading-6 text-base-content/75">
-                Queremos te avisar quando o Time Box concluir, mesmo com a aba em segundo plano.
-              </p>
-            </div>
-          </div>
-
-          <div class="mt-4 rounded-xl border border-base-content/12 bg-base-100/65 px-3 py-2.5">
-            <p id="notification-permission-status" class="text-xs text-base-content/70">
-              Clique em "Ativar notificações" para permitir alertas no navegador.
-            </p>
-          </div>
-
-          <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <button
-              id="notification-permission-later"
-              type="button"
-              class="btn btn-ghost btn-sm sm:btn-md"
-            >
-              Agora não
-            </button>
-            <button
-              id="notification-permission-allow"
-              type="button"
-              class="btn btn-primary btn-sm sm:btn-md"
-            >
-              Ativar notificações
-            </button>
-          </div>
-        </section>
-      </div>
-
-      <div
         id="module-keyboard-shortcuts"
         class="dashboard-shell flex flex-col gap-4 lg:gap-6"
         phx-window-keydown="global_shortcut"
       >
-        <%= case @live_action || :finances do %>
-          <% :finances -> %>
-            <.module_hero
-              id="finances-page-hero"
-              eyebrow="Finanças pessoais"
-              title="Controle entradas, saídas e decisões do mês."
-              description="Registre lançamentos, revise o fluxo financeiro e acompanhe categorias antes de abrir o contexto compartilhado."
-              icon="hero-banknotes"
-            />
-            <QuickFinanceHero.quick_finance_hero
-              quick_finance_form={@quick_finance_form}
-              quick_finance_kind={@quick_finance_kind}
-              quick_finance_preset={@quick_finance_preset}
-              account_links={@account_links}
-              current_user_id={@current_scope.user.id}
-              category_suggestions={@finance_category_suggestions}
-            />
-            <FinanceMetricsPanel.finance_metrics_panel
-              finance_metrics_filters={@finance_metrics_filters}
-              finance_highlights={@finance_highlights}
-              finance_flow_chart={@finance_flow_chart}
-              finance_category_chart={@finance_category_chart}
-              finance_composition_chart={@finance_composition_chart}
-            />
-            <FinanceOperationsPanel.finance_operations_panel
-              streams={@streams}
-              finance_filters={@finance_filters}
-              category_suggestions={@finance_category_suggestions}
-              editing_finance_id={@editing_finance_id}
-              finance_edit_modal_entry={@finance_edit_modal_entry}
-              ops_counts={@ops_counts}
-              finance_visible_count={@finance_visible_count}
-              finance_has_more?={@finance_has_more?}
-              finance_loading_more?={@finance_loading_more?}
-            />
-          <% :tasks -> %>
-            <.module_hero
-              id="tasks-page-hero"
-              eyebrow="Tarefas"
-              title="Organize execução, checklist e foco em uma área só."
-              description="Acompanhe o kanban operacional, registre tarefas rápidas e use um único Time Box para manter cadência."
-              icon="hero-check-circle"
-            />
-            <QuickTaskHero.quick_task_hero quick_task_form={@quick_task_form} />
-            <TaskMetricsPanel.task_metrics_panel
-              task_metrics_filters={@task_metrics_filters}
-              insights_overview={@insights_overview}
-              workload_capacity_snapshot={@workload_capacity_snapshot}
-              task_delivery_chart={@task_delivery_chart}
-              task_priority_chart={@task_priority_chart}
-              task_highlights={@task_highlights}
-            />
-            <TaskOperationsPanel.task_operations_panel
-              streams={@streams}
-              task_filters={@task_filters}
-              account_links={@account_links}
-              current_user_id={@current_scope.user.id}
-              task_focus_timer_state_json={@task_focus_timer_state_json}
-              task_focus_tasks={@task_focus_tasks}
-              editing_task_id={@editing_task_id}
-              task_details_modal_task={@task_details_modal_task}
-              ops_counts={@ops_counts}
-              task_visible_count={@task_visible_count}
-              task_has_more?={@task_has_more?}
-              task_loading_more?={@task_loading_more?}
-            />
-        <% end %>
+        <.module_hero
+          id="finances-page-hero"
+          eyebrow="Finanças pessoais"
+          title="Controle entradas, saídas e decisões do mês."
+          description="Registre lançamentos, revise o fluxo financeiro e acompanhe categorias antes de abrir o contexto compartilhado."
+          icon="hero-banknotes"
+        />
+
+        <QuickFinanceHero.quick_finance_hero
+          quick_finance_form={@quick_finance_form}
+          quick_finance_kind={@quick_finance_kind}
+          quick_finance_preset={@quick_finance_preset}
+          account_links={@account_links}
+          current_user_id={@current_scope.user.id}
+          category_suggestions={@finance_category_suggestions}
+        />
+
+        <FinanceMetricsPanel.finance_metrics_panel
+          finance_metrics_filters={@finance_metrics_filters}
+          finance_highlights={@finance_highlights}
+          finance_flow_chart={@finance_flow_chart}
+          finance_category_chart={@finance_category_chart}
+          finance_composition_chart={@finance_composition_chart}
+        />
+
+        <FinanceOperationsPanel.finance_operations_panel
+          streams={@streams}
+          finance_filters={@finance_filters}
+          category_suggestions={@finance_category_suggestions}
+          editing_finance_id={@editing_finance_id}
+          finance_edit_modal_entry={@finance_edit_modal_entry}
+          ops_counts={@ops_counts}
+          finance_visible_count={@finance_visible_count}
+          finance_has_more?={@finance_has_more?}
+          finance_loading_more?={@finance_loading_more?}
+        />
       </div>
     </Layouts.app>
     """
@@ -1635,27 +929,4 @@ defmodule OrganizerWeb.DashboardLive do
     </header>
     """
   end
-
-  defp task_focus_timer_state_json(nil), do: "null"
-  defp task_focus_timer_state_json(state) when is_map(state), do: Jason.encode!(state)
-
-  defp maybe_subscribe_task_focus_timer(socket) do
-    if connected?(socket) do
-      user_id = socket.assigns.current_scope.user.id
-      Phoenix.PubSub.subscribe(Organizer.PubSub, task_focus_timer_topic(user_id))
-    end
-
-    socket
-  end
-
-  defp broadcast_task_focus_timer_state(user_id, state)
-       when is_integer(user_id) and is_map(state) do
-    Phoenix.PubSub.broadcast(
-      Organizer.PubSub,
-      task_focus_timer_topic(user_id),
-      {:task_focus_timer_state_changed, user_id, state}
-    )
-  end
-
-  defp task_focus_timer_topic(user_id), do: "task_focus_timer:user:#{user_id}"
 end

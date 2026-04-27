@@ -1,14 +1,10 @@
 defmodule OrganizerWeb.DashboardLive.Insights do
   @moduledoc """
-  Analytics and chart SVG generation for DashboardLive.
-
-  Encapsulates `refresh_dashboard_insights/1` and chart SVG builders.
-  All functions are pure or delegate to `Organizer.Planning` and `Organizer.Planning.AnalyticsCache`.
+  Finance analytics and chart SVG generation for DashboardLive.
   """
 
   alias Contex.{Dataset, Plot}
   alias Organizer.Planning
-  alias Organizer.Planning.AnalyticsCache
 
   @finance_horizontal_chart_width 900
   @finance_horizontal_chart_height 220
@@ -20,60 +16,9 @@ defmodule OrganizerWeb.DashboardLive.Insights do
 
   @spec refresh_dashboard_insights(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   def refresh_dashboard_insights(socket) do
-    analytics_result =
-      AnalyticsCache.get_analytics(
-        socket.assigns.current_scope,
-        days: socket.assigns.task_metrics_filters.days,
-        planned_capacity: socket.assigns.task_metrics_filters.planned_capacity
-      )
-
-    {:ok, workload_capacity_snapshot} =
-      Planning.burndown_snapshot(socket.assigns.current_scope, %{
-        planned_capacity: socket.assigns.task_metrics_filters.planned_capacity
-      })
-
     {:ok, finance_summary} = Planning.finance_summary(socket.assigns.current_scope, 30)
 
-    insights_overview =
-      case analytics_result do
-        {:ok, cached_analytics} ->
-          cached_analytics
-
-        {:error, _reason} ->
-          %{
-            progress_by_period: %{},
-            workload_capacity: %{
-              capacity_gap: 0,
-              open_14d: 0,
-              planned_capacity_14d: 10,
-              overload_alert: false,
-              overdue_open: 0,
-              executed_last_7d: 0
-            },
-            burnout_risk_assessment: %{
-              level: :low,
-              score: 0,
-              signals: []
-            }
-          }
-      end
-
-    socket
-    |> Phoenix.Component.assign(:workload_capacity_snapshot, workload_capacity_snapshot)
-    |> Phoenix.Component.assign(:insights_overview, insights_overview)
-    |> Phoenix.Component.assign(:finance_summary, finance_summary)
-  end
-
-  @spec default_task_highlights() :: map()
-  def default_task_highlights do
-    %{
-      tasks_created_window: 0,
-      tasks_completed_window: 0,
-      tasks_total_window: 0,
-      tasks_completion_rate: 0.0,
-      open_high_priority: 0,
-      overdue_open: 0
-    }
+    Phoenix.Component.assign(socket, :finance_summary, finance_summary)
   end
 
   @spec default_finance_highlights() :: map()
@@ -92,38 +37,11 @@ defmodule OrganizerWeb.DashboardLive.Insights do
   end
 
   @spec default_analytics_highlights() :: map()
-  def default_analytics_highlights do
-    Map.merge(default_task_highlights(), %{
-      finance_entries_window: 0,
-      expense_entries_window: 0,
-      income_cents: 0,
-      expense_cents: 0,
-      net_cents: 0,
-      avg_expense_ticket_cents: 0,
-      dominant_expense_category: nil,
-      dominant_expense_share: 0.0,
-      expense_mix_top: []
-    })
-  end
+  def default_analytics_highlights, do: default_finance_highlights()
 
   @spec load_chart_svgs(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   def load_chart_svgs(socket) do
-    task_days = parse_days(socket.assigns.task_metrics_filters.days, 30)
     finance_days = parse_days(socket.assigns.finance_metrics_filters.days, 30)
-
-    task_start_on = Date.add(Date.utc_today(), -(task_days - 1))
-
-    {:ok, tasks} =
-      Planning.list_tasks(socket.assigns.current_scope, %{
-        days: task_days,
-        status: "all",
-        priority: "all"
-      })
-
-    tasks_window =
-      Enum.filter(tasks, fn task ->
-        task_relevant_for_window?(task, task_start_on)
-      end)
 
     {:ok, finance_entries} =
       Planning.list_finance_entries(socket.assigns.current_scope, %{
@@ -133,14 +51,9 @@ defmodule OrganizerWeb.DashboardLive.Insights do
         payment_method: "all"
       })
 
-    task_highlights = build_task_highlights(tasks_window, task_start_on)
     finance_highlights = build_finance_highlights(finance_entries)
 
     socket
-    |> Phoenix.Component.assign(:task_delivery_chart, %{
-      loading: false,
-      chart_svg: task_delivery_chart_svg(tasks_window, task_days)
-    })
     |> Phoenix.Component.assign(:finance_flow_chart, %{
       loading: false,
       chart_svg: finance_flow_chart_svg(finance_entries, finance_days)
@@ -149,80 +62,12 @@ defmodule OrganizerWeb.DashboardLive.Insights do
       loading: false,
       chart_svg: finance_expense_categories_chart_svg(finance_entries)
     })
-    |> Phoenix.Component.assign(:task_priority_chart, %{
-      loading: false,
-      chart_svg: task_priority_comparison_chart_svg(tasks_window)
-    })
     |> Phoenix.Component.assign(:finance_composition_chart, %{
       loading: false,
       chart_svg: finance_composition_chart_svg(finance_entries)
     })
-    |> Phoenix.Component.assign(:task_highlights, task_highlights)
     |> Phoenix.Component.assign(:finance_highlights, finance_highlights)
   end
-
-  @doc """
-  Legacy chart kept for compatibility and focused tests.
-  """
-  @spec progress_chart_svg(map()) :: Phoenix.HTML.safe() | nil
-  def progress_chart_svg(insights_overview) do
-    weekly = safe_period_metrics(insights_overview, :weekly)
-    monthly = safe_period_metrics(insights_overview, :monthly)
-    annual = safe_period_metrics(insights_overview, :annual)
-
-    data = [
-      {"Semanal", weekly.executed, weekly.planned},
-      {"Mensal", monthly.executed, monthly.planned},
-      {"Anual", annual.executed, annual.planned}
-    ]
-
-    dataset = Dataset.new(data, ["periodo", "executado", "planejado"])
-
-    Plot.new(dataset, Contex.BarChart, 640, 260,
-      mapping: %{category_col: "periodo", value_cols: ["executado", "planejado"]},
-      type: :grouped,
-      data_labels: false,
-      title: "Progresso por período"
-    )
-    |> Plot.plot_options(%{legend_setting: :legend_bottom})
-    |> Plot.to_svg()
-  end
-
-  @spec task_delivery_chart_svg(list(), pos_integer()) :: Phoenix.HTML.safe() | nil
-  def task_delivery_chart_svg([], _days), do: nil
-
-  def task_delivery_chart_svg(tasks, days)
-      when is_list(tasks) and is_integer(days) and days > 0 do
-    buckets = timeline_buckets(days)
-
-    label_lookup =
-      buckets
-      |> Map.new(fn bucket -> {bucket.index, bucket.label} end)
-
-    data =
-      Enum.map(buckets, fn bucket ->
-        {
-          bucket.index,
-          Enum.count(tasks, &date_inside_bucket?(task_created_on(&1), bucket)),
-          Enum.count(tasks, &date_inside_bucket?(task_completed_on(&1), bucket))
-        }
-      end)
-
-    dataset = Dataset.new(data, ["bucket", "criadas", "concluidas"])
-
-    Plot.new(dataset, Contex.LinePlot, 720, 280,
-      mapping: %{x_col: "bucket", y_cols: ["criadas", "concluidas"]},
-      smoothed: false,
-      custom_x_formatter: fn value ->
-        bucket_label_for_axis(value, label_lookup)
-      end,
-      title: "Ritmo de tarefas: criadas x concluídas"
-    )
-    |> Plot.plot_options(%{legend_setting: :legend_bottom})
-    |> Plot.to_svg()
-  end
-
-  def task_delivery_chart_svg(_tasks, _days), do: nil
 
   @spec finance_flow_chart_svg(list(), pos_integer()) :: Phoenix.HTML.safe() | nil
   def finance_flow_chart_svg(finance_entries, _days) when finance_entries == [], do: nil
@@ -299,30 +144,6 @@ defmodule OrganizerWeb.DashboardLive.Insights do
 
   def finance_expense_categories_chart_svg(_), do: nil
 
-  @spec task_priority_comparison_chart_svg(list()) :: Phoenix.HTML.safe() | nil
-  def task_priority_comparison_chart_svg([]), do: nil
-
-  def task_priority_comparison_chart_svg(tasks) when is_list(tasks) do
-    data = [
-      priority_bar_row(tasks, :high, "Alta"),
-      priority_bar_row(tasks, :medium, "Média"),
-      priority_bar_row(tasks, :low, "Baixa")
-    ]
-
-    dataset = Dataset.new(data, ["prioridade", "abertas", "concluidas"])
-
-    Plot.new(dataset, Contex.BarChart, 560, 280,
-      mapping: %{category_col: "prioridade", value_cols: ["abertas", "concluidas"]},
-      type: :grouped,
-      data_labels: false,
-      title: "Backlog x concluídas por prioridade"
-    )
-    |> Plot.plot_options(%{legend_setting: :legend_bottom})
-    |> Plot.to_svg()
-  end
-
-  def task_priority_comparison_chart_svg(_), do: nil
-
   @spec finance_composition_chart_svg(list()) :: Phoenix.HTML.safe() | nil
   def finance_composition_chart_svg(finance_entries) when is_list(finance_entries) do
     data =
@@ -364,62 +185,6 @@ defmodule OrganizerWeb.DashboardLive.Insights do
 
   @spec finance_mix_chart_svg(list()) :: Phoenix.HTML.safe() | nil
   def finance_mix_chart_svg(entries), do: finance_composition_chart_svg(entries)
-
-  defp safe_period_metrics(insights_overview, period) do
-    %{
-      executed:
-        get_in(insights_overview, [:progress_by_period, period, :executed]) ||
-          get_in(insights_overview, [:progress_by_period, to_string(period), :executed]) || 0,
-      planned:
-        get_in(insights_overview, [:progress_by_period, period, :planned]) ||
-          get_in(insights_overview, [:progress_by_period, to_string(period), :planned]) || 0
-    }
-  end
-
-  defp build_task_highlights(tasks, start_on) do
-    created_window =
-      Enum.count(tasks, fn task ->
-        case task_created_on(task) do
-          %Date{} = created_on -> Date.compare(created_on, start_on) in [:gt, :eq]
-          _ -> false
-        end
-      end)
-
-    completed_window =
-      Enum.count(tasks, fn task ->
-        case task_completed_on(task) do
-          %Date{} = completed_on -> Date.compare(completed_on, start_on) in [:gt, :eq]
-          _ -> false
-        end
-      end)
-
-    open_high_priority =
-      Enum.count(tasks, fn task ->
-        task.status != :done and task.priority == :high
-      end)
-
-    overdue_open =
-      Enum.count(tasks, fn task ->
-        task.status != :done and match?(%Date{}, task.due_on) and
-          Date.compare(task.due_on, Date.utc_today()) == :lt
-      end)
-
-    completion_rate =
-      if created_window == 0 do
-        0.0
-      else
-        Float.round(completed_window / created_window * 100, 1)
-      end
-
-    %{
-      tasks_created_window: created_window,
-      tasks_completed_window: completed_window,
-      tasks_total_window: length(tasks),
-      tasks_completion_rate: completion_rate,
-      open_high_priority: open_high_priority,
-      overdue_open: overdue_open
-    }
-  end
 
   defp build_finance_highlights(finance_entries) do
     income_cents =
@@ -492,57 +257,13 @@ defmodule OrganizerWeb.DashboardLive.Insights do
     }
   end
 
-  defp priority_bar_row(tasks, priority, label) do
-    open_count =
-      Enum.count(tasks, fn task ->
-        task.priority == priority and task.status != :done
-      end)
-
-    done_count =
-      Enum.count(tasks, fn task ->
-        task.priority == priority and task.status == :done
-      end)
-
-    {label, open_count, done_count}
-  end
-
-  defp task_relevant_for_window?(task, start_on) do
-    date_candidates = [task_created_on(task), task_completed_on(task), task.due_on]
-
-    Enum.any?(date_candidates, fn
-      %Date{} = date -> Date.compare(date, start_on) in [:gt, :eq]
-      _ -> false
-    end)
-  end
-
-  defp task_created_on(task) do
-    case Map.get(task, :inserted_at) do
-      %DateTime{} = inserted_at -> DateTime.to_date(inserted_at)
-      _ -> nil
-    end
-  end
-
-  defp task_completed_on(task) do
-    cond do
-      match?(%DateTime{}, task.completed_at) ->
-        DateTime.to_date(task.completed_at)
-
-      task.status == :done and match?(%DateTime{}, task.updated_at) ->
-        DateTime.to_date(task.updated_at)
-
-      true ->
-        nil
-    end
-  end
-
   defp timeline_buckets(days) when days <= 30 do
     today = Date.utc_today()
     start_on = Date.add(today, -(days - 1))
 
     Date.range(start_on, today)
-    |> Enum.with_index(1)
-    |> Enum.map(fn {date, index} ->
-      %{index: index, start_on: date, end_on: date, label: short_date_label(date)}
+    |> Enum.map(fn date ->
+      %{start_on: date, end_on: date, label: short_date_label(date)}
     end)
   end
 
@@ -564,8 +285,6 @@ defmodule OrganizerWeb.DashboardLive.Insights do
       end
     end)
     |> Enum.reject(&is_nil/1)
-    |> Enum.with_index(1)
-    |> Enum.map(fn {bucket, index} -> Map.put(bucket, :index, index) end)
   end
 
   defp timeline_buckets(days) do
@@ -586,8 +305,6 @@ defmodule OrganizerWeb.DashboardLive.Insights do
       end
     end)
     |> Enum.reject(&is_nil/1)
-    |> Enum.with_index(1)
-    |> Enum.map(fn {bucket, index} -> Map.put(bucket, :index, index) end)
   end
 
   defp date_inside_bucket?(%Date{} = date, %{start_on: start_on, end_on: end_on}) do
@@ -675,18 +392,6 @@ defmodule OrganizerWeb.DashboardLive.Insights do
     year = date.year |> Integer.to_string() |> String.slice(-2, 2)
     "#{month}/#{year}"
   end
-
-  defp bucket_label_for_axis(value, lookup) when is_number(value) and is_map(lookup) do
-    rounded = round(value)
-
-    if abs(value - rounded) < 0.001 do
-      Map.get(lookup, rounded, "")
-    else
-      ""
-    end
-  end
-
-  defp bucket_label_for_axis(_value, _lookup), do: ""
 
   defp money_axis_formatter(value) when is_number(value) do
     rounded_amount = round(value / 100)

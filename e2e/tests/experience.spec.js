@@ -10,7 +10,7 @@ async function registerUserWithoutOverlayDismiss(
   await page.fill('input[name="user[password]"]', password);
   await page.fill('input[name="user[password_confirmation]"]', password);
   await page.click("#registration_form_password button");
-  await page.waitForURL(/\/finances|\/tasks/, { timeout: 20_000 });
+  await page.waitForURL(/\/finances|\/account-links/, { timeout: 20_000 });
 
   return { email, password };
 }

@@ -5,7 +5,7 @@ defmodule Organizer.Planning.FilterNormalization do
   Supports:
   - Exact matching (fast path)
   - Case-insensitive matching
-  - Common variations and aliases (e.g. "baixa" -> "low" for priority)
+  - Common variations and aliases
   - Fuzzy matching for partial input
   """
 
@@ -50,12 +50,11 @@ defmodule Organizer.Planning.FilterNormalization do
       else
         # Step 3: Language aliases
         aliases = %{
-          "fazer" => :todo,
-          "baixa" => :low,
-          "media" => :medium,
-          "média" => :medium,
-          "alta" => :high,
-          "urgente" => :high
+          "receita" => :income,
+          "entrada" => :income,
+          "despesa" => :expense,
+          "saida" => :expense,
+          "saída" => :expense
         }
 
         alias_result = Map.get(aliases, normalized)
@@ -115,21 +114,6 @@ defmodule Organizer.Planning.FilterNormalization do
 
     # Map common Portuguese variations to English enums
     aliases = %{
-      # Task status aliases
-      "fazer" => "todo",
-      "pendente" => "todo",
-      "em_andamento" => "in_progress",
-      "em andamento" => "in_progress",
-      "progresso" => "in_progress",
-      "concluído" => "done",
-      "pronto" => "done",
-      "finalizado" => "done",
-      # Priority aliases
-      "baixa" => "low",
-      "média" => "medium",
-      "media" => "medium",
-      "alta" => "high",
-      "urgente" => "high",
       # Finance kind aliases
       "receita" => "income",
       "entrada" => "income",

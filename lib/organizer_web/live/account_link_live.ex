@@ -175,19 +175,19 @@ defmodule OrganizerWeb.AccountLinkLive do
 
               <article class="micro-surface rounded-2xl p-4">
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
-                  Tarefas vinculadas
+                  Lançamentos vinculados
                 </p>
                 <p class="mt-1 text-2xl font-semibold text-base-content">
-                  {@sharing_metrics.tasks_shared_total}
+                  {@sharing_metrics.finances_shared_total}
                 </p>
               </article>
 
               <article class="micro-surface rounded-2xl p-4">
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
-                  Lançamentos vinculados
+                  Compartilhamentos ativos
                 </p>
                 <p class="mt-1 text-2xl font-semibold text-base-content">
-                  {@sharing_metrics.finances_shared_total}
+                  {@sharing_metrics.links_active}
                 </p>
               </article>
 
@@ -365,8 +365,6 @@ defmodule OrganizerWeb.AccountLinkLive do
   defp parse_int(_), do: :error
 
   defp load_sharing_metrics(scope, links) do
-    {:ok, tasks} = Planning.list_tasks(scope, %{status: "all", priority: "all", days: "365"})
-
     {:ok, finances} =
       Planning.list_finance_entries(scope, %{
         days: "365",
@@ -375,14 +373,12 @@ defmodule OrganizerWeb.AccountLinkLive do
         payment_method: "all"
       })
 
-    tasks_shared_total = Enum.count(tasks, &is_integer(Map.get(&1, :shared_with_link_id)))
     finances_shared_total = Enum.count(finances, &is_integer(&1.shared_with_link_id))
 
     %{
       links_active: length(links),
-      tasks_shared_total: tasks_shared_total,
       finances_shared_total: finances_shared_total,
-      shared_total: tasks_shared_total + finances_shared_total
+      shared_total: finances_shared_total
     }
   end
 

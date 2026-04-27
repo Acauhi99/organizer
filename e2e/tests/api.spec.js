@@ -9,24 +9,6 @@ test.describe("api v1 authenticated smoke", () => {
     const api = await request.newContext({ baseURL, storageState });
 
     try {
-      const taskCreate = await api.post("/api/v1/tasks", {
-        data: {
-          task: {
-            title: "Task API E2E",
-            priority: "high",
-          },
-        },
-      });
-      expect(taskCreate.ok()).toBeTruthy();
-      const taskPayload = await taskCreate.json();
-      expect(taskPayload.data.title).toBe("Task API E2E");
-
-      const taskList = await api.get("/api/v1/tasks");
-      expect(taskList.ok()).toBeTruthy();
-      const taskListPayload = await taskList.json();
-      expect(Array.isArray(taskListPayload.data)).toBeTruthy();
-      expect(taskListPayload.data.length).toBeGreaterThan(0);
-
       const financeCreate = await api.post("/api/v1/finance-entries", {
         data: {
           finance_entry: {

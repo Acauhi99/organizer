@@ -11,7 +11,7 @@ test.describe("public and auth flows", () => {
       email: uniqueEmail("public-auth"),
     });
 
-    await expect(page).toHaveURL(/\/finances|\/tasks/);
+    await expect(page).toHaveURL(/\/finances|\/account-links/);
     await expect(page.locator("#quick-finance-form")).toBeVisible();
 
     await logoutUser(page);
