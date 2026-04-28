@@ -69,7 +69,9 @@ defmodule Organizer.MixProject do
       {:req, "~> 0.5"},
       {:flop, "~> 0.26"},
       {:flop_phoenix, "~> 0.26"},
-      {:phoenix_storybook, "~> 1.0", only: [:dev, :test]},
+      # Storybook macros are referenced in router/storybook modules at compile time.
+      # Keep dependency available across envs while routes remain gated by `dev_routes`.
+      {:phoenix_storybook, "~> 1.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},
