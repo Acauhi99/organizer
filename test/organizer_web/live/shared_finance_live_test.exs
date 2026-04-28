@@ -117,6 +117,31 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       assert has_element?(view, "#unshare-entry-#{entry.id}")
     end
 
+    test "requires confirmation before unsharing a shared entry", %{
+      conn: conn,
+      scope_a: scope_a,
+      link: link
+    } do
+      entry = create_shared_entry(scope_a, link.id)
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+
+      assert has_element?(view, "#unshare-entry-#{entry.id}")
+
+      view
+      |> element("#unshare-entry-#{entry.id}")
+      |> render_click()
+
+      assert has_element?(view, "#shared-entry-unshare-confirmation-modal")
+      assert has_element?(view, "#confirm-unshare-entry-btn")
+      assert has_element?(view, "#unshare-entry-#{entry.id}")
+
+      view
+      |> element("#confirm-unshare-entry-btn")
+      |> render_click()
+
+      refute has_element?(view, "#unshare-entry-#{entry.id}")
+    end
+
     test "renders edit button only for entries created by current user", %{
       conn: conn,
       scope_a: scope_a,

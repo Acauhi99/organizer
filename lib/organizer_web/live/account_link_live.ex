@@ -22,6 +22,7 @@ defmodule OrganizerWeb.AccountLinkLive do
       |> assign(:sharing_metrics, sharing_metrics)
       |> assign(:invite_url, nil)
       |> assign(:invite_token, nil)
+      |> assign(:pending_link_deactivation, nil)
       |> assign(:invite_accept_form, invite_accept_form())
 
     {:ok, socket}
@@ -105,21 +106,40 @@ defmodule OrganizerWeb.AccountLinkLive do
   end
 
   @impl true
-  def handle_event("deactivate_link", %{"id" => id}, socket) do
-    scope = socket.assigns.current_scope
+  def handle_event("prompt_deactivate_link", %{"id" => id} = params, socket) do
+    with {:ok, link_id} <- parse_int(id) do
+      pending_link_deactivation = %{
+        id: link_id,
+        partner_email: Map.get(params, "partner_email", "")
+      }
 
-    with {:ok, link_id} <- parse_int(id),
-         {:ok, _link} <- SharedFinance.deactivate_account_link(scope, link_id) do
-      {:ok, links} = SharedFinance.list_account_links(scope)
-      sharing_metrics = load_sharing_metrics(scope, links)
-
-      {:noreply,
-       socket
-       |> assign(:account_links, links)
-       |> assign(:sharing_metrics, sharing_metrics)
-       |> put_flash(:info, "Compartilhamento desativado.")}
+      {:noreply, assign(socket, :pending_link_deactivation, pending_link_deactivation)}
     else
-      _ -> {:noreply, put_flash(socket, :error, "Não foi possível desativar o compartilhamento.")}
+      _ -> {:noreply, put_flash(socket, :error, "Não foi possível preparar a desativação.")}
+    end
+  end
+
+  @impl true
+  def handle_event("cancel_deactivate_link", _params, socket) do
+    {:noreply, assign(socket, :pending_link_deactivation, nil)}
+  end
+
+  @impl true
+  def handle_event("confirm_deactivate_link", _params, socket) do
+    case socket.assigns.pending_link_deactivation do
+      %{id: link_id} -> {:noreply, deactivate_link(socket, link_id)}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("deactivate_link", %{"id" => id}, socket) do
+    case parse_int(id) do
+      {:ok, link_id} ->
+        {:noreply, deactivate_link(socket, link_id)}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "Não foi possível desativar o compartilhamento.")}
     end
   end
 
@@ -244,8 +264,9 @@ defmodule OrganizerWeb.AccountLinkLive do
                       <button
                         id={"deactivate-link-#{link.id}"}
                         type="button"
-                        phx-click="deactivate_link"
+                        phx-click="prompt_deactivate_link"
                         phx-value-id={link.id}
+                        phx-value-partner_email={partner_email(@current_scope.user.id, link)}
                         class="btn btn-outline btn-xs btn-error"
                       >
                         Desativar
@@ -255,6 +276,22 @@ defmodule OrganizerWeb.AccountLinkLive do
                 <% end %>
               </ul>
             </section>
+
+            <.destructive_confirm_modal
+              id="account-link-deactivate-confirmation-modal"
+              show={is_map(@pending_link_deactivation)}
+              title="Desativar compartilhamento?"
+              message="Essa ação encerra o vínculo entre as contas e interrompe novos compartilhamentos por este link."
+              confirm_event="confirm_deactivate_link"
+              cancel_event="cancel_deactivate_link"
+              confirm_button_id="confirm-deactivate-link-btn"
+              cancel_button_id="cancel-deactivate-link-btn"
+              confirm_label="Desativar compartilhamento"
+            >
+              <p :if={is_map(@pending_link_deactivation)} class="font-medium text-base-content">
+                Parceiro: {Map.get(@pending_link_deactivation, :partner_email, "conta vinculada")}
+              </p>
+            </.destructive_confirm_modal>
           </section>
         <% :new_invite -> %>
           <section class="collab-shell responsive-shell mx-auto max-w-5xl space-y-6">
@@ -363,6 +400,26 @@ defmodule OrganizerWeb.AccountLinkLive do
   end
 
   defp parse_int(_), do: :error
+
+  defp deactivate_link(socket, link_id) do
+    scope = socket.assigns.current_scope
+
+    with {:ok, _link} <- SharedFinance.deactivate_account_link(scope, link_id) do
+      {:ok, links} = SharedFinance.list_account_links(scope)
+      sharing_metrics = load_sharing_metrics(scope, links)
+
+      socket
+      |> assign(:pending_link_deactivation, nil)
+      |> assign(:account_links, links)
+      |> assign(:sharing_metrics, sharing_metrics)
+      |> put_flash(:info, "Compartilhamento desativado.")
+    else
+      _ ->
+        socket
+        |> assign(:pending_link_deactivation, nil)
+        |> put_flash(:error, "Não foi possível desativar o compartilhamento.")
+    end
+  end
 
   defp load_sharing_metrics(scope, links) do
     {:ok, finances} =

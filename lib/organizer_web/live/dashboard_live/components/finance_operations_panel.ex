@@ -1,7 +1,7 @@
 defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   use Phoenix.Component
 
-  import OrganizerWeb.CoreComponents, only: [icon: 1]
+  import OrganizerWeb.CoreComponents, only: [app_modal: 1, destructive_confirm_modal: 1, icon: 1]
   import OrganizerWeb.DashboardLive.Formatters
 
   attr :streams, :map, required: true
@@ -9,6 +9,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   attr :category_suggestions, :map, default: %{}
   attr :editing_finance_id, :any, default: nil
   attr :finance_edit_modal_entry, :any, default: nil
+  attr :pending_finance_delete, :any, default: nil
   attr :ops_counts, :map, required: true
   attr :finance_visible_count, :integer, default: 0
   attr :finance_has_more?, :boolean, default: false
@@ -29,13 +30,15 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
       class="operations-shell surface-card rounded-2xl p-4 scroll-mt-20"
     >
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/70">
-          Operação diária financeira
-        </h2>
+        <div class="max-w-3xl">
+          <h2 class="text-2xl font-black tracking-[-0.02em] text-base-content">
+            Operação diária financeira
+          </h2>
+          <p id="finance-fixed-guidance" class="text-sm leading-6 text-base-content/75">
+            Filtre e acompanhe receitas e despesas ativas para entender o comportamento financeiro em tempo real.
+          </p>
+        </div>
       </div>
-      <p id="finance-fixed-guidance" class="mt-2 text-xs text-base-content/68">
-        Lançamentos com perfil fixo permanecem ativos até cancelamento para refletir melhor seu fluxo real.
-      </p>
 
       <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         <article
@@ -362,8 +365,9 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
                   <button
                     id={"finance-delete-btn-#{entry.id}"}
                     type="button"
-                    phx-click="delete_finance"
+                    phx-click="prompt_delete_finance"
                     phx-value-id={entry.id}
+                    phx-value-category={entry.category}
                     class="ds-inline-btn ds-inline-btn-danger rounded-md px-2 py-1 text-xs"
                   >
                     Excluir
@@ -383,6 +387,21 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
         entry={@finance_edit_modal_entry}
         category_suggestions={@category_suggestions}
       />
+
+      <.destructive_confirm_modal
+        id="finance-delete-confirmation-modal"
+        show={is_map(@pending_finance_delete)}
+        title="Excluir lançamento financeiro?"
+        message="Essa ação remove o lançamento da sua lista e não pode ser desfeita."
+        confirm_event="confirm_delete_finance"
+        cancel_event="cancel_delete_finance"
+        confirm_button_id="finance-delete-confirm-btn"
+        cancel_button_id="finance-delete-cancel-btn"
+      >
+        <p :if={is_map(@pending_finance_delete)} class="font-medium text-base-content">
+          {Map.get(@pending_finance_delete, :category, "Lançamento sem categoria")}
+        </p>
+      </.destructive_confirm_modal>
     </section>
     """
   end
@@ -392,24 +411,15 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
 
   defp finance_edit_modal(assigns) do
     ~H"""
-    <div
-      :if={is_map(@entry)}
+    <.app_modal
       id="finance-edit-modal"
-      class="fixed inset-0 z-[80] flex items-end justify-center p-3 sm:items-center sm:p-6"
-      phx-window-keydown="cancel_edit_finance"
-      phx-key="escape"
-      aria-hidden="false"
+      show={is_map(@entry)}
+      cancel_event="cancel_edit_finance"
+      aria_labelledby={if is_map(@entry), do: "finance-edit-title-#{@entry.id}", else: nil}
+      z_index_class="z-[120]"
+      dialog_class="max-w-3xl rounded-2xl p-5 shadow-[0_24px_70px_rgba(23,33,47,0.34)] sm:p-6"
     >
-      <div id="finance-edit-modal-backdrop" aria-hidden="true" class="absolute inset-0 h-full w-full">
-      </div>
-
-      <section
-        id="finance-edit-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={"finance-edit-title-#{@entry.id}"}
-        class="relative z-10 w-full max-w-3xl rounded-2xl border border-base-content/16 bg-base-100 p-5 shadow-[0_24px_70px_rgba(23,33,47,0.34)] sm:p-6"
-      >
+      <section id="finance-edit-dialog">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <p class="text-xs font-semibold uppercase tracking-wide text-base-content/65">
@@ -637,7 +647,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           </div>
         </form>
       </section>
-    </div>
+    </.app_modal>
     """
   end
 

@@ -124,6 +124,153 @@ defmodule OrganizerWeb.CoreComponents do
   end
 
   @doc """
+  Renders a standardized modal shell with shared backdrop and dialog behavior.
+  """
+  attr :id, :string, required: true
+  attr :show, :boolean, default: false
+  attr :cancel_event, :string, default: nil
+  attr :aria_labelledby, :string, default: nil
+  attr :aria_describedby, :string, default: nil
+  attr :z_index_class, :string, default: "z-[120]"
+  attr :container_class, :string, default: nil
+  attr :dialog_class, :string, default: nil
+  attr :backdrop_class, :string, default: nil
+  attr :close_on_escape, :boolean, default: true
+  attr :close_on_backdrop, :boolean, default: true
+  attr :rest, :global
+
+  slot :overlay
+  slot :inner_block, required: true
+
+  def app_modal(assigns) do
+    ~H"""
+    <div
+      :if={@show}
+      id={@id}
+      class={[
+        "fixed inset-0 flex items-end justify-center px-3 py-4 sm:items-center sm:p-6",
+        @container_class,
+        @z_index_class
+      ]}
+      phx-window-keydown={if @close_on_escape, do: @cancel_event}
+      phx-key={if @close_on_escape, do: "escape"}
+      aria-hidden="false"
+      {@rest}
+    >
+      <%= if @close_on_backdrop and is_binary(@cancel_event) do %>
+        <button
+          id={"#{@id}-backdrop"}
+          type="button"
+          phx-click={@cancel_event}
+          aria-label={gettext("close")}
+          class={[
+            "absolute inset-0 bg-slate-950/66 backdrop-blur-[3px]",
+            @backdrop_class
+          ]}
+        >
+        </button>
+      <% else %>
+        <div
+          id={"#{@id}-backdrop"}
+          aria-hidden="true"
+          class={[
+            "absolute inset-0 bg-slate-950/66 backdrop-blur-[3px]",
+            @backdrop_class
+          ]}
+        >
+        </div>
+      <% end %>
+
+      {render_slot(@overlay)}
+
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={@aria_labelledby}
+        aria-describedby={@aria_describedby}
+        class={[
+          "relative z-10 w-full rounded-3xl border border-base-content/16 bg-base-100 shadow-[0_40px_120px_rgba(8,19,35,0.55)]",
+          @dialog_class
+        ]}
+      >
+        {render_slot(@inner_block)}
+      </section>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a confirmation modal for destructive actions.
+  """
+  attr :id, :string, required: true
+  attr :show, :boolean, default: false
+  attr :title, :string, required: true
+  attr :message, :string, required: true
+  attr :confirm_event, :string, required: true
+  attr :cancel_event, :string, required: true
+  attr :confirm_label, :string, default: "Confirmar exclusão"
+  attr :cancel_label, :string, default: "Cancelar"
+  attr :confirm_button_id, :string, default: nil
+  attr :cancel_button_id, :string, default: nil
+
+  slot :inner_block
+
+  def destructive_confirm_modal(assigns) do
+    assigns =
+      assigns
+      |> assign_new(:confirm_button_id, fn -> "#{assigns.id}-confirm" end)
+      |> assign_new(:cancel_button_id, fn -> "#{assigns.id}-cancel" end)
+
+    ~H"""
+    <.app_modal
+      id={@id}
+      show={@show}
+      cancel_event={@cancel_event}
+      aria_labelledby={"#{@id}-title"}
+      z_index_class="z-[140]"
+      backdrop_class="bg-slate-950/70 backdrop-blur-[2px]"
+      dialog_class="max-w-md rounded-2xl border-error/30 p-5 shadow-[0_32px_110px_rgba(10,18,34,0.56)] sm:p-6"
+    >
+      <div class="flex items-start gap-3">
+        <div class="mt-0.5 rounded-full border border-error/35 bg-error/14 p-2 text-error">
+          <.icon name="hero-exclamation-triangle" class="size-5" />
+        </div>
+        <div class="min-w-0">
+          <h2 id={"#{@id}-title"} class="text-base font-semibold text-base-content">
+            {@title}
+          </h2>
+          <p class="mt-1 text-sm leading-6 text-base-content/74">
+            {@message}
+          </p>
+          <div :if={@inner_block != []} class="mt-2 text-sm text-base-content/82">
+            {render_slot(@inner_block)}
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <button
+          id={@cancel_button_id}
+          type="button"
+          phx-click={@cancel_event}
+          class="btn btn-ghost btn-sm border border-base-content/18"
+        >
+          {@cancel_label}
+        </button>
+        <button
+          id={@confirm_button_id}
+          type="button"
+          phx-click={@confirm_event}
+          class="btn btn-error btn-sm"
+        >
+          {@confirm_label}
+        </button>
+      </div>
+    </.app_modal>
+    """
+  end
+
+  @doc """
   Renders an input with label and error messages.
 
   A `Phoenix.HTML.FormField` may be passed as argument,

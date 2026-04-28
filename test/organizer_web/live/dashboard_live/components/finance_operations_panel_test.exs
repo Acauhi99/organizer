@@ -27,6 +27,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanelTest do
       category_suggestions: %{income: [], expense: [], all: []},
       editing_finance_id: nil,
       finance_edit_modal_entry: nil,
+      pending_finance_delete: nil,
       ops_counts: %{
         finances_total: 0,
         finances_income_total: 0,
@@ -113,5 +114,18 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanelTest do
     assert html =~ ~s(name="finance[amount_cents]")
     assert html =~ ~s(value="330,00")
     assert html =~ ~s(name="finance[installment_number]")
+  end
+
+  test "renders deletion confirmation modal when an entry is pending deletion" do
+    html =
+      render_component(
+        &FinanceOperationsPanel.finance_operations_panel/1,
+        base_assigns()
+        |> Map.put(:pending_finance_delete, %{id: 7, category: "Moradia"})
+      )
+
+    assert html =~ ~s(id="finance-delete-confirmation-modal")
+    assert html =~ ~s(id="finance-delete-confirm-btn")
+    assert html =~ "Moradia"
   end
 end

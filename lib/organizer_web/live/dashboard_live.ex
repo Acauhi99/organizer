@@ -325,23 +325,34 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   @impl true
-  def handle_event("delete_finance", %{"id" => id}, socket) do
-    case Planning.delete_finance_entry(socket.assigns.current_scope, id) do
-      {:ok, _entry} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Lançamento removido.")
-         |> assign(:editing_finance_id, nil)
-         |> assign(:finance_edit_modal_entry, nil)
-         |> load_operation_collections()
-         |> refresh_dashboard_insights()}
+  def handle_event("prompt_delete_finance", %{"id" => id} = params, socket) do
+    pending_delete = %{
+      id: id,
+      category: Map.get(params, "category", "Lançamento sem categoria")
+    }
 
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Lançamento não encontrado.")}
+    {:noreply, assign(socket, :pending_finance_delete, pending_delete)}
+  end
+
+  @impl true
+  def handle_event("cancel_delete_finance", _params, socket) do
+    {:noreply, assign(socket, :pending_finance_delete, nil)}
+  end
+
+  @impl true
+  def handle_event("confirm_delete_finance", _params, socket) do
+    case socket.assigns.pending_finance_delete do
+      %{id: id} ->
+        {:noreply, perform_finance_deletion(socket, id)}
 
       _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível remover o lançamento.")}
+        {:noreply, socket}
     end
+  end
+
+  @impl true
+  def handle_event("delete_finance", %{"id" => id}, socket) do
+    {:noreply, perform_finance_deletion(socket, id)}
   end
 
   defp initialize_dashboard_state(socket, scope) do
@@ -368,6 +379,7 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:finance_category_suggestions, %{income: [], expense: [], all: []})
     |> assign(:editing_finance_id, nil)
     |> assign(:finance_edit_modal_entry, nil)
+    |> assign(:pending_finance_delete, nil)
     |> assign(:onboarding_active, onboarding_active)
     |> assign(:onboarding_step, onboarding_progress.current_step)
     |> assign(:finance_flow_chart, %{loading: true, chart_svg: nil})
@@ -851,11 +863,11 @@ defmodule OrganizerWeb.DashboardLive do
         <a href="#quick-finance-hero" class="skip-link">
           Ir para finanças
         </a>
-        <a href="#finance-metrics-panel" class="skip-link">
-          Ir para métricas financeiras
-        </a>
         <a href="#finance-operations-panel" class="skip-link">
           Ir para operação financeira
+        </a>
+        <a href="#finance-metrics-panel" class="skip-link">
+          Ir para métricas financeiras
         </a>
       </nav>
 
@@ -888,24 +900,25 @@ defmodule OrganizerWeb.DashboardLive do
           category_suggestions={@finance_category_suggestions}
         />
 
-        <FinanceMetricsPanel.finance_metrics_panel
-          finance_metrics_filters={@finance_metrics_filters}
-          finance_highlights={@finance_highlights}
-          finance_flow_chart={@finance_flow_chart}
-          finance_category_chart={@finance_category_chart}
-          finance_composition_chart={@finance_composition_chart}
-        />
-
         <FinanceOperationsPanel.finance_operations_panel
           streams={@streams}
           finance_filters={@finance_filters}
           category_suggestions={@finance_category_suggestions}
           editing_finance_id={@editing_finance_id}
           finance_edit_modal_entry={@finance_edit_modal_entry}
+          pending_finance_delete={@pending_finance_delete}
           ops_counts={@ops_counts}
           finance_visible_count={@finance_visible_count}
           finance_has_more?={@finance_has_more?}
           finance_loading_more?={@finance_loading_more?}
+        />
+
+        <FinanceMetricsPanel.finance_metrics_panel
+          finance_metrics_filters={@finance_metrics_filters}
+          finance_highlights={@finance_highlights}
+          finance_flow_chart={@finance_flow_chart}
+          finance_category_chart={@finance_category_chart}
+          finance_composition_chart={@finance_composition_chart}
         />
       </div>
     </Layouts.app>
@@ -939,5 +952,28 @@ defmodule OrganizerWeb.DashboardLive do
       </div>
     </header>
     """
+  end
+
+  defp perform_finance_deletion(socket, id) do
+    case Planning.delete_finance_entry(socket.assigns.current_scope, id) do
+      {:ok, _entry} ->
+        socket
+        |> put_flash(:info, "Lançamento removido.")
+        |> assign(:editing_finance_id, nil)
+        |> assign(:finance_edit_modal_entry, nil)
+        |> assign(:pending_finance_delete, nil)
+        |> load_operation_collections()
+        |> refresh_dashboard_insights()
+
+      {:error, :not_found} ->
+        socket
+        |> assign(:pending_finance_delete, nil)
+        |> put_flash(:error, "Lançamento não encontrado.")
+
+      _ ->
+        socket
+        |> assign(:pending_finance_delete, nil)
+        |> put_flash(:error, "Não foi possível remover o lançamento.")
+    end
   end
 end

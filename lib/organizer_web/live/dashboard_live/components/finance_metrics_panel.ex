@@ -14,13 +14,18 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
     ~H"""
     <section id="finance-metrics-panel" class="surface-card rounded-2xl p-4 scroll-mt-20">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/70">
-          Métricas financeiras
-        </h2>
+        <div class="max-w-3xl">
+          <h2 class="text-2xl font-black tracking-[-0.02em] text-base-content">
+            Métricas financeiras
+          </h2>
+          <p class="text-sm leading-6 text-base-content/75">
+            Monitore saldo, categorias e distribuição de despesas para orientar decisões de curto prazo.
+          </p>
+        </div>
 
         <div
           id="finance-metrics-filters"
-          class="grid gap-1.5"
+          class="grid gap-1.5 sm:justify-items-end"
           aria-label="Filtros de métricas financeiras"
         >
           <p class="font-mono text-[0.64rem] uppercase tracking-[0.08em] text-base-content/80">

@@ -41,6 +41,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
         |> assign(:shared_entry_edit_entry, nil)
         |> assign(:shared_entry_edit_form, to_form(%{}, as: :shared_entry_edit))
         |> assign(:shared_entry_edit_preview, nil)
+        |> assign(:pending_unshare_entry, nil)
         |> assign(:page_title, "Finanças Compartilhadas")
         |> stream_configure(:shared_entries, dom_id: &"shared-entry-view-#{&1.entry.id}")
         |> stream(:shared_entries, views)
@@ -64,14 +65,40 @@ defmodule OrganizerWeb.SharedFinanceLive do
   end
 
   @impl true
-  def handle_event("unshare_entry", %{"entry_id" => entry_id}, socket) do
-    scope = socket.assigns.current_scope
+  def handle_event("prompt_unshare_entry", %{"entry_id" => entry_id} = params, socket) do
+    with {:ok, parsed_entry_id} <- parse_int(entry_id) do
+      pending_unshare_entry = %{
+        id: parsed_entry_id,
+        label: Map.get(params, "entry_label", "Lançamento compartilhado")
+      }
 
-    with {:ok, parsed_entry_id} <- parse_int(entry_id),
-         {:ok, _entry} <- SharedFinance.unshare_finance_entry(scope, parsed_entry_id) do
-      {:noreply, reload_shared_data(socket)}
+      {:noreply, assign(socket, :pending_unshare_entry, pending_unshare_entry)}
     else
-      _ -> {:noreply, put_flash(socket, :error, "Não foi possível remover o compartilhamento.")}
+      _ -> {:noreply, put_flash(socket, :error, "Não foi possível abrir a confirmação.")}
+    end
+  end
+
+  @impl true
+  def handle_event("cancel_unshare_entry", _params, socket) do
+    {:noreply, assign(socket, :pending_unshare_entry, nil)}
+  end
+
+  @impl true
+  def handle_event("confirm_unshare_entry", _params, socket) do
+    case socket.assigns.pending_unshare_entry do
+      %{id: entry_id} -> {:noreply, perform_unshare_entry(socket, entry_id)}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("unshare_entry", %{"entry_id" => entry_id}, socket) do
+    case parse_int(entry_id) do
+      {:ok, parsed_entry_id} ->
+        {:noreply, perform_unshare_entry(socket, parsed_entry_id)}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "Não foi possível remover o compartilhamento.")}
     end
   end
 
@@ -412,8 +439,9 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 <button
                   id={"unshare-entry-#{view.entry.id}"}
                   type="button"
-                  phx-click="unshare_entry"
+                  phx-click="prompt_unshare_entry"
                   phx-value-entry_id={view.entry.id}
+                  phx-value-entry_label={view.entry.description || view.entry.category}
                   class="btn btn-outline btn-xs btn-error shrink-0"
                 >
                   Remover
@@ -422,6 +450,22 @@ defmodule OrganizerWeb.SharedFinanceLive do
             </div>
           </div>
         </section>
+
+        <.destructive_confirm_modal
+          id="shared-entry-unshare-confirmation-modal"
+          show={is_map(@pending_unshare_entry)}
+          title="Remover compartilhamento do lançamento?"
+          message="A transação continuará na conta de origem, mas deixará de fazer parte deste compartilhamento."
+          confirm_event="confirm_unshare_entry"
+          cancel_event="cancel_unshare_entry"
+          confirm_button_id="confirm-unshare-entry-btn"
+          cancel_button_id="cancel-unshare-entry-btn"
+          confirm_label="Remover compartilhamento"
+        >
+          <p :if={is_map(@pending_unshare_entry)} class="font-medium text-base-content">
+            {Map.get(@pending_unshare_entry, :label, "Lançamento compartilhado")}
+          </p>
+        </.destructive_confirm_modal>
 
         <section id="recurring-variable-trend" class="surface-card rounded-3xl p-5 sm:p-6">
           <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
@@ -478,29 +522,15 @@ defmodule OrganizerWeb.SharedFinanceLive do
       |> assign(:preview, preview)
 
     ~H"""
-    <div
-      :if={is_map(@entry)}
+    <.app_modal
       id="shared-entry-edit-modal"
-      class="fixed inset-0 z-[120] flex items-end justify-center px-3 py-4 sm:items-center sm:p-6"
-      phx-window-keydown="cancel_shared_entry_edit"
-      phx-key="escape"
-      aria-hidden="false"
+      show={is_map(@entry)}
+      cancel_event="cancel_shared_entry_edit"
+      aria_labelledby={if is_map(@entry), do: "shared-entry-edit-title-#{@entry.id}", else: nil}
+      z_index_class="z-[120]"
+      dialog_class="max-w-4xl max-h-[88vh] overflow-y-auto p-5 sm:p-6"
     >
-      <div
-        id="shared-entry-edit-modal-backdrop"
-        aria-hidden="true"
-        phx-click="cancel_shared_entry_edit"
-        class="absolute inset-0 bg-slate-950/66 backdrop-blur-[3px]"
-      >
-      </div>
-
-      <section
-        id="shared-entry-edit-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={"shared-entry-edit-title-#{@entry.id}"}
-        class="relative z-10 w-full max-w-4xl max-h-[88vh] overflow-y-auto rounded-3xl border border-base-content/16 bg-base-100 p-5 shadow-[0_40px_120px_rgba(8,19,35,0.55)] sm:p-6"
-      >
+      <section id="shared-entry-edit-dialog">
         <div class="flex items-start justify-between gap-4">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/70">
@@ -680,7 +710,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </div>
         </.form>
       </section>
-    </div>
+    </.app_modal>
     """
   end
 
@@ -710,6 +740,21 @@ defmodule OrganizerWeb.SharedFinanceLive do
     |> assign(:shared_entry_edit_entry, nil)
     |> assign(:shared_entry_edit_form, to_form(%{}, as: :shared_entry_edit))
     |> assign(:shared_entry_edit_preview, nil)
+  end
+
+  defp perform_unshare_entry(socket, entry_id) do
+    scope = socket.assigns.current_scope
+
+    with {:ok, _entry} <- SharedFinance.unshare_finance_entry(scope, entry_id) do
+      socket
+      |> assign(:pending_unshare_entry, nil)
+      |> reload_shared_data()
+    else
+      _ ->
+        socket
+        |> assign(:pending_unshare_entry, nil)
+        |> put_flash(:error, "Não foi possível remover o compartilhamento.")
+    end
   end
 
   defp shared_entry_view_for_edit(scope, link_id, period, entry_id) do

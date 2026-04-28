@@ -27,6 +27,8 @@ test.describe("finances module", () => {
     await expect(page.locator("body")).toContainText("Compra semanal atualizada");
 
     await page.click(`#finance-delete-btn-${entryId}`);
+    await expect(page.locator("#finance-delete-confirmation-modal")).toBeVisible();
+    await page.click("#finance-delete-confirm-btn");
     await expect(page.locator(`#finance-delete-btn-${entryId}`)).toHaveCount(0);
   });
 });

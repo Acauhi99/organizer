@@ -9,31 +9,34 @@ defmodule OrganizerWeb.Components.OnboardingOverlay do
 
   def onboarding_overlay(assigns) do
     ~H"""
-    <div
-      :if={@active}
+    <.app_modal
       id="onboarding-overlay"
-      class="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      show={@active}
+      close_on_escape={false}
+      close_on_backdrop={false}
+      z_index_class="z-[9999]"
+      container_class="items-center p-4 sm:p-4"
+      backdrop_class="bg-[rgba(113,104,88,0.44)] backdrop-blur-[4px]"
+      dialog_class="max-w-[32rem] rounded-[1.25rem] border-info/40 bg-base-100/95 p-7 shadow-[0_26px_64px_rgba(106,121,142,0.3)] backdrop-blur-[12px]"
+      aria_labelledby="onboarding-title"
+      aria_describedby="onboarding-description"
       phx-hook="OnboardingOverlay"
-      role="dialog"
-      aria-labelledby="onboarding-title"
-      aria-describedby="onboarding-description"
-      aria-modal="true"
     >
-      <div class="absolute inset-0 bg-[rgba(113,104,88,0.44)] backdrop-blur-[4px]"></div>
-      <div class="onboarding-spotlight" data-target={spotlight_target(@current_step)}></div>
-      <div class="relative z-[10000] max-w-[32rem] w-full border border-info/40 rounded-[1.25rem] p-7 bg-base-100/95 shadow-[0_26px_64px_rgba(106,121,142,0.3)] backdrop-blur-[12px]">
-        <.onboarding_step
-          step={@current_step}
-          total={@total_steps}
-          content={step_content(@current_step)}
-        />
-        <.onboarding_controls
-          current={@current_step}
-          total={@total_steps}
-          can_skip={@can_skip}
-        />
-      </div>
-    </div>
+      <:overlay>
+        <div class="onboarding-spotlight" data-target={spotlight_target(@current_step)}></div>
+      </:overlay>
+
+      <.onboarding_step
+        step={@current_step}
+        total={@total_steps}
+        content={step_content(@current_step)}
+      />
+      <.onboarding_controls
+        current={@current_step}
+        total={@total_steps}
+        can_skip={@can_skip}
+      />
+    </.app_modal>
     """
   end
 

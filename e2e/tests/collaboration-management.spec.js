@@ -91,11 +91,15 @@ test.describe("collaboration management journeys", () => {
       await pageA.goto(`/account-links/${linkId}`, { waitUntil: "networkidle" });
       await expect(pageA.locator('button[id^="unshare-entry-"]').first()).toBeVisible();
       await pageA.locator('button[id^="unshare-entry-"]').first().click();
+      await expect(pageA.locator("#shared-entry-unshare-confirmation-modal")).toBeVisible();
+      await pageA.click("#confirm-unshare-entry-btn");
       await expect(pageA.locator("#shared-entries-empty-state")).toBeVisible();
 
       await pageA.goto("/account-links", { waitUntil: "networkidle" });
       await expect(pageA.locator(`#deactivate-link-${linkId}`)).toBeVisible();
       await pageA.click(`#deactivate-link-${linkId}`);
+      await expect(pageA.locator("#account-link-deactivate-confirmation-modal")).toBeVisible();
+      await pageA.click("#confirm-deactivate-link-btn");
       await expect(pageA.locator(`#account-link-${linkId}`)).toHaveCount(0);
       await expect(pageA.locator("#account-link-empty")).toBeVisible();
     } finally {

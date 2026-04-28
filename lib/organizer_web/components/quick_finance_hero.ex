@@ -13,18 +13,15 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
     ~H"""
     <section
       id="quick-finance-hero"
-      class="surface-card order-4 rounded-2xl p-5 scroll-mt-20"
+      class="surface-card rounded-2xl p-5 scroll-mt-20"
       data-onboarding-target="quick-finance"
     >
       <header class="mb-4 space-y-1">
-        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/62">
-          Lançamento rápido
-        </p>
         <h2 class="text-2xl font-black tracking-[-0.02em] text-base-content">
-          Registrar renda e gastos por formulário
+          Lançamento rápido
         </h2>
         <p class="text-sm leading-6 text-base-content/75">
-          Use presets para acelerar o cadastro e mantenha os dados financeiros organizados sem depender de chat.
+          Registrar renda e gastos por formulário
         </p>
       </header>
 

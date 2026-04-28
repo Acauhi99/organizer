@@ -114,6 +114,12 @@ defmodule OrganizerWeb.AccountLinkLiveTest do
 
       view |> element("#deactivate-link-#{link.id}") |> render_click()
 
+      assert has_element?(view, "#account-link-deactivate-confirmation-modal")
+      assert has_element?(view, "#confirm-deactivate-link-btn")
+      assert has_element?(view, "#account-link-#{link.id}")
+
+      view |> element("#confirm-deactivate-link-btn") |> render_click()
+
       refute has_element?(view, "#account-link-#{link.id}")
     end
   end

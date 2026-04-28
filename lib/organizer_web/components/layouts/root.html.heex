@@ -59,16 +59,6 @@
             </div>
           </header>
 
-          <div :if={current_scope} class="app-account-chip">
-            <span class="app-account-avatar" aria-hidden="true">
-              <.icon name="hero-user" class="size-4" />
-            </span>
-            <div class="app-account-copy">
-              <p class="app-account-title">Conta ativa</p>
-              <p class="app-account-email">Sessão autenticada</p>
-            </div>
-          </div>
-
           <nav class="app-sidebar-nav" aria-label="Serviços do Organizer">
             <ul>
               <%= if current_scope do %>
