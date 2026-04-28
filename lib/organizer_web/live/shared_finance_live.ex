@@ -5,13 +5,26 @@ defmodule OrganizerWeb.SharedFinanceLive do
   alias Organizer.DateSupport
   alias Organizer.Planning.AmountParser
   alias Organizer.SharedFinance
-  alias Organizer.SharedFinance.SplitCalculator
+  alias Organizer.SharedFinance.{SettlementRecord, SplitCalculator}
 
   @shared_period_filters ["current_month", "last_3_months", "all"]
+  @shared_entries_page_size 10
+  @shared_entry_debts_page_size 10
+  @settlement_records_page_size 10
   @impl true
   def mount(%{"link_id" => link_id_param} = params, _session, socket) do
     scope = socket.assigns.current_scope
     selected_period = normalize_shared_period_filter(params)
+    shared_entries_page = 1
+    shared_entry_debts_page = 1
+    settlement_records_page = 1
+    shared_entries_filter_q = normalize_list_filter_q(Map.get(params, "shared_entries_q", ""))
+
+    shared_entry_debts_filter_q =
+      normalize_list_filter_q(Map.get(params, "shared_entry_debts_q", ""))
+
+    settlement_records_filter_q =
+      normalize_list_filter_q(Map.get(params, "settlement_records_q", ""))
 
     with {:ok, link_id} <- parse_int(link_id_param),
          {:ok, link} <- SharedFinance.get_account_link(scope, link_id) do
@@ -19,7 +32,13 @@ defmodule OrganizerWeb.SharedFinanceLive do
         Phoenix.PubSub.subscribe(Organizer.PubSub, "account_link:#{link_id}")
       end
 
-      {:ok, views} = SharedFinance.list_shared_entries(scope, link_id, %{period: selected_period})
+      {:ok, {views, shared_entries_meta}} =
+        SharedFinance.list_shared_entries_with_meta(scope, link_id, %{
+          period: selected_period,
+          page: shared_entries_page,
+          page_size: @shared_entries_page_size,
+          q: shared_entries_filter_q
+        })
 
       {:ok, metrics} =
         SharedFinance.get_link_metrics(scope, link_id, Date.utc_today(), %{
@@ -27,6 +46,25 @@ defmodule OrganizerWeb.SharedFinanceLive do
         })
 
       {:ok, trend} = SharedFinance.get_recurring_variable_trend(scope, link_id)
+
+      {:ok, cycle} =
+        SharedFinance.get_or_create_settlement_cycle(scope, link_id, Date.utc_today())
+
+      {:ok, {debts, shared_entry_debts_meta}} =
+        SharedFinance.list_shared_entry_debts_with_meta(scope, link_id, %{
+          page: shared_entry_debts_page,
+          page_size: @shared_entry_debts_page_size,
+          q: shared_entry_debts_filter_q
+        })
+
+      {:ok, {records, settlement_records_meta}} =
+        SharedFinance.list_settlement_records_with_meta(scope, cycle.id, %{
+          page: settlement_records_page,
+          page_size: @settlement_records_page_size,
+          q: settlement_records_filter_q
+        })
+
+      {:ok, monthly_debt_summaries} = SharedFinance.monthly_debt_summaries(scope, link_id)
 
       socket =
         socket
@@ -37,14 +75,58 @@ defmodule OrganizerWeb.SharedFinanceLive do
         |> assign(:trend, trend)
         |> assign(:shared_balance_chart, shared_balance_chart_svg(metrics))
         |> assign(:shared_trend_chart, shared_trend_chart_svg(trend))
-        |> assign(:shared_entries_count, length(views))
+        |> assign(:shared_entries_count, shared_entries_meta.total_count || length(views))
+        |> assign(:shared_entries_meta, shared_entries_meta)
+        |> assign(:shared_entries_has_more?, Map.get(shared_entries_meta, :has_next_page?, false))
+        |> assign(:shared_entries_loading_more?, false)
+        |> assign(:shared_entries_next_page, shared_entries_page + 1)
+        |> assign(:shared_entries_filter_q, shared_entries_filter_q)
+        |> assign(
+          :shared_entries_page,
+          Map.get(shared_entries_meta, :current_page, shared_entries_page)
+        )
+        |> assign(:shared_entry_debts, debts)
+        |> assign(:shared_entry_debts_count, shared_entry_debts_meta.total_count || length(debts))
+        |> assign(:shared_entry_debts_meta, shared_entry_debts_meta)
+        |> assign(
+          :shared_entry_debts_has_more?,
+          Map.get(shared_entry_debts_meta, :has_next_page?, false)
+        )
+        |> assign(:shared_entry_debts_loading_more?, false)
+        |> assign(:shared_entry_debts_next_page, shared_entry_debts_page + 1)
+        |> assign(:shared_entry_debts_filter_q, shared_entry_debts_filter_q)
+        |> assign(
+          :shared_entry_debts_page,
+          Map.get(shared_entry_debts_meta, :current_page, shared_entry_debts_page)
+        )
+        |> assign(:settlement_cycle, cycle)
+        |> assign(
+          :settlement_records_count,
+          settlement_records_meta.total_count || length(records)
+        )
+        |> assign(:settlement_records_meta, settlement_records_meta)
+        |> assign(
+          :settlement_records_has_more?,
+          Map.get(settlement_records_meta, :has_next_page?, false)
+        )
+        |> assign(:settlement_records_loading_more?, false)
+        |> assign(:settlement_records_next_page, settlement_records_page + 1)
+        |> assign(:settlement_records_filter_q, settlement_records_filter_q)
+        |> assign(
+          :settlement_records_page,
+          Map.get(settlement_records_meta, :current_page, settlement_records_page)
+        )
+        |> assign(:monthly_debt_summaries, monthly_debt_summaries)
+        |> assign(:payment_form, payment_form())
         |> assign(:shared_entry_edit_entry, nil)
         |> assign(:shared_entry_edit_form, to_form(%{}, as: :shared_entry_edit))
         |> assign(:shared_entry_edit_preview, nil)
         |> assign(:pending_unshare_entry, nil)
         |> assign(:page_title, "Finanças Compartilhadas")
         |> stream_configure(:shared_entries, dom_id: &"shared-entry-view-#{&1.entry.id}")
+        |> stream_configure(:settlement_records, dom_id: &"shared-settlement-record-#{&1.id}")
         |> stream(:shared_entries, views)
+        |> stream(:settlement_records, records)
 
       {:ok, socket}
     else
@@ -57,10 +139,27 @@ defmodule OrganizerWeb.SharedFinanceLive do
   end
 
   @impl true
-  def handle_params(%{"link_id" => link_id_param}, _uri, socket) do
+  def handle_params(%{"link_id" => link_id_param} = params, _uri, socket) do
     case parse_int(link_id_param) do
-      {:ok, link_id} -> {:noreply, assign(socket, :link_id, link_id)}
-      :error -> {:noreply, socket}
+      {:ok, link_id} ->
+        selected_period = normalize_shared_period_filter(params)
+
+        socket =
+          socket
+          |> assign(:link_id, link_id)
+          |> assign(:selected_shared_period, selected_period)
+          |> assign(:shared_entries_page, 1)
+          |> assign(:shared_entry_debts_page, 1)
+          |> assign(:settlement_records_page, 1)
+          |> assign(:shared_entries_loading_more?, false)
+          |> assign(:shared_entry_debts_loading_more?, false)
+          |> assign(:settlement_records_loading_more?, false)
+          |> reload_shared_data()
+
+        {:noreply, socket}
+
+      :error ->
+        {:noreply, socket}
     end
   end
 
@@ -225,9 +324,195 @@ defmodule OrganizerWeb.SharedFinanceLive do
   def handle_event("set_shared_period", %{"period" => period}, socket)
       when period in @shared_period_filters do
     {:noreply,
+     push_patch(socket,
+       to: shared_finance_path(socket, %{"period" => period})
+     )}
+  end
+
+  @impl true
+  def handle_event("filter_shared_entries", %{"filters" => filters}, socket) do
+    filter_q =
+      filters
+      |> Map.get("q", "")
+      |> normalize_list_filter_q()
+
+    {:noreply,
      socket
-     |> assign(:selected_shared_period, period)
+     |> assign(:shared_entries_filter_q, filter_q)
+     |> assign(:shared_entries_page, 1)
+     |> assign(:shared_entries_loading_more?, false)
      |> reload_shared_data()}
+  end
+
+  @impl true
+  def handle_event("load_more_shared_entries", params, socket) do
+    cond do
+      socket.assigns.shared_entries_loading_more? ->
+        {:noreply, socket}
+
+      not socket.assigns.shared_entries_has_more? ->
+        {:noreply, socket}
+
+      true ->
+        next_page =
+          params
+          |> Map.get("page", socket.assigns.shared_entries_next_page)
+          |> parse_positive_page()
+
+        {:noreply,
+         socket
+         |> assign(:shared_entries_loading_more?, true)
+         |> load_shared_entries(next_page, reset: false)}
+    end
+  end
+
+  @impl true
+  def handle_event("filter_shared_entry_debts", %{"filters" => filters}, socket) do
+    filter_q =
+      filters
+      |> Map.get("q", "")
+      |> normalize_list_filter_q()
+
+    {:noreply,
+     socket
+     |> assign(:shared_entry_debts_filter_q, filter_q)
+     |> assign(:shared_entry_debts_page, 1)
+     |> assign(:shared_entry_debts_loading_more?, false)
+     |> reload_shared_data()}
+  end
+
+  @impl true
+  def handle_event("load_more_shared_entry_debts", params, socket) do
+    cond do
+      socket.assigns.shared_entry_debts_loading_more? ->
+        {:noreply, socket}
+
+      not socket.assigns.shared_entry_debts_has_more? ->
+        {:noreply, socket}
+
+      true ->
+        next_page =
+          params
+          |> Map.get("page", socket.assigns.shared_entry_debts_next_page)
+          |> parse_positive_page()
+
+        {:noreply,
+         socket
+         |> assign(:shared_entry_debts_loading_more?, true)
+         |> load_shared_entry_debts(next_page, reset: false)}
+    end
+  end
+
+  @impl true
+  def handle_event("filter_settlement_records", %{"filters" => filters}, socket) do
+    filter_q =
+      filters
+      |> Map.get("q", "")
+      |> normalize_list_filter_q()
+
+    {:noreply,
+     socket
+     |> assign(:settlement_records_filter_q, filter_q)
+     |> assign(:settlement_records_page, 1)
+     |> assign(:settlement_records_loading_more?, false)
+     |> reload_shared_data()}
+  end
+
+  @impl true
+  def handle_event("load_more_settlement_records", params, socket) do
+    cond do
+      socket.assigns.settlement_records_loading_more? ->
+        {:noreply, socket}
+
+      not socket.assigns.settlement_records_has_more? ->
+        {:noreply, socket}
+
+      true ->
+        next_page =
+          params
+          |> Map.get("page", socket.assigns.settlement_records_next_page)
+          |> parse_positive_page()
+
+        {:noreply,
+         socket
+         |> assign(:settlement_records_loading_more?, true)
+         |> load_settlement_records(next_page, reset: false)}
+    end
+  end
+
+  @impl true
+  def handle_event("create_record", %{"payment" => attrs}, socket) do
+    scope = socket.assigns.current_scope
+    cycle = socket.assigns.settlement_cycle
+
+    with {:ok, amount_cents} <- parse_amount_cents(Map.get(attrs, "amount_cents")),
+         {:ok, method} <- parse_method(Map.get(attrs, "method")),
+         {:ok, transferred_at} <- parse_transferred_at(Map.get(attrs, "transferred_at")),
+         {:ok, _record} <-
+           SharedFinance.create_settlement_record(scope, cycle.id, %{
+             amount_cents: amount_cents,
+             method: method,
+             transferred_at: transferred_at
+           }) do
+      {:noreply,
+       socket
+       |> put_flash(:info, "Pagamento registrado e alocado nas dívidas em aberto.")
+       |> assign(:payment_form, payment_form())
+       |> reload_shared_data()}
+    else
+      {:error, :invalid_amount} ->
+        {:noreply,
+         socket
+         |> assign(:payment_form, payment_form(attrs))
+         |> put_flash(:error, "Informe um valor válido maior que zero.")}
+
+      {:error, :invalid_method} ->
+        {:noreply,
+         socket
+         |> assign(:payment_form, payment_form(attrs))
+         |> put_flash(:error, "Selecione um método de pagamento válido.")}
+
+      {:error, :invalid_date} ->
+        {:noreply,
+         socket
+         |> assign(:payment_form, payment_form(attrs))
+         |> put_flash(:error, "Informe uma data válida no formato dd/mm/aaaa.")}
+
+      {:error, {:validation, %{amount_cents: _}}} ->
+        {:noreply,
+         socket
+         |> assign(:payment_form, payment_form(attrs))
+         |> put_flash(:error, "O valor informado excede o saldo em aberto deste vínculo.")}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Não foi possível registrar o pagamento.")}
+    end
+  end
+
+  @impl true
+  def handle_event("confirm_settlement", _params, socket) do
+    scope = socket.assigns.current_scope
+    cycle = socket.assigns.settlement_cycle
+
+    case SharedFinance.confirm_settlement(scope, cycle.id) do
+      {:ok, _updated_cycle} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Confirmação bilateral concluída para o mês.")
+         |> reload_shared_data()}
+
+      {:error, :awaiting_counterpart_confirmation} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Sua confirmação foi registrada. Aguardando a outra conta.")
+         |> reload_shared_data()}
+
+      {:error, :cycle_has_pending_debts} ->
+        {:noreply, put_flash(socket, :error, "Ainda há dívidas em aberto neste mês.")}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Não foi possível confirmar o fechamento mensal.")}
+    end
   end
 
   @impl true
@@ -237,6 +522,16 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
   @impl true
   def handle_info({:shared_entry_removed, _entry}, socket) do
+    {:noreply, reload_shared_data(socket)}
+  end
+
+  @impl true
+  def handle_info({:settlement_record_created, _record}, socket) do
+    {:noreply, reload_shared_data(socket)}
+  end
+
+  @impl true
+  def handle_info({:settlement_cycle_settled, _cycle}, socket) do
     {:noreply, reload_shared_data(socket)}
   end
 
@@ -377,17 +672,6 @@ defmodule OrganizerWeb.SharedFinanceLive do
               </p>
             </article>
           </div>
-
-          <div
-            :if={@metrics.imbalance_detected}
-            id="imbalance-indicator"
-            class="mt-4 flex items-center gap-2 rounded-xl border border-warning/35 bg-warning/14 px-3 py-2"
-          >
-            <.icon name="hero-exclamation-triangle" class="size-4 text-warning" />
-            <span class="text-sm text-warning-content">
-              Desequilíbrio detectado. A divisão atual difere mais de 5% do esperado.
-            </span>
-          </div>
         </section>
 
         <section class="surface-card rounded-3xl p-5 sm:p-6">
@@ -398,56 +682,307 @@ defmodule OrganizerWeb.SharedFinanceLive do
             <span class="text-xs text-base-content/62">{@shared_entries_count} item(ns)</span>
           </div>
 
-          <div id="shared-entries-list" phx-update="stream" class="mt-4 space-y-2">
-            <div
-              :if={@shared_entries_count == 0}
-              id="shared-entries-empty-state"
-              class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/72"
-            >
-              Ainda não há lançamentos compartilhados neste compartilhamento.
-            </div>
+          <form id="shared-entries-filters" phx-change="filter_shared_entries" class="mt-4">
+            <.input
+              type="text"
+              name="filters[q]"
+              value={@shared_entries_filter_q}
+              placeholder="Filtrar lançamentos por descrição ou categoria..."
+              maxlength="120"
+            />
+          </form>
 
-            <div
-              :for={{id, view} <- @streams.shared_entries}
-              id={id}
-              class="shared-entry-row micro-surface flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium text-base-content/92">
-                  {view.entry.description || view.entry.category}
-                </p>
-                <p class="mt-1 break-words text-[0.72rem] font-mono text-base-content/62 sm:text-xs">
-                  {format_cents(view.entry.amount_cents)} • Você: {format_pct(view.split_ratio_mine)} ({format_cents(
-                    view.amount_mine_cents
-                  )}) • Outra conta: {format_pct(view.split_ratio_theirs)} ({format_cents(
-                    view.amount_theirs_cents
-                  )})
-                </p>
+          <div
+            id="shared-entries-scroll-area"
+            phx-hook="InfiniteScroll"
+            data-event="load_more_shared_entries"
+            data-has-more={to_string(@shared_entries_has_more?)}
+            data-loading={to_string(@shared_entries_loading_more?)}
+            data-next-page={@shared_entries_next_page}
+            class="operations-scroll-area operations-scroll-area--list mt-4 rounded-xl border border-base-content/12 bg-base-100/24 p-2.5"
+          >
+            <div id="shared-entries-list" phx-update="stream" class="space-y-2">
+              <div
+                :if={@shared_entries_count == 0}
+                id="shared-entries-empty-state"
+                class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/72"
+              >
+                Ainda não há lançamentos compartilhados neste compartilhamento.
               </div>
 
-              <div class="flex items-center gap-1.5">
-                <button
-                  :if={view.entry.user_id == @current_scope.user.id}
-                  id={"edit-shared-entry-#{view.entry.id}"}
-                  type="button"
-                  phx-click="open_shared_entry_edit"
-                  phx-value-entry_id={view.entry.id}
-                  class="btn btn-outline btn-xs shrink-0"
-                >
-                  Editar
-                </button>
-                <button
-                  id={"unshare-entry-#{view.entry.id}"}
-                  type="button"
-                  phx-click="prompt_unshare_entry"
-                  phx-value-entry_id={view.entry.id}
-                  phx-value-entry_label={view.entry.description || view.entry.category}
-                  class="btn btn-outline btn-xs btn-error shrink-0"
-                >
-                  Remover
-                </button>
+              <div
+                :for={{id, view} <- @streams.shared_entries}
+                id={id}
+                class="shared-entry-row micro-surface flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-medium text-base-content/92">
+                    {view.entry.description || view.entry.category}
+                  </p>
+                  <p class="mt-1 break-words text-[0.72rem] font-mono text-base-content/62 sm:text-xs">
+                    {format_cents(view.entry.amount_cents)} • Você: {format_pct(view.split_ratio_mine)} ({format_cents(
+                      view.amount_mine_cents
+                    )}) • Outra conta: {format_pct(view.split_ratio_theirs)} ({format_cents(
+                      view.amount_theirs_cents
+                    )})
+                  </p>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                  <button
+                    :if={view.entry.user_id == @current_scope.user.id}
+                    id={"edit-shared-entry-#{view.entry.id}"}
+                    type="button"
+                    phx-click="open_shared_entry_edit"
+                    phx-value-entry_id={view.entry.id}
+                    class="btn btn-outline btn-xs shrink-0"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    id={"unshare-entry-#{view.entry.id}"}
+                    type="button"
+                    phx-click="prompt_unshare_entry"
+                    phx-value-entry_id={view.entry.id}
+                    phx-value-entry_label={view.entry.description || view.entry.category}
+                    class="btn btn-outline btn-xs btn-error shrink-0"
+                  >
+                    Remover
+                  </button>
+                </div>
               </div>
             </div>
+
+            <div :if={@shared_entries_loading_more?} class="px-1 py-2">
+              <p class="text-center text-xs text-base-content/62">Carregando mais lançamentos...</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="shared-debt-summary" class="surface-card rounded-3xl p-5 sm:p-6">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+              Dívidas por competência (mês atual + 3)
+            </h2>
+          </div>
+
+          <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <article
+              :for={summary <- @monthly_debt_summaries}
+              class="micro-surface rounded-2xl border border-base-content/10 p-4"
+            >
+              <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
+                {String.pad_leading(to_string(summary.reference_month), 2, "0")}/{summary.reference_year}
+              </p>
+              <p class="mt-2 text-xs text-base-content/70">
+                Total: {format_cents(summary.original_amount_cents)}
+              </p>
+              <p class="mt-1 text-sm font-semibold text-warning">
+                Em aberto: {format_cents(summary.outstanding_amount_cents)}
+              </p>
+              <p class="mt-2 text-[0.7rem] text-base-content/62">
+                Status: {monthly_status_label(summary.status)}
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section id="shared-entry-debts-list" class="surface-card rounded-3xl p-5 sm:p-6">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+              Dívidas por lançamento
+            </h2>
+            <span class="text-xs text-base-content/62">{@shared_entry_debts_count} item(ns)</span>
+          </div>
+
+          <form id="shared-entry-debts-filters" phx-change="filter_shared_entry_debts" class="mt-4">
+            <.input
+              type="text"
+              name="filters[q]"
+              value={@shared_entry_debts_filter_q}
+              placeholder="Filtrar dívidas por descrição ou categoria..."
+              maxlength="120"
+            />
+          </form>
+
+          <div
+            id="shared-entry-debts-scroll-area"
+            phx-hook="InfiniteScroll"
+            data-event="load_more_shared_entry_debts"
+            data-has-more={to_string(@shared_entry_debts_has_more?)}
+            data-loading={to_string(@shared_entry_debts_loading_more?)}
+            data-next-page={@shared_entry_debts_next_page}
+            class="operations-scroll-area operations-scroll-area--list mt-4 rounded-xl border border-base-content/12 bg-base-100/24 p-2.5"
+          >
+            <div class="space-y-2">
+              <div
+                :if={@shared_entry_debts_count == 0}
+                class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/72"
+              >
+                Nenhuma dívida em aberto ou quitada para este vínculo.
+              </div>
+
+              <article
+                :for={debt <- @shared_entry_debts}
+                id={"shared-entry-debt-#{debt.id}"}
+                class="shared-entry-row micro-surface flex flex-col gap-2 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-semibold text-base-content/92">
+                    {debt.finance_entry.description || debt.finance_entry.category}
+                  </p>
+                  <p class="mt-1 text-xs text-base-content/62">
+                    Competência: {String.pad_leading(to_string(debt.reference_month), 2, "0")}/{debt.reference_year} • Total: {format_cents(
+                      debt.original_amount_cents
+                    )} • Em aberto: {format_cents(debt.outstanding_amount_cents)}
+                  </p>
+                </div>
+                <span class={debt_status_badge_class(debt.status)}>
+                  {debt_status_label(debt.status)}
+                </span>
+              </article>
+            </div>
+
+            <div :if={@shared_entry_debts_loading_more?} class="px-1 py-2">
+              <p class="text-center text-xs text-base-content/62">Carregando mais dívidas...</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="shared-payment-form-panel" class="surface-card rounded-3xl p-5 sm:p-6">
+          <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+            Registrar pagamento
+          </h2>
+          <p class="mt-2 text-sm text-base-content/70">
+            Registre um pagamento e o sistema distribui automaticamente por ordem FIFO nas dívidas abertas.
+          </p>
+
+          <.form
+            for={@payment_form}
+            id="shared-payment-form"
+            phx-submit="create_record"
+            class="mt-4 space-y-4"
+          >
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <.input
+                field={@payment_form[:amount_cents]}
+                type="text"
+                label="Valor pago"
+                placeholder="Ex: 150,00"
+                inputmode="numeric"
+              />
+
+              <.input
+                field={@payment_form[:method]}
+                type="select"
+                label="Método"
+                options={settlement_method_options()}
+              />
+
+              <.input
+                field={@payment_form[:transferred_at]}
+                type="text"
+                label="Data do pagamento"
+                placeholder="dd/mm/aaaa"
+                inputmode="numeric"
+                maxlength="10"
+                pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
+              />
+            </div>
+
+            <.button type="submit" variant="primary" class="w-full sm:w-auto">
+              Registrar pagamento
+            </.button>
+          </.form>
+        </section>
+
+        <section id="shared-payment-history" class="surface-card rounded-3xl p-5 sm:p-6">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+              Histórico de pagamentos e alocações
+            </h2>
+            <span class="text-xs text-base-content/62">{@settlement_records_count} pagamento(s)</span>
+          </div>
+
+          <form id="settlement-records-filters" phx-change="filter_settlement_records" class="mt-4">
+            <.input
+              type="text"
+              name="filters[q]"
+              value={@settlement_records_filter_q}
+              placeholder="Filtrar por método, valor ou data..."
+              maxlength="120"
+            />
+          </form>
+
+          <div
+            id="settlement-records-scroll-area"
+            phx-hook="InfiniteScroll"
+            data-event="load_more_settlement_records"
+            data-has-more={to_string(@settlement_records_has_more?)}
+            data-loading={to_string(@settlement_records_loading_more?)}
+            data-next-page={@settlement_records_next_page}
+            class="operations-scroll-area operations-scroll-area--list mt-4 rounded-xl border border-base-content/12 bg-base-100/24 p-2.5"
+          >
+            <div id="shared-settlement-records" phx-update="stream" class="space-y-2">
+              <div
+                :if={@settlement_records_count == 0}
+                id="shared-settlement-records-empty"
+                class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/72"
+              >
+                Nenhum pagamento registrado neste vínculo.
+              </div>
+
+              <article
+                :for={{id, record} <- @streams.settlement_records}
+                id={id}
+                class="micro-surface rounded-2xl p-4"
+              >
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <p class="text-sm font-semibold font-mono text-base-content">
+                    {format_cents(record.amount_cents)}
+                  </p>
+                  <p class="text-xs text-base-content/62">
+                    {format_method(record.method)} • {format_date(record.transferred_at)}
+                  </p>
+                </div>
+                <ul class="mt-2 space-y-1">
+                  <li
+                    :for={allocation <- record.allocations}
+                    class="text-xs text-base-content/70"
+                  >
+                    {format_cents(allocation.amount_cents)} abatido em {allocation.shared_entry_debt.finance_entry.description ||
+                      allocation.shared_entry_debt.finance_entry.category}
+                  </li>
+                </ul>
+              </article>
+            </div>
+
+            <div :if={@settlement_records_loading_more?} class="px-1 py-2">
+              <p class="text-center text-xs text-base-content/62">Carregando mais pagamentos...</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="shared-month-confirmation" class="surface-card rounded-3xl p-5 sm:p-6">
+          <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
+            Fechamento mensal com confirmação bilateral
+          </h2>
+          <p class="mt-2 text-sm text-base-content/70">
+            O mês só é fechado quando não há pendência e as duas contas confirmam o saldo final.
+          </p>
+
+          <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <button
+              id="shared-confirm-settlement-btn"
+              type="button"
+              phx-click="confirm_settlement"
+              class="btn btn-primary"
+            >
+              Confirmar fechamento mensal
+            </button>
+            <span class="text-xs text-base-content/62">
+              Status atual: {if @settlement_cycle.status == :settled, do: "fechado", else: "aberto"}
+            </span>
           </div>
         </section>
 
@@ -719,20 +1254,217 @@ defmodule OrganizerWeb.SharedFinanceLive do
     link_id = socket.assigns.link_id
     selected_period = socket.assigns.selected_shared_period
 
-    {:ok, views} = SharedFinance.list_shared_entries(scope, link_id, %{period: selected_period})
+    shared_entries_page =
+      Map.get(socket.assigns, :shared_entries_page, 1) |> parse_positive_page()
+
+    shared_entry_debts_page =
+      Map.get(socket.assigns, :shared_entry_debts_page, 1) |> parse_positive_page()
+
+    settlement_records_page =
+      Map.get(socket.assigns, :settlement_records_page, 1) |> parse_positive_page()
+
+    shared_entries_filter_q = Map.get(socket.assigns, :shared_entries_filter_q, "")
+    shared_entry_debts_filter_q = Map.get(socket.assigns, :shared_entry_debts_filter_q, "")
+    settlement_records_filter_q = Map.get(socket.assigns, :settlement_records_filter_q, "")
+
+    {:ok, {views, shared_entries_meta}} =
+      SharedFinance.list_shared_entries_with_meta(scope, link_id, %{
+        period: selected_period,
+        page: shared_entries_page,
+        page_size: @shared_entries_page_size,
+        q: shared_entries_filter_q
+      })
 
     {:ok, metrics} =
       SharedFinance.get_link_metrics(scope, link_id, Date.utc_today(), %{period: selected_period})
 
     {:ok, trend} = SharedFinance.get_recurring_variable_trend(scope, link_id)
+    {:ok, cycle} = SharedFinance.get_or_create_settlement_cycle(scope, link_id, Date.utc_today())
+
+    {:ok, {debts, shared_entry_debts_meta}} =
+      SharedFinance.list_shared_entry_debts_with_meta(scope, link_id, %{
+        page: shared_entry_debts_page,
+        page_size: @shared_entry_debts_page_size,
+        q: shared_entry_debts_filter_q
+      })
+
+    {:ok, {records, settlement_records_meta}} =
+      SharedFinance.list_settlement_records_with_meta(scope, cycle.id, %{
+        page: settlement_records_page,
+        page_size: @settlement_records_page_size,
+        q: settlement_records_filter_q
+      })
+
+    {:ok, monthly_debt_summaries} = SharedFinance.monthly_debt_summaries(scope, link_id)
 
     socket
     |> assign(:metrics, metrics)
     |> assign(:trend, trend)
     |> assign(:shared_balance_chart, shared_balance_chart_svg(metrics))
     |> assign(:shared_trend_chart, shared_trend_chart_svg(trend))
-    |> assign(:shared_entries_count, length(views))
+    |> assign(:shared_entries_count, shared_entries_meta.total_count || length(views))
+    |> assign(:shared_entries_meta, shared_entries_meta)
+    |> assign(:shared_entries_has_more?, Map.get(shared_entries_meta, :has_next_page?, false))
+    |> assign(:shared_entries_loading_more?, false)
+    |> assign(
+      :shared_entries_page,
+      Map.get(shared_entries_meta, :current_page, shared_entries_page)
+    )
+    |> assign(
+      :shared_entries_next_page,
+      Map.get(shared_entries_meta, :current_page, shared_entries_page) + 1
+    )
+    |> assign(:shared_entry_debts, debts)
+    |> assign(:shared_entry_debts_count, shared_entry_debts_meta.total_count || length(debts))
+    |> assign(:shared_entry_debts_meta, shared_entry_debts_meta)
+    |> assign(
+      :shared_entry_debts_has_more?,
+      Map.get(shared_entry_debts_meta, :has_next_page?, false)
+    )
+    |> assign(:shared_entry_debts_loading_more?, false)
+    |> assign(
+      :shared_entry_debts_page,
+      Map.get(shared_entry_debts_meta, :current_page, shared_entry_debts_page)
+    )
+    |> assign(
+      :shared_entry_debts_next_page,
+      Map.get(shared_entry_debts_meta, :current_page, shared_entry_debts_page) + 1
+    )
+    |> assign(:settlement_cycle, cycle)
+    |> assign(:settlement_records_count, settlement_records_meta.total_count || length(records))
+    |> assign(:settlement_records_meta, settlement_records_meta)
+    |> assign(
+      :settlement_records_has_more?,
+      Map.get(settlement_records_meta, :has_next_page?, false)
+    )
+    |> assign(:settlement_records_loading_more?, false)
+    |> assign(
+      :settlement_records_page,
+      Map.get(settlement_records_meta, :current_page, settlement_records_page)
+    )
+    |> assign(
+      :settlement_records_next_page,
+      Map.get(settlement_records_meta, :current_page, settlement_records_page) + 1
+    )
+    |> assign(:monthly_debt_summaries, monthly_debt_summaries)
     |> stream(:shared_entries, views, reset: true)
+    |> stream(:settlement_records, records, reset: true)
+  end
+
+  defp load_shared_entries(socket, page, opts) do
+    reset? = Keyword.get(opts, :reset, true)
+    scope = socket.assigns.current_scope
+    link_id = socket.assigns.link_id
+    selected_period = socket.assigns.selected_shared_period
+    filter_q = Map.get(socket.assigns, :shared_entries_filter_q, "")
+
+    case SharedFinance.list_shared_entries_with_meta(scope, link_id, %{
+           period: selected_period,
+           page: page,
+           page_size: @shared_entries_page_size,
+           q: filter_q
+         }) do
+      {:ok, {views, meta}} ->
+        current_page = Map.get(meta, :current_page, page)
+        has_more? = Map.get(meta, :has_next_page?, false)
+
+        visible_count =
+          if reset? do
+            length(views)
+          else
+            Map.get(socket.assigns, :shared_entries_count, 0) + length(views)
+          end
+
+        socket
+        |> assign(:shared_entries_meta, meta)
+        |> assign(:shared_entries_page, current_page)
+        |> assign(:shared_entries_next_page, current_page + 1)
+        |> assign(:shared_entries_has_more?, has_more?)
+        |> assign(:shared_entries_loading_more?, false)
+        |> assign(:shared_entries_count, meta.total_count || visible_count)
+        |> stream(:shared_entries, views, reset: reset?)
+
+      _ ->
+        socket
+        |> assign(:shared_entries_loading_more?, false)
+        |> put_flash(:error, "Não foi possível carregar lançamentos compartilhados.")
+    end
+  end
+
+  defp load_shared_entry_debts(socket, page, opts) do
+    reset? = Keyword.get(opts, :reset, true)
+    scope = socket.assigns.current_scope
+    link_id = socket.assigns.link_id
+    filter_q = Map.get(socket.assigns, :shared_entry_debts_filter_q, "")
+
+    case SharedFinance.list_shared_entry_debts_with_meta(scope, link_id, %{
+           page: page,
+           page_size: @shared_entry_debts_page_size,
+           q: filter_q
+         }) do
+      {:ok, {debts, meta}} ->
+        current_page = Map.get(meta, :current_page, page)
+        has_more? = Map.get(meta, :has_next_page?, false)
+
+        merged_debts =
+          if reset? do
+            debts
+          else
+            Map.get(socket.assigns, :shared_entry_debts, []) ++ debts
+          end
+
+        socket
+        |> assign(:shared_entry_debts, merged_debts)
+        |> assign(:shared_entry_debts_meta, meta)
+        |> assign(:shared_entry_debts_page, current_page)
+        |> assign(:shared_entry_debts_next_page, current_page + 1)
+        |> assign(:shared_entry_debts_has_more?, has_more?)
+        |> assign(:shared_entry_debts_loading_more?, false)
+        |> assign(:shared_entry_debts_count, meta.total_count || length(merged_debts))
+
+      _ ->
+        socket
+        |> assign(:shared_entry_debts_loading_more?, false)
+        |> put_flash(:error, "Não foi possível carregar dívidas por lançamento.")
+    end
+  end
+
+  defp load_settlement_records(socket, page, opts) do
+    reset? = Keyword.get(opts, :reset, true)
+    scope = socket.assigns.current_scope
+    cycle = socket.assigns.settlement_cycle
+    filter_q = Map.get(socket.assigns, :settlement_records_filter_q, "")
+
+    case SharedFinance.list_settlement_records_with_meta(scope, cycle.id, %{
+           page: page,
+           page_size: @settlement_records_page_size,
+           q: filter_q
+         }) do
+      {:ok, {records, meta}} ->
+        current_page = Map.get(meta, :current_page, page)
+        has_more? = Map.get(meta, :has_next_page?, false)
+
+        visible_count =
+          if reset? do
+            length(records)
+          else
+            Map.get(socket.assigns, :settlement_records_count, 0) + length(records)
+          end
+
+        socket
+        |> assign(:settlement_records_meta, meta)
+        |> assign(:settlement_records_page, current_page)
+        |> assign(:settlement_records_next_page, current_page + 1)
+        |> assign(:settlement_records_has_more?, has_more?)
+        |> assign(:settlement_records_loading_more?, false)
+        |> assign(:settlement_records_count, meta.total_count || visible_count)
+        |> stream(:settlement_records, records, reset: reset?)
+
+      _ ->
+        socket
+        |> assign(:settlement_records_loading_more?, false)
+        |> put_flash(:error, "Não foi possível carregar pagamentos.")
+    end
   end
 
   defp close_shared_entry_edit_modal(socket) do
@@ -750,6 +1482,14 @@ defmodule OrganizerWeb.SharedFinanceLive do
       |> assign(:pending_unshare_entry, nil)
       |> reload_shared_data()
     else
+      {:error, {:validation, _}} ->
+        socket
+        |> assign(:pending_unshare_entry, nil)
+        |> put_flash(
+          :error,
+          "Este lançamento já possui pagamentos alocados e não pode ser removido."
+        )
+
       _ ->
         socket
         |> assign(:pending_unshare_entry, nil)
@@ -1045,6 +1785,9 @@ defmodule OrganizerWeb.SharedFinanceLive do
       Map.has_key?(details, :occurred_on) ->
         "Informe uma data válida para atualizar o lançamento."
 
+      Map.has_key?(details, :shared_entry) ->
+        "Este lançamento já possui pagamento alocado e não pode ser editado."
+
       true ->
         "Verifique os campos da edição antes de salvar."
     end
@@ -1061,6 +1804,16 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
   defp format_amount_input(_cents), do: ""
 
+  defp payment_form(params \\ %{}) do
+    defaults = %{
+      "amount_cents" => "",
+      "method" => "pix",
+      "transferred_at" => DateSupport.format_pt_br(Date.utc_today())
+    }
+
+    to_form(Map.merge(defaults, params), as: :payment)
+  end
+
   defp parse_int(value) when is_integer(value), do: {:ok, value}
 
   defp parse_int(value) when is_binary(value) do
@@ -1072,6 +1825,65 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
   defp parse_int(_), do: :error
 
+  defp parse_positive_page(value) when is_integer(value) and value > 0, do: value
+
+  defp parse_positive_page(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {page, ""} when page > 0 -> page
+      _ -> 1
+    end
+  end
+
+  defp parse_positive_page(_value), do: 1
+
+  defp parse_amount_cents(nil), do: {:error, :invalid_amount}
+  defp parse_amount_cents(""), do: {:error, :invalid_amount}
+
+  defp parse_amount_cents(value) when is_binary(value) do
+    case AmountParser.parse(String.trim(value)) do
+      {:ok, cents} when cents > 0 -> {:ok, cents}
+      _ -> {:error, :invalid_amount}
+    end
+  end
+
+  defp parse_amount_cents(value) when is_integer(value) and value > 0, do: {:ok, value}
+  defp parse_amount_cents(_value), do: {:error, :invalid_amount}
+
+  defp parse_method(nil), do: {:ok, :pix}
+  defp parse_method(""), do: {:ok, :pix}
+
+  defp parse_method(value) when is_binary(value) do
+    case Enum.find(SettlementRecord.methods(), &(to_string(&1) == value)) do
+      nil -> {:error, :invalid_method}
+      method -> {:ok, method}
+    end
+  end
+
+  defp parse_method(value) when is_atom(value) do
+    if value in SettlementRecord.methods() do
+      {:ok, value}
+    else
+      {:error, :invalid_method}
+    end
+  end
+
+  defp parse_method(_value), do: {:error, :invalid_method}
+
+  defp parse_transferred_at(nil), do: {:ok, DateTime.utc_now() |> DateTime.truncate(:second)}
+  defp parse_transferred_at(""), do: {:ok, DateTime.utc_now() |> DateTime.truncate(:second)}
+
+  defp parse_transferred_at(value) when is_binary(value) do
+    with {:ok, date} <- DateSupport.parse_date(value),
+         {:ok, datetime} <- DateTime.new(date, ~T[00:00:00], "Etc/UTC") do
+      {:ok, datetime}
+    else
+      _ -> {:error, :invalid_date}
+    end
+  end
+
+  defp parse_transferred_at(%DateTime{} = value), do: {:ok, value}
+  defp parse_transferred_at(_value), do: {:error, :invalid_date}
+
   defp format_cents(cents) when is_integer(cents) do
     abs_cents = abs(cents)
     integer_part = abs_cents |> div(100) |> Integer.to_string() |> add_thousands_separator()
@@ -1082,6 +1894,43 @@ defmodule OrganizerWeb.SharedFinanceLive do
   end
 
   defp format_cents(_), do: "R$ 0,00"
+
+  defp settlement_method_options do
+    SettlementRecord.method_options()
+  end
+
+  defp format_method(method) when is_atom(method), do: SettlementRecord.method_label(method)
+  defp format_method(_), do: "—"
+
+  defp format_date(%DateTime{} = dt) do
+    day = dt.day |> Integer.to_string() |> String.pad_leading(2, "0")
+    month = dt.month |> Integer.to_string() |> String.pad_leading(2, "0")
+    "#{day}/#{month}/#{dt.year}"
+  end
+
+  defp format_date(_), do: "—"
+
+  defp monthly_status_label(:open), do: "em aberto"
+  defp monthly_status_label(:partial), do: "parcial"
+  defp monthly_status_label(:settled), do: "quitado"
+  defp monthly_status_label(_), do: "indefinido"
+
+  defp debt_status_label(:open), do: "Em aberto"
+  defp debt_status_label(:partial), do: "Parcial"
+  defp debt_status_label(:settled), do: "Quitado"
+  defp debt_status_label(_), do: "Indefinido"
+
+  defp debt_status_badge_class(:open),
+    do: "badge badge-sm border-warning/40 bg-warning/15 text-warning-content"
+
+  defp debt_status_badge_class(:partial),
+    do: "badge badge-sm border-info/45 bg-info/15 text-info-content"
+
+  defp debt_status_badge_class(:settled),
+    do: "badge badge-sm border-success/45 bg-success/15 text-success-content"
+
+  defp debt_status_badge_class(_),
+    do: "badge badge-sm border-base-content/30 bg-base-200 text-base-content/80"
 
   defp format_pct(ratio) when is_number(ratio) do
     "#{format_decimal_ptbr(ratio * 100, 1)}%"
@@ -1172,6 +2021,28 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
   defp money_axis_formatter(_), do: "R$ 0,00"
 
+  defp shared_finance_path(socket, overrides) do
+    params =
+      socket
+      |> current_shared_finance_params()
+      |> Map.merge(overrides)
+
+    ~p"/account-links/#{socket.assigns.link_id}?#{params}"
+  end
+
+  defp current_shared_finance_params(socket) do
+    %{"period" => socket.assigns.selected_shared_period}
+    |> maybe_put_non_blank_param("shared_entries_q", socket.assigns.shared_entries_filter_q)
+    |> maybe_put_non_blank_param(
+      "shared_entry_debts_q",
+      socket.assigns.shared_entry_debts_filter_q
+    )
+    |> maybe_put_non_blank_param(
+      "settlement_records_q",
+      socket.assigns.settlement_records_filter_q
+    )
+  end
+
   @spec normalize_shared_period_filter(map()) :: String.t()
   defp normalize_shared_period_filter(params) do
     case Map.get(params, "period") do
@@ -1180,6 +2051,12 @@ defmodule OrganizerWeb.SharedFinanceLive do
       _ -> "all"
     end
   end
+
+  defp normalize_list_filter_q(value) when is_binary(value), do: String.trim(value)
+  defp normalize_list_filter_q(_value), do: ""
+
+  defp maybe_put_non_blank_param(params, _key, value) when value in [nil, ""], do: params
+  defp maybe_put_non_blank_param(params, key, value), do: Map.put(params, key, value)
 
   defp shared_split_type_options do
     [

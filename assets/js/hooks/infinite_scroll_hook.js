@@ -43,6 +43,14 @@ const InfiniteScrollHook = {
       this.pending = true
       const payload = {}
 
+      const nextPageRaw = this.el.dataset.nextPage
+      const nextPage =
+        typeof nextPageRaw === "string" && nextPageRaw.length > 0 ? Number.parseInt(nextPageRaw, 10) : NaN
+
+      if (Number.isFinite(nextPage) && nextPage > 0) {
+        payload.page = nextPage
+      }
+
       if (typeof this.el.dataset.status === "string" && this.el.dataset.status.length > 0) {
         payload.status = this.el.dataset.status
       }

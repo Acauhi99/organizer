@@ -35,7 +35,6 @@ defmodule OrganizerWeb.Router do
       live "/account-links", AccountLinkLive, :index
       live "/account-links/invite", AccountLinkLive, :new_invite
       live "/account-links/:link_id", SharedFinanceLive, :show
-      live "/account-links/:link_id/settlement", SettlementLive, :show
     end
   end
 
@@ -74,11 +73,25 @@ defmodule OrganizerWeb.Router do
     # you can use Plug.BasicAuth to set up some basic authentication
     # as long as you are also using SSL (which you should anyway).
     import Phoenix.LiveDashboard.Router
+    import PhoenixStorybook.Router
 
     scope "/dev" do
       pipe_through :browser
 
       live_dashboard "/finances", metrics: OrganizerWeb.Telemetry
+    end
+
+    scope "/" do
+      storybook_assets("/dev/storybook/assets")
+    end
+
+    scope "/", OrganizerWeb do
+      pipe_through :browser
+
+      live_storybook("/dev/storybook",
+        backend_module: OrganizerWeb.Storybook,
+        assets_path: "/dev/storybook/assets"
+      )
     end
   end
 

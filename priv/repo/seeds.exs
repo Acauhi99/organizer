@@ -253,21 +253,17 @@ create_important_date!.(carla, %{
 
 cycle =
   create_settlement_cycle!.(link_ana_bruno, %{
-    period_label: "#{today.month}/#{today.year}",
-    expected_mine_cents: 24_000,
-    expected_theirs_cents: 26_600,
-    paid_mine_cents: 32_000,
-    paid_theirs_cents: 18_600,
-    net_cents: -8_000,
+    reference_month: today.month,
+    reference_year: today.year,
+    balance_cents: 8_000,
     debtor_id: ana.id,
     status: :open
   })
 
 create_settlement_record!.(cycle, ana, bruno, %{
   amount_cents: 8_000,
-  occurred_on: today,
-  status: :pending,
-  note: "Acerto parcial do mês"
+  method: :pix,
+  transferred_at: DateTime.utc_now() |> DateTime.truncate(:second)
 })
 
 finances_count =

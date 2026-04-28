@@ -5,6 +5,7 @@ Aplicação de organização pessoal construída com **Elixir + Phoenix 1.8 + Li
 ## Objetivo
 
 Centralizar finanças e compartilhamentos em fluxos operacionais rápidos (`/finances` e `/account-links`), com análise contínua e colaboração entre contas por convite.
+O acerto colaborativo foi consolidado na tela unificada de vínculo (`/account-links/:link_id`).
 
 ## Stack
 
@@ -13,6 +14,8 @@ Centralizar finanças e compartilhamentos em fluxos operacionais rápidos (`/fin
 - Phoenix LiveView `~> 1.1`
 - Ecto + SQLite (`ecto_sqlite3`)
 - Tailwind CSS v4 + daisyUI vendorizado (tema custom)
+- Flop + Flop.Phoenix para paginação/filtros
+- Phoenix Storybook (ambiente dev/test)
 - Req para integração HTTP
 
 ## Início rápido

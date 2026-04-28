@@ -115,43 +115,44 @@ defmodule OrganizerWeb.DashboardLive do
     finance_filters =
       socket.assigns.finance_filters
       |> Map.merge(Filters.normalize_finance_filters(filters))
+      |> Map.put(:page, 1)
       |> Filters.sanitize_finance_filters()
 
     {:noreply,
      socket
      |> assign(:finance_filters, finance_filters)
+     |> assign(:finance_loading_more?, false)
      |> load_operation_collections()}
   end
 
   @impl true
-  def handle_event("load_more_finances", _params, socket) do
+  def handle_event("load_more_finances", params, socket) do
     cond do
-      not Map.get(socket.assigns, :finance_has_more?, false) ->
+      socket.assigns.finance_loading_more? ->
+        {:noreply, socket}
+
+      not socket.assigns.finance_has_more? ->
         {:noreply, socket}
 
       true ->
-        offset = Map.get(socket.assigns, :finance_visible_count, 0)
+        current_page = Map.get(socket.assigns.finance_filters, :page, 1)
 
-        paged_filters =
+        page_number =
+          case Integer.parse(to_string(Map.get(params, "page", current_page + 1))) do
+            {value, ""} when value > 0 -> value
+            _ -> current_page + 1
+          end
+
+        finance_filters =
           socket.assigns.finance_filters
-          |> Map.put(:offset, offset)
-          |> Map.put(:limit, @finance_page_size)
+          |> Map.put(:page, page_number)
+          |> Filters.sanitize_finance_filters()
 
-        case Planning.list_finance_entries(socket.assigns.current_scope, paged_filters) do
-          {:ok, next_finances} ->
-            loaded_count = offset + length(next_finances)
-            total_count = get_in(socket.assigns, [:ops_counts, :finances_total]) || 0
-
-            {:noreply,
-             socket
-             |> stream(:finances, next_finances)
-             |> assign(:finance_visible_count, loaded_count)
-             |> assign(:finance_has_more?, loaded_count < total_count)
-             |> assign(:finance_loading_more?, false)}
-
-          _ ->
-            {:noreply, assign(socket, :finance_loading_more?, false)}
-        end
+        {:noreply,
+         socket
+         |> assign(:finance_filters, finance_filters)
+         |> assign(:finance_loading_more?, true)
+         |> load_operation_collections(reset: false)}
     end
   end
 
@@ -390,9 +391,26 @@ defmodule OrganizerWeb.DashboardLive do
     |> refresh_dashboard_insights()
   end
 
-  defp load_operation_collections(socket) do
-    {:ok, finances} =
-      Planning.list_finance_entries(socket.assigns.current_scope, socket.assigns.finance_filters)
+  defp load_operation_collections(socket, opts \\ []) do
+    reset? = Keyword.get(opts, :reset, true)
+
+    finance_filters =
+      socket.assigns.finance_filters
+      |> Map.put(:page_size, @finance_page_size)
+      |> Filters.sanitize_finance_filters()
+
+    {:ok, {finances, finance_meta}} =
+      Planning.list_finance_entries_with_meta(socket.assigns.current_scope, finance_filters)
+
+    finance_filters_without_pagination =
+      finance_filters
+      |> Map.drop([:page, :page_size, :limit, :offset, :first, :last, :before, :after])
+
+    {:ok, finances_for_stats} =
+      Planning.list_finance_entries(
+        socket.assigns.current_scope,
+        finance_filters_without_pagination
+      )
 
     finance_category_suggestions =
       case Planning.list_finance_category_suggestions(socket.assigns.current_scope) do
@@ -400,18 +418,29 @@ defmodule OrganizerWeb.DashboardLive do
         _ -> %{income: [], expense: [], all: []}
       end
 
-    finance_income = Enum.filter(finances, &(&1.kind == :income))
-    finance_expenses = Enum.filter(finances, &(&1.kind == :expense))
-    visible_finances = Enum.take(finances, @finance_page_size)
-    finance_total = length(finances)
-    shared_finances_total = Enum.count(finances, &is_integer(&1.shared_with_link_id))
+    finance_income = Enum.filter(finances_for_stats, &(&1.kind == :income))
+    finance_expenses = Enum.filter(finances_for_stats, &(&1.kind == :expense))
+    finance_total = finance_meta.total_count || length(finances_for_stats)
+    shared_finances_total = Enum.count(finances_for_stats, &is_integer(&1.shared_with_link_id))
     shared_links_active = length(socket.assigns.account_links)
 
+    current_page = Map.get(finance_meta, :current_page, Map.get(finance_filters, :page, 1))
+
+    visible_count =
+      if reset? do
+        length(finances)
+      else
+        Map.get(socket.assigns, :finance_visible_count, 0) + length(finances)
+      end
+
     socket
-    |> stream(:finances, visible_finances, reset: true)
+    |> assign(:finance_filters, Map.put(finance_filters, :page, current_page))
+    |> assign(:finance_meta, finance_meta)
+    |> assign(:finance_next_page, current_page + 1)
+    |> stream(:finances, finances, reset: reset?)
     |> assign(:finance_category_suggestions, finance_category_suggestions)
-    |> assign(:finance_visible_count, length(visible_finances))
-    |> assign(:finance_has_more?, finance_total > length(visible_finances))
+    |> assign(:finance_visible_count, visible_count)
+    |> assign(:finance_has_more?, Map.get(finance_meta, :has_next_page?, false))
     |> assign(:finance_loading_more?, false)
     |> assign(:ops_counts, %{
       finances_total: finance_total,
@@ -903,6 +932,7 @@ defmodule OrganizerWeb.DashboardLive do
         <FinanceOperationsPanel.finance_operations_panel
           streams={@streams}
           finance_filters={@finance_filters}
+          finance_meta={@finance_meta}
           category_suggestions={@finance_category_suggestions}
           editing_finance_id={@editing_finance_id}
           finance_edit_modal_entry={@finance_edit_modal_entry}
@@ -911,6 +941,7 @@ defmodule OrganizerWeb.DashboardLive do
           finance_visible_count={@finance_visible_count}
           finance_has_more?={@finance_has_more?}
           finance_loading_more?={@finance_loading_more?}
+          finance_next_page={@finance_next_page}
         />
 
         <FinanceMetricsPanel.finance_metrics_panel

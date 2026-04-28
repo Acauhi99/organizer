@@ -1,11 +1,14 @@
 defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   use Phoenix.Component
 
-  import OrganizerWeb.CoreComponents, only: [app_modal: 1, destructive_confirm_modal: 1, icon: 1]
+  import OrganizerWeb.CoreComponents,
+    only: [app_modal: 1, destructive_confirm_modal: 1, icon: 1]
+
   import OrganizerWeb.DashboardLive.Formatters
 
   attr :streams, :map, required: true
   attr :finance_filters, :map, required: true
+  attr :finance_meta, :any, default: nil
   attr :category_suggestions, :map, default: %{}
   attr :editing_finance_id, :any, default: nil
   attr :finance_edit_modal_entry, :any, default: nil
@@ -14,6 +17,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   attr :finance_visible_count, :integer, default: 0
   attr :finance_has_more?, :boolean, default: false
   attr :finance_loading_more?, :boolean, default: false
+  attr :finance_next_page, :integer, default: 2
 
   def finance_operations_panel(assigns) do
     assigns =
@@ -288,9 +292,6 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
         <p id="finance-visible-counter" class="text-[11px] font-medium text-base-content/68">
           Exibindo {@finance_visible_count} de {Map.get(@ops_counts, :finances_total, 0)} lançamentos
         </p>
-        <p :if={@finance_has_more?} class="text-[11px] text-base-content/58">
-          Role para carregar mais
-        </p>
       </div>
 
       <div
@@ -299,7 +300,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
         data-event="load_more_finances"
         data-has-more={to_string(@finance_has_more?)}
         data-loading={to_string(@finance_loading_more?)}
-        data-threshold-px="120"
+        data-next-page={@finance_next_page}
         class="operations-scroll-area operations-scroll-area--list mt-2 rounded-xl border border-base-content/12 bg-base-100/28 p-2.5"
       >
         <div id="finances" phx-update="stream" class="space-y-2">

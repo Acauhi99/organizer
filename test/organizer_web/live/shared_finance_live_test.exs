@@ -228,6 +228,31 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       |> element("#shared-period-filter-current-month")
       |> render_click()
 
+      patched_path = assert_patch(view)
+      assert String.starts_with?(patched_path, ~p"/account-links/#{link.id}")
+
+      params =
+        patched_path
+        |> URI.parse()
+        |> Map.get(:query, "")
+        |> Plug.Conn.Query.decode()
+
+      assert params == %{"period" => "current_month"}
+
+      assert has_element?(view, "#shared-period-filter-current-month.btn-primary")
+      assert has_element?(view, "#unshare-entry-#{current_entry.id}")
+      refute has_element?(view, "#unshare-entry-#{old_entry.id}")
+    end
+
+    test "reads selected period from query params", %{conn: conn, scope_a: scope_a, link: link} do
+      current_date = Date.utc_today()
+      old_date = Date.add(current_date, -120)
+
+      current_entry = create_shared_entry_on(scope_a, link.id, current_date, 12_000)
+      old_entry = create_shared_entry_on(scope_a, link.id, old_date, 7_000)
+
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}?period=current_month")
+
       assert has_element?(view, "#shared-period-filter-current-month.btn-primary")
       assert has_element?(view, "#unshare-entry-#{current_entry.id}")
       refute has_element?(view, "#unshare-entry-#{old_entry.id}")
@@ -282,17 +307,6 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       :timer.sleep(50)
 
       refute has_element?(view, "#unshare-entry-#{entry.id}")
-    end
-  end
-
-  describe "imbalance indicator" do
-    test "imbalance indicator is hidden when totals are zero", %{conn: conn} do
-      %{user_a: user_a, link: link} = setup_linked_users()
-      conn = log_in_user(conn, user_a)
-
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
-
-      refute has_element?(view, "#imbalance-indicator")
     end
   end
 

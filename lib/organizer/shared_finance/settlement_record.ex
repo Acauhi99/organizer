@@ -28,6 +28,18 @@ defmodule Organizer.SharedFinance.SettlementRecord do
     outro: "Outro"
   }
 
+  @derive {
+    Flop.Schema,
+    filterable: [:method, :amount_cents, :transferred_at, :inserted_at],
+    sortable: [:transferred_at, :amount_cents, :inserted_at],
+    default_order: %{
+      order_by: [:transferred_at, :inserted_at],
+      order_directions: [:desc, :desc]
+    },
+    default_limit: 20,
+    max_limit: 100
+  }
+
   schema "settlement_records" do
     field :amount_cents, :integer
     field :method, Ecto.Enum, values: @methods
@@ -35,6 +47,7 @@ defmodule Organizer.SharedFinance.SettlementRecord do
     belongs_to :settlement_cycle, Organizer.SharedFinance.SettlementCycle
     belongs_to :payer, Organizer.Accounts.User
     belongs_to :receiver, Organizer.Accounts.User
+    has_many :allocations, Organizer.SharedFinance.SettlementRecordAllocation
 
     timestamps(type: :utc_datetime)
   end

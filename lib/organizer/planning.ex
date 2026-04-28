@@ -17,56 +17,9 @@ defmodule Organizer.Planning do
   alias Organizer.SharedFinance.AccountLink
 
   def list_finance_entries(%Scope{} = scope, params \\ %{}) do
-    with {:ok, user_id} <- scope_user_id(scope) do
-      days =
-        parse_positive_integer_or_default(Map.get(params, "days") || Map.get(params, :days), 30)
-
-      kind_filter = Map.get(params, "kind") || Map.get(params, :kind)
-
-      expense_profile_filter =
-        Map.get(params, "expense_profile") || Map.get(params, :expense_profile)
-
-      payment_method_filter =
-        Map.get(params, "payment_method") || Map.get(params, :payment_method)
-
-      period_mode =
-        parse_finance_period_mode(Map.get(params, "period_mode") || Map.get(params, :period_mode))
-
-      month_filter = Map.get(params, "month") || Map.get(params, :month)
-
-      specific_date_filter =
-        parse_optional_date_filter(
-          Map.get(params, "occurred_on") || Map.get(params, :occurred_on)
-        )
-
-      from_date_filter =
-        parse_optional_date_filter(
-          Map.get(params, "occurred_from") || Map.get(params, :occurred_from)
-        )
-
-      to_date_filter =
-        parse_optional_date_filter(
-          Map.get(params, "occurred_to") || Map.get(params, :occurred_to)
-        )
-
-      weekday_filter =
-        parse_weekday_filter(Map.get(params, "weekday") || Map.get(params, :weekday))
-
-      category_filter = Map.get(params, "category") || Map.get(params, :category) || ""
-      query_text = Map.get(params, "q") || Map.get(params, :q) || ""
+    with {:ok, user_id} <- scope_user_id(scope),
+         {:ok, query} <- finance_entries_filtered_query(user_id, params) do
       sort_by = parse_finance_sort_by(Map.get(params, "sort_by") || Map.get(params, :sort_by))
-
-      min_amount_cents =
-        parse_non_negative_integer_or_default(
-          Map.get(params, "min_amount_cents") || Map.get(params, :min_amount_cents),
-          0
-        )
-
-      max_amount_cents =
-        parse_non_negative_integer_or_default(
-          Map.get(params, "max_amount_cents") || Map.get(params, :max_amount_cents),
-          nil
-        )
 
       pagination_limit =
         parse_positive_integer_or_default(
@@ -80,95 +33,160 @@ defmodule Organizer.Planning do
           0
         )
 
-      with {:ok, kind_filter} <-
-             parse_enum_filter_value(kind_filter, FinanceEntry.kinds(), :kind),
-           {:ok, expense_profile_filter} <-
-             parse_enum_filter_value(
-               expense_profile_filter,
-               FinanceEntry.expense_profiles(),
-               :expense_profile
-             ),
-           {:ok, payment_method_filter} <-
-             parse_enum_filter_value(
-               payment_method_filter,
-               FinanceEntry.payment_methods(),
-               :payment_method
-             ) do
-        query =
-          from f in FinanceEntry,
-            where: f.user_id == ^user_id
+      query =
+        query
+        |> apply_finance_sorting(sort_by)
+        |> maybe_paginate_finance_query(pagination_limit, pagination_offset)
 
-        query =
-          apply_finance_period_filter(
-            query,
-            period_mode,
-            days,
-            month_filter,
-            specific_date_filter,
-            from_date_filter,
-            to_date_filter,
-            weekday_filter
-          )
+      {:ok, Repo.all(query)}
+    end
+  end
 
-        query =
-          if is_atom(kind_filter) and not is_nil(kind_filter) do
-            from f in query, where: f.kind == ^kind_filter
-          else
-            query
-          end
+  def list_finance_entries_with_meta(%Scope{} = scope, params \\ %{}) do
+    with {:ok, user_id} <- scope_user_id(scope) do
+      flop_params = finance_flop_params(params)
 
-        query =
-          if is_atom(expense_profile_filter) and not is_nil(expense_profile_filter) do
-            from f in query, where: f.expense_profile == ^expense_profile_filter
-          else
-            query
-          end
+      with {:ok, query} <- finance_entries_filtered_query(user_id, params) do
+        case Flop.validate_and_run(query, flop_params, for: FinanceEntry, repo: Repo) do
+          {:ok, {entries, meta}} ->
+            {:ok, {entries, meta}}
 
-        query =
-          if is_atom(payment_method_filter) and not is_nil(payment_method_filter) do
-            from f in query, where: f.payment_method == ^payment_method_filter
-          else
-            query
-          end
-
-        query =
-          if is_binary(category_filter) and String.trim(category_filter) != "" do
-            search_pattern = "%#{String.trim(category_filter)}%"
-            from f in query, where: ilike(f.category, ^search_pattern)
-          else
-            query
-          end
-
-        safe_query = sanitize_filter_query(query_text)
-
-        query =
-          if safe_query != "" do
-            search_pattern = "%#{safe_query}%"
-
-            from f in query,
-              where: ilike(f.description, ^search_pattern) or ilike(f.category, ^search_pattern)
-          else
-            query
-          end
-
-        query =
-          from f in query,
-            where: f.amount_cents >= ^min_amount_cents
-
-        query =
-          if is_integer(max_amount_cents) and max_amount_cents >= 0 do
-            from f in query, where: f.amount_cents <= ^max_amount_cents
-          else
-            query
-          end
-
-        query =
-          query
-          |> apply_finance_sorting(sort_by)
-          |> maybe_paginate_finance_query(pagination_limit, pagination_offset)
-
-        {:ok, Repo.all(query)}
+          {:error, %Flop.Meta{} = meta} ->
+            {:error, {:validation, %{pagination: flop_meta_error_messages(meta)}}}
+        end
       end
+    end
+  end
+
+  defp finance_entries_filtered_query(user_id, params) do
+    days =
+      parse_positive_integer_or_default(Map.get(params, "days") || Map.get(params, :days), 30)
+
+    kind_filter = Map.get(params, "kind") || Map.get(params, :kind)
+
+    expense_profile_filter =
+      Map.get(params, "expense_profile") || Map.get(params, :expense_profile)
+
+    payment_method_filter =
+      Map.get(params, "payment_method") || Map.get(params, :payment_method)
+
+    period_mode =
+      parse_finance_period_mode(Map.get(params, "period_mode") || Map.get(params, :period_mode))
+
+    month_filter = Map.get(params, "month") || Map.get(params, :month)
+
+    specific_date_filter =
+      parse_optional_date_filter(Map.get(params, "occurred_on") || Map.get(params, :occurred_on))
+
+    from_date_filter =
+      parse_optional_date_filter(
+        Map.get(params, "occurred_from") || Map.get(params, :occurred_from)
+      )
+
+    to_date_filter =
+      parse_optional_date_filter(Map.get(params, "occurred_to") || Map.get(params, :occurred_to))
+
+    weekday_filter =
+      parse_weekday_filter(Map.get(params, "weekday") || Map.get(params, :weekday))
+
+    category_filter = Map.get(params, "category") || Map.get(params, :category) || ""
+    query_text = Map.get(params, "q") || Map.get(params, :q) || ""
+
+    min_amount_cents =
+      parse_non_negative_integer_or_default(
+        Map.get(params, "min_amount_cents") || Map.get(params, :min_amount_cents),
+        0
+      )
+
+    max_amount_cents =
+      parse_non_negative_integer_or_default(
+        Map.get(params, "max_amount_cents") || Map.get(params, :max_amount_cents),
+        nil
+      )
+
+    with {:ok, kind_filter} <-
+           parse_enum_filter_value(kind_filter, FinanceEntry.kinds(), :kind),
+         {:ok, expense_profile_filter} <-
+           parse_enum_filter_value(
+             expense_profile_filter,
+             FinanceEntry.expense_profiles(),
+             :expense_profile
+           ),
+         {:ok, payment_method_filter} <-
+           parse_enum_filter_value(
+             payment_method_filter,
+             FinanceEntry.payment_methods(),
+             :payment_method
+           ) do
+      query =
+        from f in FinanceEntry,
+          where: f.user_id == ^user_id
+
+      query =
+        apply_finance_period_filter(
+          query,
+          period_mode,
+          days,
+          month_filter,
+          specific_date_filter,
+          from_date_filter,
+          to_date_filter,
+          weekday_filter
+        )
+
+      query =
+        if is_atom(kind_filter) and not is_nil(kind_filter) do
+          from f in query, where: f.kind == ^kind_filter
+        else
+          query
+        end
+
+      query =
+        if is_atom(expense_profile_filter) and not is_nil(expense_profile_filter) do
+          from f in query, where: f.expense_profile == ^expense_profile_filter
+        else
+          query
+        end
+
+      query =
+        if is_atom(payment_method_filter) and not is_nil(payment_method_filter) do
+          from f in query, where: f.payment_method == ^payment_method_filter
+        else
+          query
+        end
+
+      query =
+        if is_binary(category_filter) and String.trim(category_filter) != "" do
+          search_pattern = "%#{String.trim(category_filter)}%"
+          from f in query, where: ilike(f.category, ^search_pattern)
+        else
+          query
+        end
+
+      safe_query = sanitize_filter_query(query_text)
+
+      query =
+        if safe_query != "" do
+          search_pattern = "%#{safe_query}%"
+
+          from f in query,
+            where: ilike(f.description, ^search_pattern) or ilike(f.category, ^search_pattern)
+        else
+          query
+        end
+
+      query =
+        from f in query,
+          where: f.amount_cents >= ^min_amount_cents
+
+      query =
+        if is_integer(max_amount_cents) and max_amount_cents >= 0 do
+          from f in query, where: f.amount_cents <= ^max_amount_cents
+        else
+          query
+        end
+
+      {:ok, query}
     end
   end
 
@@ -238,13 +256,22 @@ defmodule Organizer.Planning do
     result =
       with {:ok, user_id} <- scope_user_id(scope),
            %FinanceEntry{} = entry <- Repo.get_by(FinanceEntry, id: id, user_id: user_id),
+           false <-
+             is_integer(entry.shared_with_link_id) and
+               SharedFinance.shared_entry_allocation_locked?(entry.id),
            {:ok, normalized} <- AttributeValidation.validate_finance_entry_attrs(attrs) do
         entry
         |> FinanceEntry.changeset(normalized)
         |> persist_changeset()
       else
-        nil -> {:error, :not_found}
-        {:error, _reason} = error -> error
+        nil ->
+          {:error, :not_found}
+
+        true ->
+          {:error, {:validation, %{shared_entry: ["cannot be changed after payment allocation"]}}}
+
+        {:error, _reason} = error ->
+          error
       end
 
     with {:ok, _entry} <- result do
@@ -299,6 +326,33 @@ defmodule Organizer.Planning do
     end
   end
 
+  def list_important_dates_with_meta(%Scope{} = scope, params \\ %{}) do
+    with {:ok, user_id} <- scope_user_id(scope) do
+      days =
+        parse_positive_integer_or_default(
+          Map.get(params, "days") || Map.get(params, :days),
+          30
+        )
+
+      end_on = Date.add(Date.utc_today(), days)
+
+      query =
+        from d in ImportantDate,
+          where: d.user_id == ^user_id and d.date <= ^end_on
+
+      case Flop.validate_and_run(query, planning_flop_params(params),
+             for: ImportantDate,
+             repo: Repo
+           ) do
+        {:ok, {dates, meta}} ->
+          {:ok, {dates, meta}}
+
+        {:error, %Flop.Meta{} = meta} ->
+          {:error, {:validation, %{pagination: flop_meta_error_messages(meta)}}}
+      end
+    end
+  end
+
   def create_important_date(%Scope{} = scope, attrs) when is_map(attrs) do
     with {:ok, user_id} <- scope_user_id(scope),
          {:ok, normalized} <- AttributeValidation.validate_important_date_attrs(attrs) do
@@ -346,6 +400,20 @@ defmodule Organizer.Planning do
     with {:ok, user_id} <- scope_user_id(scope) do
       query = from c in FixedCost, where: c.user_id == ^user_id, order_by: [asc: c.billing_day]
       {:ok, Repo.all(query)}
+    end
+  end
+
+  def list_fixed_costs_with_meta(%Scope{} = scope, params \\ %{}) do
+    with {:ok, user_id} <- scope_user_id(scope) do
+      query = from c in FixedCost, where: c.user_id == ^user_id
+
+      case Flop.validate_and_run(query, planning_flop_params(params), for: FixedCost, repo: Repo) do
+        {:ok, {costs, meta}} ->
+          {:ok, {costs, meta}}
+
+        {:error, %Flop.Meta{} = meta} ->
+          {:error, {:validation, %{pagination: flop_meta_error_messages(meta)}}}
+      end
     end
   end
 
@@ -611,6 +679,115 @@ defmodule Organizer.Planning do
   defp maybe_paginate_finance_query(query, limit, offset)
        when is_integer(limit) and is_integer(offset) do
     from f in query, limit: ^limit, offset: ^offset
+  end
+
+  defp planning_flop_params(params) when is_map(params) do
+    params
+    |> Map.take([
+      "page",
+      :page,
+      "page_size",
+      :page_size,
+      "limit",
+      :limit,
+      "offset",
+      :offset,
+      "order_by",
+      :order_by,
+      "order_directions",
+      :order_directions,
+      "first",
+      :first,
+      "last",
+      :last,
+      "before",
+      :before,
+      "after",
+      :after,
+      "filters",
+      :filters
+    ])
+    |> Enum.reduce(%{}, fn
+      {"page", value}, acc -> Map.put(acc, :page, value)
+      {:page, value}, acc -> Map.put(acc, :page, value)
+      {"page_size", value}, acc -> Map.put(acc, :page_size, value)
+      {:page_size, value}, acc -> Map.put(acc, :page_size, value)
+      {"limit", value}, acc -> Map.put(acc, :limit, value)
+      {:limit, value}, acc -> Map.put(acc, :limit, value)
+      {"offset", value}, acc -> Map.put(acc, :offset, value)
+      {:offset, value}, acc -> Map.put(acc, :offset, value)
+      {"order_by", value}, acc -> Map.put(acc, :order_by, value)
+      {:order_by, value}, acc -> Map.put(acc, :order_by, value)
+      {"order_directions", value}, acc -> Map.put(acc, :order_directions, value)
+      {:order_directions, value}, acc -> Map.put(acc, :order_directions, value)
+      {"first", value}, acc -> Map.put(acc, :first, value)
+      {:first, value}, acc -> Map.put(acc, :first, value)
+      {"last", value}, acc -> Map.put(acc, :last, value)
+      {:last, value}, acc -> Map.put(acc, :last, value)
+      {"before", value}, acc -> Map.put(acc, :before, value)
+      {:before, value}, acc -> Map.put(acc, :before, value)
+      {"after", value}, acc -> Map.put(acc, :after, value)
+      {:after, value}, acc -> Map.put(acc, :after, value)
+      {"filters", value}, acc -> Map.put(acc, :filters, value)
+      {:filters, value}, acc -> Map.put(acc, :filters, value)
+      _, acc -> acc
+    end)
+  end
+
+  defp planning_flop_params(_params), do: %{}
+
+  defp finance_flop_params(params) do
+    params
+    |> planning_flop_params()
+    |> maybe_apply_legacy_finance_sort(params)
+  end
+
+  defp maybe_apply_legacy_finance_sort(%{order_by: _} = flop_params, _params), do: flop_params
+
+  defp maybe_apply_legacy_finance_sort(flop_params, params) do
+    sort_by = parse_finance_sort_by(Map.get(params, "sort_by") || Map.get(params, :sort_by))
+
+    case sort_by do
+      :date_asc ->
+        flop_params
+        |> Map.put(:order_by, [:occurred_on, :inserted_at])
+        |> Map.put(:order_directions, [:asc, :asc])
+
+      :amount_desc ->
+        flop_params
+        |> Map.put(:order_by, [:amount_cents, :occurred_on, :inserted_at])
+        |> Map.put(:order_directions, [:desc, :desc, :desc])
+
+      :amount_asc ->
+        flop_params
+        |> Map.put(:order_by, [:amount_cents, :occurred_on, :inserted_at])
+        |> Map.put(:order_directions, [:asc, :desc, :desc])
+
+      :category_asc ->
+        flop_params
+        |> Map.put(:order_by, [:category, :occurred_on, :inserted_at])
+        |> Map.put(:order_directions, [:asc, :desc, :desc])
+
+      _ ->
+        flop_params
+    end
+  end
+
+  defp flop_meta_error_messages(%Flop.Meta{errors: errors}) when is_list(errors) do
+    Enum.map(errors, fn {field, field_errors} ->
+      messages =
+        Enum.map(field_errors, fn {message, opts} ->
+          translate_flop_validation_error(message, opts)
+        end)
+
+      "#{field}: #{Enum.join(messages, ", ")}"
+    end)
+  end
+
+  defp translate_flop_validation_error(message, opts) do
+    Enum.reduce(opts, message, fn {key, value}, acc ->
+      String.replace(acc, "%{#{key}}", to_string(value))
+    end)
   end
 
   defp sanitize_filter_query(query_text) when is_binary(query_text) do

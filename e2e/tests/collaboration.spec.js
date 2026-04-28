@@ -45,19 +45,17 @@ test.describe("financial collaboration flows", () => {
       await expect(pageB.locator("#shared-entries-list")).toBeVisible();
       await expect(pageB.locator('button[id^="unshare-entry-"]').first()).toBeVisible();
 
-      await pageA.goto(`/account-links/${linkId}/settlement`, { waitUntil: "networkidle" });
-      await pageA.fill('input[name="record[amount_cents]"]', "5000");
-      await pageA.selectOption('select[name="record[method]"]', "pix");
-      await pageA.fill('input[name="record[transferred_at]"]', todayPtBr());
-      await pageA.click('#new-record-form button[type="submit"]');
-      await expect(pageA.locator('#settlement-records-list [id^="settlement_records-"]').first()).toBeVisible();
-      await pageA.click("#confirm-settlement-btn");
+      await pageA.goto(`/account-links/${linkId}`, { waitUntil: "networkidle" });
+      await pageA.fill('#shared-payment-form input[name="payment[amount_cents]"]', "250,00");
+      await pageA.selectOption('#shared-payment-form select[name="payment[method]"]', "pix");
+      await pageA.fill('#shared-payment-form input[name="payment[transferred_at]"]', todayPtBr());
+      await pageA.click('#shared-payment-form button[type="submit"]');
+      await expect(pageA.locator('#shared-settlement-records [id^="shared-settlement-record-"]').first()).toBeVisible();
+      await pageA.click("#shared-confirm-settlement-btn");
 
-      await pageB.goto(`/account-links/${linkId}/settlement`, { waitUntil: "networkidle" });
-      await pageB.click("#confirm-settlement-btn");
-      await expect(pageB.locator("#settle-btn")).toBeEnabled();
-      await pageB.click("#settle-btn");
-      await expect(pageB.locator("#settlement-balance")).toContainText("Quitado");
+      await pageB.goto(`/account-links/${linkId}`, { waitUntil: "networkidle" });
+      await pageB.click("#shared-confirm-settlement-btn");
+      await expect(pageB.locator("#shared-month-confirmation")).toContainText("Status atual: fechado");
     } finally {
       await contextA.close();
       await contextB.close();

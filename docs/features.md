@@ -42,10 +42,10 @@
   - visão de total compartilhado, proporções e tendência
   - filtro por período (`mês atual`, `últimos 3 meses`, `tudo`)
   - listagem de lançamentos compartilhados e remoção de compartilhamento
-- Acerto em `/account-links/:link_id/settlement`:
-  - registro de transferências
-  - confirmação bilateral
-  - quitação do ciclo quando ambas as partes confirmam
+  - acerto unificado no mesmo fluxo:
+    - registro de pagamentos/transferências
+    - resumo mensal de dívidas em aberto
+    - confirmação bilateral do fechamento do ciclo
 
 ## API REST (`/api/v1`)
 

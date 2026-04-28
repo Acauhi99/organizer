@@ -54,6 +54,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanelTest do
     assert html =~ ~s(id="finances" phx-update="stream")
     assert html =~ ~s(id="finances-scroll-area")
     assert html =~ ~s(phx-hook="InfiniteScroll")
+    assert html =~ ~s(data-event="load_more_finances")
     assert html =~ ~s(data-money-mask="true")
     assert html =~ ~s(data-date-picker="date")
     assert html =~ "Exibindo 0 de 0 lançamentos"

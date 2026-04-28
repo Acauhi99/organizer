@@ -23,7 +23,7 @@ Foco em regressão retroativa dos fluxos completos com browser real:
 
 - público/autenticação (home, cadastro, login/logout, erro de credencial)
 - módulos autenticados (`/finances`, `/account-links`, `/users/settings`)
-- colaboração financeira (`/account-links`, convite, aceite com retomada pós-login, compartilhado, acerto, desativação)
+- colaboração financeira (`/account-links`, convite, aceite com retomada pós-login, compartilhado, acerto unificado em `/account-links/:link_id`, desativação)
 - experiência transversal (onboarding e atalhos globais)
 - smoke da API autenticada (`/api/v1/*`) via sessão real do browser
 

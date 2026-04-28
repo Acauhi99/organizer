@@ -6,6 +6,14 @@ defmodule OrganizerWeb.AccountLinkLiveTest do
 
   alias Organizer.SharedFinance
 
+  defp create_active_link_for(scope_owner) do
+    user = user_fixture()
+    scope = user_scope_fixture(user)
+    {:ok, invite} = SharedFinance.create_invite(scope_owner)
+    {:ok, link} = SharedFinance.accept_invite(scope, invite.token)
+    link
+  end
+
   describe "access" do
     test "redirects unauthenticated users", %{conn: conn} do
       assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(conn, ~p"/account-links")
@@ -49,6 +57,29 @@ defmodule OrganizerWeb.AccountLinkLiveTest do
       {:ok, view, _html} = live(conn, ~p"/account-links")
 
       assert has_element?(view, "#deactivate-link-#{link.id}")
+    end
+
+    test "renders manage shortcut to unified shared finance page", %{conn: conn, link: link} do
+      {:ok, view, _html} = live(conn, ~p"/account-links")
+
+      assert has_element?(
+               view,
+               ~s(#account-link-#{link.id} a[href="/account-links/#{link.id}"]),
+               "Gerenciar"
+             )
+    end
+
+    test "renders infinite scroll and list filter", %{conn: conn, user_a: user_a} do
+      scope_a = user_scope_fixture(user_a)
+
+      for _ <- 1..12 do
+        create_active_link_for(scope_a)
+      end
+
+      {:ok, view, _html} = live(conn, ~p"/account-links")
+
+      assert has_element?(view, "#account-links-scroll-area[phx-hook='InfiniteScroll']")
+      assert has_element?(view, "#account-links-filters")
     end
   end
 

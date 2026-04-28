@@ -25,6 +25,7 @@ defmodule Organizer.SharedFinance.SettlementCycle do
       :reference_year,
       :status,
       :balance_cents,
+      :debtor_id,
       :confirmed_by_a,
       :confirmed_by_b,
       :settled_at

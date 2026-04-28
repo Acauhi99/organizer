@@ -6,8 +6,12 @@ defmodule OrganizerWeb.API.V1.FinanceEntryController do
   action_fallback OrganizerWeb.ApiFallbackController
 
   def index(conn, params) do
-    with {:ok, entries} <- Planning.list_finance_entries(conn.assigns.current_scope, params) do
-      json(conn, %{data: Enum.map(entries, &finance_entry_json/1)})
+    with {:ok, {entries, meta}} <-
+           Planning.list_finance_entries_with_meta(conn.assigns.current_scope, params) do
+      json(conn, %{
+        data: Enum.map(entries, &finance_entry_json/1),
+        meta: pagination_meta_json(meta)
+      })
     end
   end
 
@@ -57,4 +61,21 @@ defmodule OrganizerWeb.API.V1.FinanceEntryController do
 
   defp enum_to_string(nil), do: nil
   defp enum_to_string(value), do: to_string(value)
+
+  defp pagination_meta_json(meta) do
+    meta
+    |> Map.from_struct()
+    |> Map.take([
+      :current_page,
+      :page_size,
+      :total_pages,
+      :total_count,
+      :has_next_page?,
+      :has_previous_page?,
+      :next_offset,
+      :previous_offset,
+      :next_cursor,
+      :previous_cursor
+    ])
+  end
 end

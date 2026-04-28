@@ -18,7 +18,10 @@ defmodule Organizer.SharedFinance do
     SplitCalculator,
     LinkMetricsCalculator,
     SettlementCycle,
-    SettlementRecord
+    SettlementRecord,
+    SharedEntryDebt,
+    SettlementRecordAllocation,
+    MonthlyDebtSummary
   }
 
   # ---------------------------------------------------------------------------
@@ -110,18 +113,30 @@ defmodule Organizer.SharedFinance do
   Lists all active account links for the authenticated user, preloading user_a and user_b.
   """
   def list_account_links(scope) do
+    with {:ok, {links, _meta}} <- list_account_links_with_meta(scope, %{limit: 10_000, offset: 0}) do
+      {:ok, links}
+    end
+  end
+
+  def list_account_links_with_meta(scope, params \\ %{}) do
     user_id = scope.user.id
 
-    links =
+    query =
       from(l in AccountLink,
         where:
           l.status == :active and
             (l.user_a_id == ^user_id or l.user_b_id == ^user_id),
         preload: [:user_a, :user_b]
       )
-      |> Repo.all()
+      |> maybe_filter_account_links_query(params)
 
-    {:ok, links}
+    case Flop.validate_and_run(query, shared_flop_params(params), for: AccountLink, repo: Repo) do
+      {:ok, {links, meta}} ->
+        {:ok, {links, meta}}
+
+      {:error, %Flop.Meta{} = meta} ->
+        {:error, {:validation, %{pagination: flop_error_messages(meta)}}}
+    end
   end
 
   @doc """
@@ -143,6 +158,13 @@ defmodule Organizer.SharedFinance do
       nil -> {:error, :not_found}
       link -> {:ok, link}
     end
+  end
+
+  @doc """
+  Returns true when the shared entry already has payment allocations and should not be edited.
+  """
+  def shared_entry_allocation_locked?(entry_id) when is_integer(entry_id) do
+    shared_entry_has_allocations?(entry_id)
   end
 
   # ---------------------------------------------------------------------------
@@ -178,19 +200,25 @@ defmodule Organizer.SharedFinance do
           {:error, :not_found} ->
             {:error, :not_found}
 
-          {:ok, _link} ->
+          {:ok, link} ->
             with {:ok, share_attrs} <- normalize_share_attrs(entry, attrs),
                  {:ok, updated_entry} <-
                    entry
                    |> Ecto.Changeset.change(Map.put(share_attrs, :shared_with_link_id, link_id))
-                   |> Repo.update() do
+                   |> Repo.update(),
+                 :ok <- sync_shared_entry_debt(updated_entry, link) do
               if broadcast? do
                 broadcast_shared_entry_updated(updated_entry)
               end
 
               {:ok, updated_entry}
             else
-              {:error, _reason} = error -> error
+              {:error, :shared_entry_has_allocations} ->
+                {:error,
+                 {:validation, %{shared_entry: ["cannot be changed after payment allocation"]}}}
+
+              {:error, _reason} = error ->
+                error
             end
         end
     end
@@ -228,28 +256,34 @@ defmodule Organizer.SharedFinance do
         {:error, :not_found}
 
       entry ->
-        link_id = entry.shared_with_link_id
+        if shared_entry_has_allocations?(entry.id) do
+          {:error, {:validation, %{shared_entry: ["cannot be changed after payment allocation"]}}}
+        else
+          link_id = entry.shared_with_link_id
 
-        case entry
-             |> Ecto.Changeset.change(%{
-               shared_with_link_id: nil,
-               shared_split_mode: nil,
-               shared_manual_mine_cents: nil
-             })
-             |> Repo.update() do
-          {:ok, updated_entry} = result ->
-            if link_id do
-              Phoenix.PubSub.broadcast(
-                Organizer.PubSub,
-                "account_link:#{link_id}",
-                {:shared_entry_removed, updated_entry}
-              )
-            end
+          case entry
+               |> Ecto.Changeset.change(%{
+                 shared_with_link_id: nil,
+                 shared_split_mode: nil,
+                 shared_manual_mine_cents: nil
+               })
+               |> Repo.update() do
+            {:ok, updated_entry} = result ->
+              :ok = remove_shared_entry_debt(entry.id)
 
-            result
+              if link_id do
+                Phoenix.PubSub.broadcast(
+                  Organizer.PubSub,
+                  "account_link:#{link_id}",
+                  {:shared_entry_removed, updated_entry}
+                )
+              end
 
-          error ->
-            error
+              result
+
+            error ->
+              error
+          end
         end
     end
   end
@@ -269,14 +303,20 @@ defmodule Organizer.SharedFinance do
 
     with {:ok, _link} <- get_account_link(scope, link_id),
          %FinanceEntry{} = entry <- shared_entry_owned_by_user(user_id, link_id, entry_id),
+         false <- shared_entry_has_allocations?(entry.id),
          {:ok, updated_attrs} <- normalize_shared_entry_update_attrs(entry, attrs),
          {:ok, updated_entry} <- entry |> FinanceEntry.changeset(updated_attrs) |> Repo.update() do
+      {:ok, link} = get_account_link(scope, link_id)
+      :ok = sync_shared_entry_debt(updated_entry, link)
       rebalance_user_links(scope)
       :ok = broadcast_shared_entry_updated(updated_entry)
       {:ok, updated_entry}
     else
       nil ->
         {:error, :not_found}
+
+      true ->
+        {:error, {:validation, %{shared_entry: ["cannot be changed after payment allocation"]}}}
 
       {:error, _reason} = error ->
         error
@@ -291,6 +331,17 @@ defmodule Organizer.SharedFinance do
   Returns `{:error, :not_found}` if the user is not a participant of the link.
   """
   def list_shared_entries(scope, link_id, params \\ %{}) do
+    legacy_params =
+      params
+      |> Map.put_new(:limit, 10_000)
+      |> Map.put_new(:offset, 0)
+
+    with {:ok, {views, _meta}} <- list_shared_entries_with_meta(scope, link_id, legacy_params) do
+      {:ok, views}
+    end
+  end
+
+  def list_shared_entries_with_meta(scope, link_id, params \\ %{}) do
     case get_account_link(scope, link_id) do
       {:error, :not_found} ->
         {:error, :not_found}
@@ -305,50 +356,59 @@ defmodule Organizer.SharedFinance do
 
         persist_snapshots? = normalize_persist_snapshots_flag(params)
 
-        entries =
+        query =
           from(fe in FinanceEntry, where: fe.shared_with_link_id == ^link_id)
-          |> Repo.all()
-          |> apply_shared_period_filter(period, reference_date)
+          |> maybe_filter_shared_entries_query(params)
+          |> apply_shared_period_filter_query(period, reference_date)
 
-        user_id = scope.user.id
+        with {:ok, {entries, meta}} <-
+               Flop.validate_and_run(query, shared_flop_params(params),
+                 for: FinanceEntry,
+                 repo: Repo
+               ) do
+          user_id = scope.user.id
 
-        {views, _income_context_cache} =
-          Enum.map_reduce(entries, %{}, fn entry, income_context_cache ->
-            {entry_reference_date, income_context} =
-              income_context_for_entry(entry, link, income_context_cache)
+          {views, _income_context_cache} =
+            Enum.map_reduce(entries, %{}, fn entry, income_context_cache ->
+              {entry_reference_date, income_context} =
+                income_context_for_entry(entry, link, income_context_cache)
 
-            updated_cache =
-              Map.put(
-                income_context_cache,
-                {entry_reference_date.year, entry_reference_date.month},
+              updated_cache =
+                Map.put(
+                  income_context_cache,
+                  {entry_reference_date.year, entry_reference_date.month},
+                  income_context
+                )
+
+              split = resolve_entry_split(entry, link, income_context)
+
+              maybe_persist_split_snapshot(
+                persist_snapshots?,
+                entry,
+                link,
+                entry_reference_date,
+                split,
                 income_context
               )
 
-            split = resolve_entry_split(entry, link, income_context)
+              scoped_split = scope_split_for_user(split, user_id, link)
 
-            maybe_persist_split_snapshot(
-              persist_snapshots?,
-              entry,
-              link,
-              entry_reference_date,
-              split,
-              income_context
-            )
+              view = %SharedEntryView{
+                entry: entry,
+                split_ratio_mine: scoped_split.ratio_mine,
+                split_ratio_theirs: scoped_split.ratio_theirs,
+                amount_mine_cents: scoped_split.amount_mine_cents,
+                amount_theirs_cents: scoped_split.amount_theirs_cents
+              }
 
-            scoped_split = scope_split_for_user(split, user_id, link)
+              {view, updated_cache}
+            end)
 
-            view = %SharedEntryView{
-              entry: entry,
-              split_ratio_mine: scoped_split.ratio_mine,
-              split_ratio_theirs: scoped_split.ratio_theirs,
-              amount_mine_cents: scoped_split.amount_mine_cents,
-              amount_theirs_cents: scoped_split.amount_theirs_cents
-            }
-
-            {view, updated_cache}
-          end)
-
-        {:ok, views}
+          {:ok, {views, meta}}
+        else
+          {:error, %Flop.Meta{} = meta} ->
+            {:error, {:validation, %{pagination: flop_error_messages(meta)}}}
+        end
     end
   end
 
@@ -361,6 +421,8 @@ defmodule Organizer.SharedFinance do
 
     with {:ok, links} <- list_account_links(scope) do
       Enum.each(links, fn link ->
+        _ = sync_link_debts(scope, link)
+
         _ =
           list_shared_entries(scope, link.id, %{
             period: "all",
@@ -485,10 +547,12 @@ defmodule Organizer.SharedFinance do
                       sc.reference_year == ^reference_month.year
               )
 
-            {:ok, cycle}
+            _ = refresh_cycle_status(cycle)
+            {:ok, Repo.get!(SettlementCycle, cycle.id)}
 
           {:ok, cycle} ->
-            {:ok, cycle}
+            _ = refresh_cycle_status(cycle)
+            {:ok, Repo.get!(SettlementCycle, cycle.id)}
 
           {:error, _changeset} ->
             cycle =
@@ -500,7 +564,8 @@ defmodule Organizer.SharedFinance do
                       sc.reference_year == ^reference_month.year
               )
 
-            {:ok, cycle}
+            _ = refresh_cycle_status(cycle)
+            {:ok, Repo.get!(SettlementCycle, cycle.id)}
         end
     end
   end
@@ -524,31 +589,60 @@ defmodule Organizer.SharedFinance do
           receiver_id =
             if scope.user.id == link.user_a_id, do: link.user_b_id, else: link.user_a_id
 
-          record_attrs = %{
-            settlement_cycle_id: cycle.id,
-            payer_id: scope.user.id,
-            receiver_id: receiver_id,
-            amount_cents: amount_cents,
-            method: Map.get(attrs, :method) || Map.get(attrs, "method"),
-            transferred_at: Map.get(attrs, :transferred_at) || Map.get(attrs, "transferred_at")
-          }
+          case list_open_debts_for_payment(link.id, scope.user.id, receiver_id) do
+            [] ->
+              {:error,
+               {:validation,
+                %{amount_cents: ["no outstanding amount for this payment direction"]}}}
 
-          changeset =
-            %SettlementRecord{}
-            |> Ecto.Changeset.change(record_attrs)
+            debts ->
+              outstanding_total = Enum.reduce(debts, 0, &(&1.outstanding_amount_cents + &2))
 
-          case Repo.insert(changeset) do
-            {:ok, record} = result ->
-              Phoenix.PubSub.broadcast(
-                Organizer.PubSub,
-                "account_link:#{link.id}",
-                {:settlement_record_created, record}
-              )
+              if amount_cents > outstanding_total do
+                {:error, {:validation, %{amount_cents: ["cannot exceed outstanding amount"]}}}
+              else
+                record_attrs = %{
+                  settlement_cycle_id: cycle.id,
+                  payer_id: scope.user.id,
+                  receiver_id: receiver_id,
+                  amount_cents: amount_cents,
+                  method: Map.get(attrs, :method) || Map.get(attrs, "method"),
+                  transferred_at:
+                    Map.get(attrs, :transferred_at) || Map.get(attrs, "transferred_at")
+                }
 
-              result
+                Repo.transaction(fn ->
+                  with {:ok, record} <-
+                         %SettlementRecord{}
+                         |> Ecto.Changeset.change(record_attrs)
+                         |> Repo.insert(),
+                       :ok <- allocate_record_fifo(record, debts),
+                       :ok <- refresh_cycle_status(cycle) do
+                    record
+                  else
+                    {:error, reason} -> Repo.rollback(reason)
+                  end
+                end)
+                |> case do
+                  {:ok, record} ->
+                    Phoenix.PubSub.broadcast(
+                      Organizer.PubSub,
+                      "account_link:#{link.id}",
+                      {:settlement_record_created, record}
+                    )
 
-            error ->
-              error
+                    {:ok, record}
+
+                  {:error, {:validation, _} = validation} ->
+                    {:error, validation}
+
+                  {:error, reason} when is_atom(reason) ->
+                    {:error, reason}
+
+                  {:error, _reason} ->
+                    {:error, {:validation, %{amount_cents: ["could not allocate payment"]}}}
+                end
+              end
           end
       end
     end
@@ -565,50 +659,54 @@ defmodule Organizer.SharedFinance do
         {:error, reason}
 
       {:ok, cycle, link} ->
-        user_id = scope.user.id
+        if pending_debts_for_cycle?(cycle) do
+          {:error, :cycle_has_pending_debts}
+        else
+          user_id = scope.user.id
 
-        {confirmed_a, confirmed_b} =
-          if user_id == link.user_a_id do
-            {true, cycle.confirmed_by_b}
-          else
-            {cycle.confirmed_by_a, true}
-          end
-
-        both_confirmed = confirmed_a and confirmed_b
-
-        update_attrs =
-          if user_id == link.user_a_id do
-            %{confirmed_by_a: true}
-          else
-            %{confirmed_by_b: true}
-          end
-
-        update_attrs =
-          if both_confirmed do
-            Map.merge(update_attrs, %{
-              status: :settled,
-              settled_at: DateTime.utc_now() |> DateTime.truncate(:second)
-            })
-          else
-            update_attrs
-          end
-
-        case cycle |> Ecto.Changeset.change(update_attrs) |> Repo.update() do
-          {:ok, updated_cycle} ->
-            if both_confirmed do
-              Phoenix.PubSub.broadcast(
-                Organizer.PubSub,
-                "account_link:#{link.id}",
-                {:settlement_cycle_settled, updated_cycle}
-              )
-
-              {:ok, updated_cycle}
+          {confirmed_a, confirmed_b} =
+            if user_id == link.user_a_id do
+              {true, cycle.confirmed_by_b}
             else
-              {:error, :awaiting_counterpart_confirmation}
+              {cycle.confirmed_by_a, true}
             end
 
-          error ->
-            error
+          both_confirmed = confirmed_a and confirmed_b
+
+          update_attrs =
+            if user_id == link.user_a_id do
+              %{confirmed_by_a: true}
+            else
+              %{confirmed_by_b: true}
+            end
+
+          update_attrs =
+            if both_confirmed do
+              Map.merge(update_attrs, %{
+                status: :settled,
+                settled_at: DateTime.utc_now() |> DateTime.truncate(:second)
+              })
+            else
+              update_attrs
+            end
+
+          case cycle |> Ecto.Changeset.change(update_attrs) |> Repo.update() do
+            {:ok, updated_cycle} ->
+              if both_confirmed do
+                Phoenix.PubSub.broadcast(
+                  Organizer.PubSub,
+                  "account_link:#{link.id}",
+                  {:settlement_cycle_settled, updated_cycle}
+                )
+
+                {:ok, updated_cycle}
+              else
+                {:error, :awaiting_counterpart_confirmation}
+              end
+
+            error ->
+              error
+          end
         end
     end
   end
@@ -625,11 +723,38 @@ defmodule Organizer.SharedFinance do
         records =
           from(sr in SettlementRecord,
             where: sr.settlement_cycle_id == ^cycle_id,
+            preload: [allocations: [shared_entry_debt: :finance_entry]],
             order_by: [asc: sr.transferred_at]
           )
           |> Repo.all()
 
         {:ok, records}
+    end
+  end
+
+  def list_settlement_records_with_meta(scope, cycle_id, params \\ %{}) do
+    case find_cycle_with_link(scope, cycle_id) do
+      {:error, reason} ->
+        {:error, reason}
+
+      {:ok, _cycle, _link} ->
+        query =
+          from(sr in SettlementRecord,
+            where: sr.settlement_cycle_id == ^cycle_id,
+            preload: [allocations: [shared_entry_debt: :finance_entry]]
+          )
+          |> maybe_filter_settlement_records_query(params)
+
+        case Flop.validate_and_run(query, shared_flop_params(params),
+               for: SettlementRecord,
+               repo: Repo
+             ) do
+          {:ok, {records, meta}} ->
+            {:ok, {records, meta}}
+
+          {:error, %Flop.Meta{} = meta} ->
+            {:error, {:validation, %{pagination: flop_error_messages(meta)}}}
+        end
     end
   end
 
@@ -650,6 +775,98 @@ defmodule Organizer.SharedFinance do
           |> Repo.all()
 
         {:ok, cycles}
+    end
+  end
+
+  @doc """
+  Lists shared entry debts for an account link.
+  """
+  def list_shared_entry_debts(scope, link_id, opts \\ %{}) do
+    with {:ok, _link} <- get_account_link(scope, link_id) do
+      statuses =
+        opts
+        |> Map.get(:statuses, Map.get(opts, "statuses", SharedEntryDebt.statuses()))
+        |> List.wrap()
+        |> Enum.filter(&(&1 in SharedEntryDebt.statuses()))
+
+      from(d in SharedEntryDebt,
+        where: d.account_link_id == ^link_id and d.status in ^statuses,
+        preload: [:finance_entry],
+        order_by: [asc: d.reference_year, asc: d.reference_month, asc: d.id]
+      )
+      |> Repo.all()
+      |> then(&{:ok, &1})
+    end
+  end
+
+  def list_shared_entry_debts_with_meta(scope, link_id, opts \\ %{}) do
+    with {:ok, _link} <- get_account_link(scope, link_id) do
+      statuses =
+        opts
+        |> Map.get(:statuses, Map.get(opts, "statuses", SharedEntryDebt.statuses()))
+        |> List.wrap()
+        |> Enum.filter(&(&1 in SharedEntryDebt.statuses()))
+
+      query =
+        from(d in SharedEntryDebt,
+          where: d.account_link_id == ^link_id and d.status in ^statuses,
+          join: fe in assoc(d, :finance_entry),
+          preload: [finance_entry: fe],
+          order_by: [asc: d.reference_year, asc: d.reference_month, asc: d.id]
+        )
+        |> maybe_filter_shared_entry_debts_query(opts)
+
+      case Flop.validate_and_run(query, shared_flop_params(opts),
+             for: SharedEntryDebt,
+             repo: Repo
+           ) do
+        {:ok, {debts, meta}} ->
+          {:ok, {debts, meta}}
+
+        {:error, %Flop.Meta{} = meta} ->
+          {:error, {:validation, %{pagination: flop_error_messages(meta)}}}
+      end
+    end
+  end
+
+  @doc """
+  Lists settlement records for a link, preloading allocation breakdown.
+  """
+  def list_settlement_records_with_allocations(scope, link_id) do
+    with {:ok, _link} <- get_account_link(scope, link_id) do
+      records =
+        from(sr in SettlementRecord,
+          join: sc in SettlementCycle,
+          on: sc.id == sr.settlement_cycle_id,
+          where: sc.account_link_id == ^link_id,
+          preload: [allocations: [shared_entry_debt: :finance_entry]],
+          order_by: [asc: sr.transferred_at, asc: sr.id]
+        )
+        |> Repo.all()
+
+      {:ok, records}
+    end
+  end
+
+  @doc """
+  Builds current month + next months debt summary for the given link.
+  """
+  def monthly_debt_summaries(scope, link_id, opts \\ %{}) do
+    with {:ok, _link} <- get_account_link(scope, link_id) do
+      months_ahead =
+        opts
+        |> Map.get(:months_ahead, Map.get(opts, "months_ahead", 3))
+        |> parse_positive_integer_or_default(3)
+
+      start = Date.beginning_of_month(Date.utc_today())
+
+      summaries =
+        Enum.map(0..months_ahead, fn offset ->
+          date = shift_months(start, offset)
+          build_monthly_debt_summary(link_id, date)
+        end)
+
+      {:ok, summaries}
     end
   end
 
@@ -692,6 +909,307 @@ defmodule Organizer.SharedFinance do
       {:ok, account_link} -> {:ok, account_link}
       {:error, changeset} -> {:error, changeset}
     end
+  end
+
+  defp sync_shared_entry_debt(%FinanceEntry{} = entry, %AccountLink{} = link) do
+    cond do
+      entry.kind != :expense or entry.shared_with_link_id != link.id ->
+        remove_shared_entry_debt(entry.id)
+
+      true ->
+        snapshot = debt_snapshot_for_entry(entry, link)
+
+        if snapshot.original_amount_cents <= 0 do
+          remove_shared_entry_debt(entry.id)
+        else
+          case Repo.get_by(SharedEntryDebt, finance_entry_id: entry.id) do
+            nil ->
+              %SharedEntryDebt{}
+              |> SharedEntryDebt.changeset(snapshot)
+              |> Repo.insert()
+              |> case do
+                {:ok, _} -> :ok
+                {:error, _} = error -> error
+              end
+
+            %SharedEntryDebt{} = debt ->
+              if shared_entry_has_allocations?(entry.id) and
+                   debt.original_amount_cents != snapshot.original_amount_cents do
+                {:error, :shared_entry_has_allocations}
+              else
+                debt
+                |> SharedEntryDebt.changeset(%{
+                  account_link_id: snapshot.account_link_id,
+                  debtor_id: snapshot.debtor_id,
+                  creditor_id: snapshot.creditor_id,
+                  reference_month: snapshot.reference_month,
+                  reference_year: snapshot.reference_year,
+                  original_amount_cents: snapshot.original_amount_cents,
+                  outstanding_amount_cents:
+                    if(shared_entry_has_allocations?(entry.id),
+                      do: debt.outstanding_amount_cents,
+                      else: snapshot.original_amount_cents
+                    ),
+                  status:
+                    if(shared_entry_has_allocations?(entry.id),
+                      do: debt.status,
+                      else: :open
+                    )
+                })
+                |> Repo.update()
+                |> case do
+                  {:ok, _} -> :ok
+                  {:error, _} = error -> error
+                end
+              end
+          end
+        end
+    end
+  end
+
+  defp remove_shared_entry_debt(entry_id) do
+    case Repo.get_by(SharedEntryDebt, finance_entry_id: entry_id) do
+      nil ->
+        :ok
+
+      debt ->
+        if Repo.exists?(
+             from a in SettlementRecordAllocation,
+               where: a.shared_entry_debt_id == ^debt.id
+           ) do
+          {:error, :shared_entry_has_allocations}
+        else
+          _ = Repo.delete(debt)
+          :ok
+        end
+    end
+  end
+
+  defp shared_entry_has_allocations?(entry_id) do
+    Repo.exists?(
+      from a in SettlementRecordAllocation,
+        join: d in SharedEntryDebt,
+        on: d.id == a.shared_entry_debt_id,
+        where: d.finance_entry_id == ^entry_id
+    )
+  end
+
+  defp debt_snapshot_for_entry(entry, link) do
+    split = resolve_entry_split(entry, link, build_income_split_context(link, entry.occurred_on))
+
+    {debtor_id, creditor_id, original_amount_cents} =
+      cond do
+        entry.user_id == link.user_a_id ->
+          {link.user_b_id, link.user_a_id, split.amount_b_cents}
+
+        entry.user_id == link.user_b_id ->
+          {link.user_a_id, link.user_b_id, split.amount_a_cents}
+
+        true ->
+          {link.user_b_id, link.user_a_id, split.amount_b_cents}
+      end
+
+    %{
+      account_link_id: link.id,
+      finance_entry_id: entry.id,
+      debtor_id: debtor_id,
+      creditor_id: creditor_id,
+      reference_month: entry.occurred_on.month,
+      reference_year: entry.occurred_on.year,
+      original_amount_cents: original_amount_cents,
+      outstanding_amount_cents: original_amount_cents,
+      status: :open
+    }
+  end
+
+  defp list_open_debts_for_payment(link_id, debtor_id, creditor_id) do
+    from(d in SharedEntryDebt,
+      where:
+        d.account_link_id == ^link_id and
+          d.debtor_id == ^debtor_id and
+          d.creditor_id == ^creditor_id and
+          d.status in [:open, :partial],
+      order_by: [asc: d.reference_year, asc: d.reference_month, asc: d.id]
+    )
+    |> Repo.all()
+  end
+
+  defp allocate_record_fifo(record, debts) do
+    remaining =
+      Enum.reduce_while(debts, record.amount_cents, fn debt, pending_amount ->
+        if pending_amount <= 0 do
+          {:halt, pending_amount}
+        else
+          allocated_amount = min(pending_amount, debt.outstanding_amount_cents)
+          new_outstanding = debt.outstanding_amount_cents - allocated_amount
+
+          with {:ok, _allocation} <-
+                 %SettlementRecordAllocation{}
+                 |> SettlementRecordAllocation.changeset(%{
+                   settlement_record_id: record.id,
+                   shared_entry_debt_id: debt.id,
+                   amount_cents: allocated_amount
+                 })
+                 |> Repo.insert(),
+               {:ok, _updated_debt} <-
+                 debt
+                 |> SharedEntryDebt.changeset(%{
+                   outstanding_amount_cents: new_outstanding,
+                   status:
+                     debt_status_from_outstanding(new_outstanding, debt.original_amount_cents)
+                 })
+                 |> Repo.update() do
+            {:cont, pending_amount - allocated_amount}
+          else
+            {:error, _reason} ->
+              {:halt, -1}
+          end
+        end
+      end)
+
+    cond do
+      remaining == 0 ->
+        :ok
+
+      remaining > 0 ->
+        {:error, {:validation, %{amount_cents: ["could not allocate full payment"]}}}
+
+      true ->
+        {:error, {:validation, %{amount_cents: ["allocation failed"]}}}
+    end
+  end
+
+  defp debt_status_from_outstanding(0, _original), do: :settled
+
+  defp debt_status_from_outstanding(outstanding, original)
+       when is_integer(outstanding) and is_integer(original) and outstanding < original,
+       do: :partial
+
+  defp debt_status_from_outstanding(_outstanding, _original), do: :open
+
+  defp refresh_cycle_status(cycle) do
+    totals =
+      from(d in SharedEntryDebt,
+        where:
+          d.account_link_id == ^cycle.account_link_id and
+            d.reference_month == ^cycle.reference_month and
+            d.reference_year == ^cycle.reference_year and d.status in [:open, :partial],
+        select: %{outstanding_total: coalesce(sum(d.outstanding_amount_cents), 0)}
+      )
+      |> Repo.one()
+
+    outstanding_total = (totals && totals.outstanding_total) || 0
+
+    debtor_id =
+      from(d in SharedEntryDebt,
+        where:
+          d.account_link_id == ^cycle.account_link_id and
+            d.reference_month == ^cycle.reference_month and
+            d.reference_year == ^cycle.reference_year and d.status in [:open, :partial],
+        group_by: d.debtor_id,
+        order_by: [desc: sum(d.outstanding_amount_cents)],
+        limit: 1,
+        select: d.debtor_id
+      )
+      |> Repo.one()
+
+    attrs =
+      if outstanding_total > 0 do
+        %{
+          balance_cents: outstanding_total,
+          debtor_id: debtor_id,
+          status: :open,
+          settled_at: nil,
+          confirmed_by_a: false,
+          confirmed_by_b: false
+        }
+      else
+        %{
+          balance_cents: 0,
+          debtor_id: nil
+        }
+      end
+
+    cycle
+    |> Ecto.Changeset.change(attrs)
+    |> Repo.update()
+    |> case do
+      {:ok, _updated_cycle} -> :ok
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp pending_debts_for_cycle?(cycle) do
+    Repo.exists?(
+      from d in SharedEntryDebt,
+        where:
+          d.account_link_id == ^cycle.account_link_id and
+            d.reference_month == ^cycle.reference_month and
+            d.reference_year == ^cycle.reference_year and d.status in [:open, :partial]
+    )
+  end
+
+  defp build_monthly_debt_summary(link_id, reference_date) do
+    debts =
+      from(d in SharedEntryDebt,
+        where:
+          d.account_link_id == ^link_id and d.reference_month == ^reference_date.month and
+            d.reference_year == ^reference_date.year
+      )
+      |> Repo.all()
+
+    original_amount_cents = Enum.reduce(debts, 0, &(&1.original_amount_cents + &2))
+    outstanding_amount_cents = Enum.reduce(debts, 0, &(&1.outstanding_amount_cents + &2))
+
+    status =
+      cond do
+        original_amount_cents == 0 -> :settled
+        outstanding_amount_cents == 0 -> :settled
+        outstanding_amount_cents < original_amount_cents -> :partial
+        true -> :open
+      end
+
+    cycle =
+      Repo.get_by(
+        SettlementCycle,
+        account_link_id: link_id,
+        reference_month: reference_date.month,
+        reference_year: reference_date.year
+      )
+
+    %MonthlyDebtSummary{
+      reference_month: reference_date.month,
+      reference_year: reference_date.year,
+      original_amount_cents: original_amount_cents,
+      outstanding_amount_cents: outstanding_amount_cents,
+      status: status,
+      confirmed_by_a: if(is_nil(cycle), do: false, else: cycle.confirmed_by_a),
+      confirmed_by_b: if(is_nil(cycle), do: false, else: cycle.confirmed_by_b),
+      settled: status == :settled
+    }
+  end
+
+  defp parse_positive_integer_or_default(value, default) when is_integer(value) do
+    if value > 0, do: value, else: default
+  end
+
+  defp parse_positive_integer_or_default(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> int
+      _ -> default
+    end
+  end
+
+  defp parse_positive_integer_or_default(_value, default), do: default
+
+  defp sync_link_debts(scope, %AccountLink{} = link) do
+    with {:ok, views} <- list_shared_entries(scope, link.id, %{period: "all"}) do
+      Enum.each(views, fn view ->
+        _ = sync_shared_entry_debt(view.entry, link)
+      end)
+    end
+
+    :ok
   end
 
   defp build_income_split_context(link, reference_date) do
@@ -1202,15 +1720,12 @@ defmodule Organizer.SharedFinance do
   defp normalize_reference_date(%Date{} = date), do: date
   defp normalize_reference_date(_), do: Date.utc_today()
 
-  defp apply_shared_period_filter(entries, "all", reference_date) do
+  defp apply_shared_period_filter_query(query, "all", reference_date) do
     end_on = Date.end_of_month(reference_date)
-
-    Enum.filter(entries, fn entry ->
-      Date.compare(entry.occurred_on, end_on) != :gt
-    end)
+    from f in query, where: f.occurred_on <= ^end_on
   end
 
-  defp apply_shared_period_filter(entries, period, reference_date) do
+  defp apply_shared_period_filter_query(query, period, reference_date) do
     end_on = Date.end_of_month(reference_date)
 
     start_on =
@@ -1227,9 +1742,130 @@ defmodule Organizer.SharedFinance do
           Date.beginning_of_month(reference_date)
       end
 
-    Enum.filter(entries, fn entry ->
-      Date.compare(entry.occurred_on, start_on) != :lt and
-        Date.compare(entry.occurred_on, end_on) != :gt
+    from f in query, where: f.occurred_on >= ^start_on and f.occurred_on <= ^end_on
+  end
+
+  defp maybe_filter_account_links_query(query, params) do
+    case extract_filter_q(params) do
+      nil ->
+        query
+
+      q ->
+        like_q = "%#{q}%"
+
+        from l in query,
+          join: ua in assoc(l, :user_a),
+          join: ub in assoc(l, :user_b),
+          where: ilike(ua.email, ^like_q) or ilike(ub.email, ^like_q)
+    end
+  end
+
+  defp maybe_filter_shared_entries_query(query, params) do
+    case extract_filter_q(params) do
+      nil ->
+        query
+
+      q ->
+        like_q = "%#{q}%"
+
+        from fe in query,
+          where: ilike(fe.description, ^like_q) or ilike(fe.category, ^like_q)
+    end
+  end
+
+  defp maybe_filter_shared_entry_debts_query(query, params) do
+    case extract_filter_q(params) do
+      nil ->
+        query
+
+      q ->
+        like_q = "%#{q}%"
+
+        from [d, fe] in query,
+          where: ilike(fe.description, ^like_q) or ilike(fe.category, ^like_q)
+    end
+  end
+
+  defp maybe_filter_settlement_records_query(query, params) do
+    case extract_filter_q(params) do
+      nil ->
+        query
+
+      q ->
+        like_q = "%#{q}%"
+
+        from sr in query,
+          where:
+            ilike(fragment("CAST(? AS TEXT)", sr.method), ^like_q) or
+              ilike(fragment("to_char(?, 'DD/MM/YYYY')", sr.transferred_at), ^like_q) or
+              ilike(fragment("CAST(? AS TEXT)", sr.amount_cents), ^like_q)
+    end
+  end
+
+  defp extract_filter_q(params) when is_map(params) do
+    params
+    |> Map.get(:q, Map.get(params, "q"))
+    |> normalize_filter_q()
+  end
+
+  defp extract_filter_q(_params), do: nil
+
+  defp normalize_filter_q(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> case do
+      "" -> nil
+      q -> q
+    end
+  end
+
+  defp normalize_filter_q(_value), do: nil
+
+  defp shared_flop_params(params) when is_map(params) do
+    params
+    |> Map.take([
+      "page",
+      :page,
+      "page_size",
+      :page_size,
+      "limit",
+      :limit,
+      "offset",
+      :offset,
+      "order_by",
+      :order_by,
+      "order_directions",
+      :order_directions
+    ])
+    |> Enum.reduce(%{}, fn
+      {"page", value}, acc -> Map.put(acc, :page, value)
+      {:page, value}, acc -> Map.put(acc, :page, value)
+      {"page_size", value}, acc -> Map.put(acc, :page_size, value)
+      {:page_size, value}, acc -> Map.put(acc, :page_size, value)
+      {"limit", value}, acc -> Map.put(acc, :limit, value)
+      {:limit, value}, acc -> Map.put(acc, :limit, value)
+      {"offset", value}, acc -> Map.put(acc, :offset, value)
+      {:offset, value}, acc -> Map.put(acc, :offset, value)
+      {"order_by", value}, acc -> Map.put(acc, :order_by, value)
+      {:order_by, value}, acc -> Map.put(acc, :order_by, value)
+      {"order_directions", value}, acc -> Map.put(acc, :order_directions, value)
+      {:order_directions, value}, acc -> Map.put(acc, :order_directions, value)
+      _, acc -> acc
+    end)
+  end
+
+  defp shared_flop_params(_params), do: %{}
+
+  defp flop_error_messages(%Flop.Meta{errors: errors}) when is_list(errors) do
+    Enum.map(errors, fn {field, field_errors} ->
+      messages =
+        Enum.map(field_errors, fn {message, opts} ->
+          Enum.reduce(opts, message, fn {key, value}, acc ->
+            String.replace(acc, "%{#{key}}", to_string(value))
+          end)
+        end)
+
+      "#{field}: #{Enum.join(messages, ", ")}"
     end)
   end
 

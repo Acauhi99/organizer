@@ -37,7 +37,7 @@ npm run test:ui
   - aceitar convite
   - compartilhar lançamento
   - visualizar compartilhado
-  - acerto (`registrar`, `confirmar`, `quitar`)
+  - acerto unificado em `/account-links/:link_id` (`registrar`, `confirmar`, `quitar`)
 - `collaboration-management.spec.js`
   - aceite de convite com usuário deslogado (`redirect -> login -> retomada`)
   - remoção de compartilhamento de lançamento (`unshare`)
@@ -53,3 +53,6 @@ npm run test:ui
 - `settings.spec.js`
   - atualização de senha
   - login com nova senha
+- `accessibility.spec.js`
+  - smoke de acessibilidade automatizado com `@axe-core/playwright`
+  - validação de ausência de violações `serious/critical` em `/finances` e `/account-links`

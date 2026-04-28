@@ -11,7 +11,7 @@ Este guia cobre os fluxos autenticados atuais da aplicação: módulo de finanç
 2. **Colaboração (`/account-links`)**:
   - criação e aceite de convite
   - finanças compartilhadas por vínculo
-  - acerto com confirmação bilateral
+  - acerto mensal com confirmação bilateral (na mesma tela do vínculo)
 
 ## Lançamentos rápidos
 
@@ -57,8 +57,11 @@ Na primeira experiência autenticada, o sistema exibe onboarding em 6 passos cob
 
 - `/account-links`: lista de vínculos ativos e atalhos para cada vínculo.
 - `/account-links/invite`: gerar e copiar link de convite; aceitar convite por token.
-- `/account-links/:link_id`: resumo compartilhado, tendências e lista de lançamentos compartilhados.
-- `/account-links/:link_id/settlement`: registrar transferências, confirmar saldo e quitar ciclo.
+- `/account-links/:link_id`: tela unificada com:
+  - resumo compartilhado e tendências
+  - lançamentos compartilhados
+  - pagamentos/transferências do acerto
+  - resumo mensal de dívidas e confirmação bilateral
 
 ## Atalhos de teclado
 

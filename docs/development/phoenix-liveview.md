@@ -45,6 +45,13 @@ Referências oficiais:
 
 - LiveView streams API: https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.html
 
+## Paginação
+
+- Use sempre o wrapper `<.pagination>` de `CoreComponents` para manter o mesmo visual e acessibilidade.
+- O estado de página deve ser explícito no LiveView (`:page` por lista) e sincronizado via `handle_params/3` quando houver query string.
+- Em filtros que mudam o conjunto, resete a página para `1` para evitar telas vazias em páginas altas.
+- Sempre exiba meta de progresso de paginação (`Página X de Y`) para orientar o usuário.
+
 ## Eventos de teclado
 
 - Para atalhos globais, use `phx-window-keydown`.

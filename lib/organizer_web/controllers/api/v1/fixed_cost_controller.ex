@@ -5,9 +5,10 @@ defmodule OrganizerWeb.API.V1.FixedCostController do
 
   action_fallback OrganizerWeb.ApiFallbackController
 
-  def index(conn, _params) do
-    with {:ok, costs} <- Planning.list_fixed_costs(conn.assigns.current_scope) do
-      json(conn, %{data: Enum.map(costs, &fixed_cost_json/1)})
+  def index(conn, params) do
+    with {:ok, {costs, meta}} <-
+           Planning.list_fixed_costs_with_meta(conn.assigns.current_scope, params) do
+      json(conn, %{data: Enum.map(costs, &fixed_cost_json/1), meta: pagination_meta_json(meta)})
     end
   end
 
@@ -53,4 +54,21 @@ defmodule OrganizerWeb.API.V1.FixedCostController do
 
   defp to_iso(nil), do: nil
   defp to_iso(%Date{} = date), do: Date.to_iso8601(date)
+
+  defp pagination_meta_json(meta) do
+    meta
+    |> Map.from_struct()
+    |> Map.take([
+      :current_page,
+      :page_size,
+      :total_pages,
+      :total_count,
+      :has_next_page?,
+      :has_previous_page?,
+      :next_offset,
+      :previous_offset,
+      :next_cursor,
+      :previous_cursor
+    ])
+  end
 end

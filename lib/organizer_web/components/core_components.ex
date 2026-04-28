@@ -538,6 +538,278 @@ defmodule OrganizerWeb.CoreComponents do
   end
 
   @doc """
+  Wrapper around Flop.Phoenix.pagination with app defaults.
+  """
+  attr :meta, Flop.Meta, required: true
+  attr :path, :any, default: nil
+  attr :on_paginate, JS, default: nil
+  attr :target, :string, default: nil
+  attr :class, :string, default: nil
+  attr :aria_label, :string, default: "Pagination"
+  attr :window_size, :integer, default: 5
+  attr :scroll_to, :string, default: nil
+
+  def pagination(assigns) do
+    current_page = Map.get(assigns.meta, :current_page, 1)
+    total_pages = max(Map.get(assigns.meta, :total_pages, 1), 1)
+    total_count = Map.get(assigns.meta, :total_count, 0) || 0
+    page_size = Map.get(assigns.meta, :page_size, 0) || 0
+
+    {start_item, end_item} =
+      if total_count == 0 or page_size <= 0 do
+        {0, 0}
+      else
+        start_item = (current_page - 1) * page_size + 1
+        end_item = min(current_page * page_size, total_count)
+        {start_item, end_item}
+      end
+
+    page_numbers = pagination_window_pages(current_page, total_pages, assigns.window_size)
+    on_paginate = pagination_on_paginate(assigns.on_paginate, assigns.scroll_to)
+
+    assigns =
+      assigns
+      |> assign(:current_page, current_page)
+      |> assign(:total_pages, total_pages)
+      |> assign(:total_count, total_count)
+      |> assign(:start_item, start_item)
+      |> assign(:end_item, end_item)
+      |> assign(:page_numbers, page_numbers)
+      |> assign(:on_paginate, on_paginate)
+
+    ~H"""
+    <nav
+      aria-label={@aria_label}
+      class={[
+        "mt-4 rounded-2xl border border-base-content/12 bg-base-100/55 p-3.5 backdrop-blur sm:p-4",
+        @class
+      ]}
+    >
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="text-[0.7rem] font-medium uppercase tracking-[0.14em] text-base-content/66">
+          Exibindo {@start_item}–{@end_item} de {@total_count}
+        </p>
+        <p class="rounded-full border border-base-content/16 bg-base-100/75 px-3 py-1 text-xs font-semibold text-base-content/86">
+          Página {@current_page} de {@total_pages}
+        </p>
+      </div>
+
+      <div class="mt-3 flex items-center justify-between gap-2">
+        <.pagination_link
+          page={@current_page - 1}
+          enabled={@current_page > 1}
+          path={@path}
+          on_paginate={@on_paginate}
+          target={@target}
+          class="min-w-[6.3rem] justify-center"
+          aria_label="Página anterior"
+        >
+          <.icon name="hero-chevron-left" class="size-3.5" /> Anterior
+        </.pagination_link>
+
+        <div class="hidden flex-wrap items-center justify-center gap-1 sm:flex">
+          <.pagination_link
+            :for={page_number <- @page_numbers}
+            page={page_number}
+            enabled={true}
+            path={@path}
+            on_paginate={@on_paginate}
+            target={@target}
+            class="min-w-9 justify-center"
+            aria_current={if page_number == @current_page, do: "page"}
+            active={page_number == @current_page}
+            aria_label={"Ir para página #{page_number}"}
+          >
+            {page_number}
+          </.pagination_link>
+        </div>
+
+        <.pagination_link
+          page={@current_page + 1}
+          enabled={@current_page < @total_pages}
+          path={@path}
+          on_paginate={@on_paginate}
+          target={@target}
+          class="min-w-[6.3rem] justify-center"
+          aria_label="Próxima página"
+        >
+          Próxima <.icon name="hero-chevron-right" class="size-3.5" />
+        </.pagination_link>
+      </div>
+    </nav>
+    """
+  end
+
+  attr :page, :integer, required: true
+  attr :enabled, :boolean, default: true
+  attr :path, :any, default: nil
+  attr :on_paginate, JS, default: nil
+  attr :target, :string, default: nil
+  attr :class, :string, default: nil
+  attr :active, :boolean, default: false
+  attr :aria_current, :string, default: nil
+  attr :aria_label, :string, default: nil
+  slot :inner_block, required: true
+
+  defp pagination_link(assigns) do
+    base_class = [
+      "inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
+      assigns.active &&
+        "border-primary/55 bg-primary/14 text-primary shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-primary)_24%,transparent)]",
+      !assigns.active &&
+        "border-base-content/20 bg-base-100/82 text-base-content/78 hover:border-info/42 hover:bg-info/12 hover:text-base-content",
+      !assigns.enabled &&
+        "cursor-not-allowed border-base-content/12 text-base-content/38 opacity-70",
+      assigns.class
+    ]
+
+    assigns = assign(assigns, :base_class, base_class)
+
+    cond do
+      not assigns.enabled ->
+        ~H"""
+        <button
+          type="button"
+          class={@base_class}
+          disabled
+          aria-disabled="true"
+          aria-label={@aria_label}
+        >
+          {render_slot(@inner_block)}
+        </button>
+        """
+
+      is_binary(assigns.path) ->
+        ~H"""
+        <.link
+          patch={pagination_path(@path, @page)}
+          phx-click={@on_paginate}
+          phx-value-page={if @on_paginate, do: @page}
+          phx-target={@target}
+          aria-current={@aria_current}
+          aria-label={@aria_label}
+          class={@base_class}
+        >
+          {render_slot(@inner_block)}
+        </.link>
+        """
+
+      not is_nil(assigns.on_paginate) ->
+        ~H"""
+        <button
+          type="button"
+          phx-click={@on_paginate}
+          phx-value-page={@page}
+          phx-target={@target}
+          aria-current={@aria_current}
+          aria-label={@aria_label}
+          class={@base_class}
+        >
+          {render_slot(@inner_block)}
+        </button>
+        """
+
+      true ->
+        ~H"""
+        <button
+          type="button"
+          class={@base_class}
+          aria-current={@aria_current}
+          aria-label={@aria_label}
+        >
+          {render_slot(@inner_block)}
+        </button>
+        """
+    end
+  end
+
+  defp pagination_window_pages(current_page, total_pages, window_size)
+       when is_integer(current_page) and is_integer(total_pages) and total_pages > 0 do
+    window_size = max(window_size, 1)
+
+    cond do
+      total_pages <= window_size ->
+        Enum.to_list(1..total_pages)
+
+      true ->
+        half = div(window_size, 2)
+        raw_start = current_page - half
+        raw_end = current_page + half
+
+        start_page = max(raw_start, 1)
+        end_page = min(raw_end, total_pages)
+        visible_count = end_page - start_page + 1
+
+        {start_page, end_page} =
+          cond do
+            visible_count == window_size ->
+              {start_page, end_page}
+
+            start_page == 1 ->
+              {1, min(total_pages, window_size)}
+
+            end_page == total_pages ->
+              {max(1, total_pages - window_size + 1), total_pages}
+
+            true ->
+              {start_page, end_page}
+          end
+
+        Enum.to_list(start_page..end_page)
+    end
+  end
+
+  defp pagination_window_pages(_current_page, _total_pages, _window_size), do: [1]
+
+  defp pagination_path(path, page) when is_binary(path) and is_integer(page) and page > 0 do
+    uri = URI.parse(path)
+    query_params = if uri.query, do: Plug.Conn.Query.decode(uri.query), else: %{}
+
+    new_query =
+      query_params |> Map.put("page", Integer.to_string(page)) |> Plug.Conn.Query.encode()
+
+    uri
+    |> Map.put(:query, new_query)
+    |> URI.to_string()
+  end
+
+  defp pagination_path(path, _page), do: path
+
+  defp pagination_on_paginate(on_paginate, scroll_to) do
+    scroll_to =
+      case scroll_to do
+        value when is_binary(value) -> String.trim(value)
+        _ -> nil
+      end
+
+    cond do
+      is_nil(scroll_to) or scroll_to == "" ->
+        on_paginate
+
+      is_nil(on_paginate) ->
+        JS.dispatch("phx:scroll-to-element", detail: %{selector: scroll_to})
+
+      true ->
+        JS.dispatch(on_paginate, "phx:scroll-to-element", detail: %{selector: scroll_to})
+    end
+  end
+
+  @doc """
+  Wrapper around Flop.Phoenix.filter_fields.
+  """
+  attr :form, :any, required: true
+  attr :fields, :list, required: true
+  slot :inner_block, required: true
+
+  def filter_fields(assigns) do
+    ~H"""
+    <Flop.Phoenix.filter_fields :let={entry} form={@form} fields={@fields}>
+      {render_slot(@inner_block, entry)}
+    </Flop.Phoenix.filter_fields>
+    """
+  end
+
+  @doc """
   Renders a data list.
 
   ## Examples

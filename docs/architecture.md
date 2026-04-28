@@ -41,6 +41,7 @@ flowchart TD
 - `lib/organizer_web/live/*.ex`: LiveViews de finanças e colaboração
 - `lib/organizer_web/components/*.ex`: function components reutilizáveis
 - `assets/js/app.js`: hooks e interop JS do LiveView
+- `lib/organizer_web/storybook.ex` + `storybook/**`: catálogo de componentes no ambiente de desenvolvimento
 
 ### Domínio
 
@@ -55,6 +56,8 @@ A estratégia segue o padrão oficial de pipelines Phoenix + `live_session` para
 - Pipeline `:browser` com `fetch_current_scope_for_user`
 - `live_session :authenticated` para páginas LiveView protegidas (`/finances`, `/account-links...`)
 - Pipeline `:api` + `:require_authenticated_api_user` para API REST
+
+No fluxo de colaboração, o acerto mensal roda na própria rota `/account-links/:link_id` (não existe mais tela separada de settlement).
 
 Referências oficiais:
 

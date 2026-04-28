@@ -12,13 +12,30 @@ defmodule OrganizerWeb.AccountLinkLive do
       Phoenix.PubSub.subscribe(Organizer.PubSub, "account_links:#{scope.user.id}")
     end
 
-    {:ok, links} = SharedFinance.list_account_links(scope)
-    sharing_metrics = load_sharing_metrics(scope, links)
+    page = 1
+    page_size = 10
+    filter_q = ""
+
+    {:ok, {links, links_meta}} =
+      SharedFinance.list_account_links_with_meta(scope, %{
+        page: page,
+        page_size: page_size,
+        q: filter_q
+      })
+
+    sharing_metrics = load_sharing_metrics(scope, links_meta.total_count || length(links))
 
     socket =
       socket
       |> assign(:current_scope, scope)
       |> assign(:account_links, links)
+      |> assign(:account_links_meta, links_meta)
+      |> assign(:account_links_page, page)
+      |> assign(:account_links_next_page, page + 1)
+      |> assign(:account_links_page_size, page_size)
+      |> assign(:account_links_has_more?, Map.get(links_meta, :has_next_page?, false))
+      |> assign(:account_links_loading_more?, false)
+      |> assign(:account_links_filter_q, filter_q)
       |> assign(:sharing_metrics, sharing_metrics)
       |> assign(:invite_url, nil)
       |> assign(:invite_token, nil)
@@ -29,11 +46,16 @@ defmodule OrganizerWeb.AccountLinkLive do
   end
 
   @impl true
-  def handle_params(_params, _uri, socket) do
+  def handle_params(params, _uri, socket) do
     socket =
       case socket.assigns.live_action do
-        :index -> assign(socket, :page_title, "Compartilhamentos")
-        :new_invite -> assign(socket, :page_title, "Novo Convite")
+        :index ->
+          socket
+          |> assign(:page_title, "Compartilhamentos")
+          |> maybe_restore_account_links_filter(params)
+
+        :new_invite ->
+          assign(socket, :page_title, "Novo Convite")
       end
 
     {:noreply, socket}
@@ -144,13 +166,44 @@ defmodule OrganizerWeb.AccountLinkLive do
   end
 
   @impl true
-  def handle_info({:account_link_updated, _}, socket) do
-    scope = socket.assigns.current_scope
-    {:ok, links} = SharedFinance.list_account_links(scope)
-    sharing_metrics = load_sharing_metrics(scope, links)
+  def handle_event("filter_account_links", %{"filters" => filters}, socket) do
+    filter_q =
+      filters
+      |> Map.get("q", "")
+      |> normalize_filter_q()
 
     {:noreply,
-     socket |> assign(:account_links, links) |> assign(:sharing_metrics, sharing_metrics)}
+     socket
+     |> assign(:account_links_filter_q, filter_q)
+     |> assign(:account_links_loading_more?, false)
+     |> load_account_links_page(1, reset: true)}
+  end
+
+  @impl true
+  def handle_event("load_more_account_links", params, socket) do
+    cond do
+      socket.assigns.account_links_loading_more? ->
+        {:noreply, socket}
+
+      not socket.assigns.account_links_has_more? ->
+        {:noreply, socket}
+
+      true ->
+        next_page =
+          params
+          |> Map.get("page", socket.assigns.account_links_next_page)
+          |> parse_positive_page()
+
+        {:noreply,
+         socket
+         |> assign(:account_links_loading_more?, true)
+         |> load_account_links_page(next_page, reset: false)}
+    end
+  end
+
+  @impl true
+  def handle_info({:account_link_updated, _}, socket) do
+    {:noreply, load_account_links_page(socket, 1, reset: true)}
   end
 
   @impl true
@@ -186,16 +239,16 @@ defmodule OrganizerWeb.AccountLinkLive do
             <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <article class="micro-surface rounded-2xl p-4">
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
-                  Compartilhamentos ativos
+                  Lançamentos compartilhados
                 </p>
                 <p class="mt-1 text-2xl font-semibold text-base-content">
-                  {@sharing_metrics.links_active}
+                  {@sharing_metrics.finances_shared_total}
                 </p>
               </article>
 
               <article class="micro-surface rounded-2xl p-4">
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
-                  Lançamentos vinculados
+                  Lançamentos no vínculo
                 </p>
                 <p class="mt-1 text-2xl font-semibold text-base-content">
                   {@sharing_metrics.finances_shared_total}
@@ -226,55 +279,79 @@ defmodule OrganizerWeb.AccountLinkLive do
                 <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
                   Lista de compartilhamentos
                 </h2>
-                <span class="text-xs text-base-content/65">{length(@account_links)} registro(s)</span>
+                <span class="text-xs text-base-content/65">
+                  {Map.get(@account_links_meta, :total_count, length(@account_links))} registro(s)
+                </span>
               </div>
 
-              <ul id="account-links-list" class="mt-4 space-y-3">
-                <%= if Enum.empty?(@account_links) do %>
-                  <li
-                    id="account-link-empty"
-                    class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/75"
-                  >
-                    Nenhum compartilhamento ativo. Gere um convite para começar a compartilhar.
-                  </li>
-                <% end %>
+              <form id="account-links-filters" phx-change="filter_account_links" class="mt-4">
+                <.input
+                  type="text"
+                  name="filters[q]"
+                  value={@account_links_filter_q}
+                  placeholder="Filtrar por e-mail do participante..."
+                  maxlength="120"
+                />
+              </form>
 
-                <%= for link <- @account_links do %>
-                  <li
-                    id={"account-link-#{link.id}"}
-                    class="shared-entry-row micro-surface flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div class="min-w-0">
-                      <p class="truncate text-sm font-semibold text-base-content/92">
-                        {partner_email(@current_scope.user.id, link)}
-                      </p>
-                      <p class="text-xs text-base-content/62">Compartilhamento #{link.id} • ativo</p>
-                    </div>
+              <div
+                id="account-links-scroll-area"
+                phx-hook="InfiniteScroll"
+                data-event="load_more_account_links"
+                data-has-more={to_string(@account_links_has_more?)}
+                data-loading={to_string(@account_links_loading_more?)}
+                data-next-page={@account_links_next_page}
+                class="operations-scroll-area operations-scroll-area--list mt-4 rounded-xl border border-base-content/12 bg-base-100/24 p-2.5"
+              >
+                <ul id="account-links-list" class="space-y-3">
+                  <%= if Enum.empty?(@account_links) do %>
+                    <li
+                      id="account-link-empty"
+                      class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/75"
+                    >
+                      Nenhum compartilhamento ativo. Gere um convite para começar a compartilhar.
+                    </li>
+                  <% end %>
 
-                    <div class="flex flex-wrap gap-2">
-                      <.link navigate={~p"/account-links/#{link.id}"} class="btn btn-soft btn-xs">
-                        Finanças
-                      </.link>
-                      <.link
-                        navigate={~p"/account-links/#{link.id}/settlement"}
-                        class="btn btn-outline btn-xs"
-                      >
-                        Acerto
-                      </.link>
-                      <button
-                        id={"deactivate-link-#{link.id}"}
-                        type="button"
-                        phx-click="prompt_deactivate_link"
-                        phx-value-id={link.id}
-                        phx-value-partner_email={partner_email(@current_scope.user.id, link)}
-                        class="btn btn-outline btn-xs btn-error"
-                      >
-                        Desativar
-                      </button>
-                    </div>
-                  </li>
-                <% end %>
-              </ul>
+                  <%= for link <- @account_links do %>
+                    <li
+                      id={"account-link-#{link.id}"}
+                      class="shared-entry-row micro-surface flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div class="min-w-0">
+                        <p class="truncate text-sm font-semibold text-base-content/92">
+                          {partner_email(@current_scope.user.id, link)}
+                        </p>
+                        <p class="text-xs text-base-content/62">
+                          Compartilhamento #{link.id} • ativo
+                        </p>
+                      </div>
+
+                      <div class="flex flex-wrap gap-2">
+                        <.link navigate={~p"/account-links/#{link.id}"} class="btn btn-soft btn-xs">
+                          Gerenciar
+                        </.link>
+                        <button
+                          id={"deactivate-link-#{link.id}"}
+                          type="button"
+                          phx-click="prompt_deactivate_link"
+                          phx-value-id={link.id}
+                          phx-value-partner_email={partner_email(@current_scope.user.id, link)}
+                          class="btn btn-outline btn-xs btn-error"
+                        >
+                          Desativar
+                        </button>
+                      </div>
+                    </li>
+                  <% end %>
+                </ul>
+
+                <div :if={@account_links_loading_more?} class="px-1 py-2">
+                  <p class="text-center text-xs text-base-content/62">
+                    Carregando mais compartilhamentos...
+                  </p>
+                </div>
+              </div>
             </section>
 
             <.destructive_confirm_modal
@@ -401,17 +478,24 @@ defmodule OrganizerWeb.AccountLinkLive do
 
   defp parse_int(_), do: :error
 
+  defp parse_positive_page(value) when is_integer(value) and value > 0, do: value
+
+  defp parse_positive_page(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {page, ""} when page > 0 -> page
+      _ -> 1
+    end
+  end
+
+  defp parse_positive_page(_value), do: 1
+
   defp deactivate_link(socket, link_id) do
     scope = socket.assigns.current_scope
 
     with {:ok, _link} <- SharedFinance.deactivate_account_link(scope, link_id) do
-      {:ok, links} = SharedFinance.list_account_links(scope)
-      sharing_metrics = load_sharing_metrics(scope, links)
-
       socket
       |> assign(:pending_link_deactivation, nil)
-      |> assign(:account_links, links)
-      |> assign(:sharing_metrics, sharing_metrics)
+      |> load_account_links_page(1, reset: true)
       |> put_flash(:info, "Compartilhamento desativado.")
     else
       _ ->
@@ -421,7 +505,7 @@ defmodule OrganizerWeb.AccountLinkLive do
     end
   end
 
-  defp load_sharing_metrics(scope, links) do
+  defp load_sharing_metrics(scope, links_active_count) do
     {:ok, finances} =
       Planning.list_finance_entries(scope, %{
         days: "365",
@@ -433,11 +517,71 @@ defmodule OrganizerWeb.AccountLinkLive do
     finances_shared_total = Enum.count(finances, &is_integer(&1.shared_with_link_id))
 
     %{
-      links_active: length(links),
+      links_active: links_active_count,
       finances_shared_total: finances_shared_total,
       shared_total: finances_shared_total
     }
   end
+
+  defp load_account_links_page(socket, page, opts) do
+    reset? = Keyword.get(opts, :reset, true)
+    scope = socket.assigns.current_scope
+    page_size = socket.assigns.account_links_page_size
+    filter_q = Map.get(socket.assigns, :account_links_filter_q, "")
+
+    case SharedFinance.list_account_links_with_meta(scope, %{
+           page: page,
+           page_size: page_size,
+           q: filter_q
+         }) do
+      {:ok, {links, links_meta}} ->
+        current_links = Map.get(socket.assigns, :account_links, [])
+
+        merged_links =
+          if reset? do
+            links
+          else
+            current_links ++ links
+          end
+
+        current_page = Map.get(links_meta, :current_page, page)
+
+        sharing_metrics =
+          load_sharing_metrics(scope, links_meta.total_count || length(merged_links))
+
+        socket
+        |> assign(:account_links, merged_links)
+        |> assign(:account_links_meta, links_meta)
+        |> assign(:account_links_page, current_page)
+        |> assign(:account_links_next_page, current_page + 1)
+        |> assign(:account_links_has_more?, Map.get(links_meta, :has_next_page?, false))
+        |> assign(:account_links_loading_more?, false)
+        |> assign(:sharing_metrics, sharing_metrics)
+
+      _ ->
+        socket
+        |> assign(:account_links_loading_more?, false)
+        |> put_flash(:error, "Não foi possível carregar os compartilhamentos.")
+    end
+  end
+
+  defp maybe_restore_account_links_filter(socket, params) do
+    filter_q =
+      params
+      |> Map.get("q", Map.get(socket.assigns, :account_links_filter_q, ""))
+      |> normalize_filter_q()
+
+    if filter_q == Map.get(socket.assigns, :account_links_filter_q, "") do
+      socket
+    else
+      socket
+      |> assign(:account_links_filter_q, filter_q)
+      |> load_account_links_page(1, reset: true)
+    end
+  end
+
+  defp normalize_filter_q(value) when is_binary(value), do: String.trim(value)
+  defp normalize_filter_q(_), do: ""
 
   defp partner_email(user_id, link) do
     if user_id == link.user_a_id do

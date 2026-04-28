@@ -6,6 +6,18 @@ defmodule Organizer.Planning.ImportantDate do
 
   @categories [:personal, :finance, :work]
 
+  @derive {
+    Flop.Schema,
+    filterable: [:title, :category, :date],
+    sortable: [:date, :title, :inserted_at],
+    default_order: %{
+      order_by: [:date, :inserted_at],
+      order_directions: [:asc, :asc]
+    },
+    default_limit: 20,
+    max_limit: 100
+  }
+
   schema "important_dates" do
     field :title, :string
     field :category, Ecto.Enum, values: @categories, default: :personal

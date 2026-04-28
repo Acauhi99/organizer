@@ -42,7 +42,9 @@ defmodule OrganizerWeb.DashboardLive.Filters do
       category: "",
       q: "",
       min_amount_cents: "",
-      max_amount_cents: ""
+      max_amount_cents: "",
+      page: 1,
+      page_size: 10
     }
   end
 
@@ -68,7 +70,9 @@ defmodule OrganizerWeb.DashboardLive.Filters do
       category: Map.get(filters, "category"),
       q: Map.get(filters, "q"),
       min_amount_cents: Map.get(filters, "min_amount_cents"),
-      max_amount_cents: Map.get(filters, "max_amount_cents")
+      max_amount_cents: Map.get(filters, "max_amount_cents"),
+      page: Map.get(filters, "page"),
+      page_size: Map.get(filters, "page_size")
     }
     |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
     |> Map.new()
@@ -121,6 +125,8 @@ defmodule OrganizerWeb.DashboardLive.Filters do
     end)
     |> Map.update(:min_amount_cents, "", &sanitize_non_negative_integer_string/1)
     |> Map.update(:max_amount_cents, "", &sanitize_non_negative_integer_string/1)
+    |> Map.update(:page, 1, &sanitize_positive_integer/1)
+    |> Map.update(:page_size, 10, &sanitize_page_size/1)
   end
 
   @spec sanitize_finance_metrics_filters(map()) :: map()
@@ -150,6 +156,28 @@ defmodule OrganizerWeb.DashboardLive.Filters do
       ""
     end
   end
+
+  defp sanitize_positive_integer(value) when is_integer(value) and value > 0, do: value
+
+  defp sanitize_positive_integer(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {n, ""} when n > 0 -> n
+      _ -> 1
+    end
+  end
+
+  defp sanitize_positive_integer(_value), do: 1
+
+  defp sanitize_page_size(value) when is_integer(value) and value > 0, do: value
+
+  defp sanitize_page_size(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {n, ""} when n > 0 -> n
+      _ -> 10
+    end
+  end
+
+  defp sanitize_page_size(_value), do: 10
 
   defp sanitize_month_input(value) when is_binary(value) do
     cleaned = String.trim(value)

@@ -4,6 +4,18 @@ defmodule Organizer.Planning.FixedCost do
 
   alias Organizer.Accounts.User
 
+  @derive {
+    Flop.Schema,
+    filterable: [:name, :amount_cents, :billing_day, :active, :starts_on],
+    sortable: [:billing_day, :name, :amount_cents, :inserted_at],
+    default_order: %{
+      order_by: [:billing_day, :name],
+      order_directions: [:asc, :asc]
+    },
+    default_limit: 20,
+    max_limit: 100
+  }
+
   schema "fixed_costs" do
     field :name, :string
     field :amount_cents, :integer

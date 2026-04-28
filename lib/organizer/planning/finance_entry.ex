@@ -33,6 +33,27 @@ defmodule Organizer.Planning.FinanceEntry do
           updated_at: DateTime.t() | nil
         }
 
+  @derive {
+    Flop.Schema,
+    filterable: [
+      :kind,
+      :expense_profile,
+      :payment_method,
+      :amount_cents,
+      :category,
+      :description,
+      :occurred_on,
+      :shared_with_link_id
+    ],
+    sortable: [:occurred_on, :amount_cents, :category, :inserted_at],
+    default_order: %{
+      order_by: [:occurred_on, :inserted_at],
+      order_directions: [:desc, :desc]
+    },
+    default_limit: 10,
+    max_limit: 10_000
+  }
+
   schema "finance_entries" do
     field :kind, Ecto.Enum, values: @kinds
     field :expense_profile, Ecto.Enum, values: @expense_profiles

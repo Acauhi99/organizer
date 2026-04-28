@@ -6,9 +6,14 @@ defmodule OrganizerWeb.API.V1.ImportantDateController do
   action_fallback OrganizerWeb.ApiFallbackController
 
   def index(conn, params) do
-    with {:ok, dates} <-
-           Planning.list_important_dates(conn.assigns.current_scope, parse_days(params)) do
-      json(conn, %{data: Enum.map(dates, &important_date_json/1)})
+    list_params = Map.put(params, "days", parse_days(params))
+
+    with {:ok, {dates, meta}} <-
+           Planning.list_important_dates_with_meta(conn.assigns.current_scope, list_params) do
+      json(conn, %{
+        data: Enum.map(dates, &important_date_json/1),
+        meta: pagination_meta_json(meta)
+      })
     end
   end
 
@@ -60,4 +65,21 @@ defmodule OrganizerWeb.API.V1.ImportantDateController do
 
   defp parse_days(%{"days" => value}) when is_integer(value), do: value
   defp parse_days(_params), do: 30
+
+  defp pagination_meta_json(meta) do
+    meta
+    |> Map.from_struct()
+    |> Map.take([
+      :current_page,
+      :page_size,
+      :total_pages,
+      :total_count,
+      :has_next_page?,
+      :has_previous_page?,
+      :next_offset,
+      :previous_offset,
+      :next_cursor,
+      :previous_cursor
+    ])
+  end
 end
