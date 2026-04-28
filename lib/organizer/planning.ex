@@ -656,9 +656,19 @@ defmodule Organizer.Planning do
     categories
     |> Enum.map(&to_string/1)
     |> Enum.map(&String.trim/1)
+    |> Enum.map(&normalize_shared_category_label/1)
     |> Enum.reject(&(&1 == ""))
     |> Enum.uniq_by(&String.downcase/1)
     |> Enum.sort_by(&String.downcase/1)
+  end
+
+  defp normalize_shared_category_label(category) when is_binary(category) do
+    normalized =
+      category
+      |> String.replace(~r/\s+compartilhad(?:o|a|os|as)\s*$/iu, "")
+      |> String.trim()
+
+    if normalized == "", do: category, else: normalized
   end
 
   defp normalize_filter_string(value) when is_binary(value), do: String.trim(value)

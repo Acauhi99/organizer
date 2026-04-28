@@ -236,19 +236,6 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           maxlength="50"
           list="finance-filter-categories"
         />
-        <select
-          id="finance-filter-common-category"
-          class="select select-bordered select-sm"
-          data-category-shortcut-for="finance-filter-category"
-        >
-          <option value="">Categorias comuns</option>
-          <option
-            :for={category <- finance_filter_common_category_options(@category_suggestions)}
-            value={category}
-          >
-            {category}
-          </option>
-        </select>
         <input
           type="text"
           name="filters[q]"
@@ -575,25 +562,6 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           </div>
           <label
             class="text-xs font-medium text-base-content/70"
-            for={"finance-common-category-#{@entry.id}"}
-          >
-            Categorias comuns
-          </label>
-          <select
-            id={"finance-common-category-#{@entry.id}"}
-            class="select select-bordered w-full"
-            data-category-shortcut-for={"finance-category-#{@entry.id}"}
-          >
-            <option value="">Selecionar categoria comum</option>
-            <option
-              :for={category <- finance_category_options(@entry.kind, @category_suggestions)}
-              value={category}
-            >
-              {category}
-            </option>
-          </select>
-          <label
-            class="text-xs font-medium text-base-content/70"
             for={"finance-category-#{@entry.id}"}
           >
             Categoria
@@ -842,16 +810,6 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   defp finance_category_options(_kind, suggestions) do
     default_expense_categories()
     |> merge_with_category_suggestions(Map.get(suggestions, :expense, []))
-  end
-
-  defp finance_filter_common_category_options(suggestions) when is_map(suggestions) do
-    (default_expense_categories() ++ default_income_categories())
-    |> merge_with_category_suggestions(Map.get(suggestions, :all, []))
-  end
-
-  defp finance_filter_common_category_options(_suggestions) do
-    (default_expense_categories() ++ default_income_categories())
-    |> merge_with_category_suggestions([])
   end
 
   defp default_income_categories do

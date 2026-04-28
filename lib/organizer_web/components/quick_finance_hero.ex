@@ -104,24 +104,11 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           />
 
           <.input
-            type="select"
-            id="quick-finance-common-category"
-            name="quick_finance_common_category"
-            value=""
-            label="Categorias comuns"
-            prompt="Selecionar categoria comum"
-            options={
-              Enum.map(category_options(@quick_finance_kind, @category_suggestions), &{&1, &1})
-            }
-            data-category-shortcut-for={@quick_finance_form[:category].id}
-          />
-
-          <.input
             field={@quick_finance_form[:category]}
             type="text"
             id="quick-finance-category"
-            label="Categoria"
-            placeholder="Ex: Alimentação"
+            label="Categoria do lançamento"
+            placeholder="Ex: Alimentação, Moradia, Transporte"
             list={category_datalist_id(@quick_finance_kind)}
           />
 
@@ -194,62 +181,75 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           id="quick-finance-share-controls"
           class="rounded-xl border border-base-content/14 bg-base-100/45 p-3"
         >
+          <div class="mb-3 space-y-1">
+            <h3 class="text-sm font-semibold text-base-content">Compartilhamento (opcional)</h3>
+            <p class="text-xs text-base-content/70">
+              Primeiro escolha a categoria e depois marque se este gasto deve ser compartilhado.
+            </p>
+          </div>
+
           <.input
             field={@quick_finance_form[:share_with_link]}
             id="quick-finance-share-with-link"
             type="checkbox"
-            label=" Compartilhar gasto com conta vinculada"
+            label=" Marcar este gasto como compartilhado"
             disabled={Enum.empty?(@account_links)}
           />
 
-          <.input
-            field={@quick_finance_form[:shared_with_link_id]}
-            id="quick-finance-share-link-id"
-            type="select"
-            label="Conta vinculada"
-            options={share_link_options(@account_links, @current_user_id)}
-            disabled={Enum.empty?(@account_links) || !share_enabled?(@quick_finance_form)}
-          />
-
-          <.input
-            field={@quick_finance_form[:shared_split_mode]}
-            id="quick-finance-share-mode"
-            type="select"
-            label="Forma de compartilhamento"
-            options={[
-              {"Padrão (por % de renda)", "income_ratio"},
-              {"Manual (valor fixo)", "manual"}
-            ]}
-            disabled={Enum.empty?(@account_links) || !share_enabled?(@quick_finance_form)}
-          />
-
           <div
-            :if={share_enabled?(@quick_finance_form) && manual_share_mode?(@quick_finance_form)}
-            id="quick-finance-manual-split"
-            class="mt-2 grid gap-2 rounded-xl border border-info/20 bg-info/5 p-3 sm:grid-cols-2"
+            :if={share_enabled?(@quick_finance_form)}
+            id="quick-finance-share-options"
+            class="mt-3 space-y-3 rounded-xl border border-base-content/12 bg-base-100/65 p-3"
           >
             <.input
-              field={@quick_finance_form[:shared_manual_mine_amount]}
-              id="quick-finance-manual-mine-amount"
-              type="text"
-              label="Quanto você paga"
-              placeholder="Ex: 200,00"
-              autocomplete="off"
-              inputmode="numeric"
-              data-money-mask="true"
+              field={@quick_finance_form[:shared_with_link_id]}
+              id="quick-finance-share-link-id"
+              type="select"
+              label="Conta vinculada"
+              options={share_link_options(@account_links, @current_user_id)}
+              disabled={Enum.empty?(@account_links)}
             />
 
             <.input
-              field={@quick_finance_form[:shared_manual_theirs_amount]}
-              id="quick-finance-manual-theirs-amount"
-              type="text"
-              label="Quanto a outra conta paga"
-              readonly
+              field={@quick_finance_form[:shared_split_mode]}
+              id="quick-finance-share-mode"
+              type="select"
+              label="Forma de compartilhamento"
+              options={[
+                {"Padrão (por % de renda)", "income_ratio"},
+                {"Manual (valor fixo)", "manual"}
+              ]}
+              disabled={Enum.empty?(@account_links)}
             />
 
-            <p class="text-xs text-base-content/68 sm:col-span-2">
-              Ao informar o seu valor, o restante é preenchido automaticamente para a outra conta.
-            </p>
+            <div
+              :if={manual_share_mode?(@quick_finance_form)}
+              id="quick-finance-manual-split"
+              class="grid gap-2 rounded-xl border border-info/20 bg-info/5 p-3 sm:grid-cols-2"
+            >
+              <.input
+                field={@quick_finance_form[:shared_manual_mine_amount]}
+                id="quick-finance-manual-mine-amount"
+                type="text"
+                label="Quanto você paga"
+                placeholder="Ex: 200,00"
+                autocomplete="off"
+                inputmode="numeric"
+                data-money-mask="true"
+              />
+
+              <.input
+                field={@quick_finance_form[:shared_manual_theirs_amount]}
+                id="quick-finance-manual-theirs-amount"
+                type="text"
+                label="Quanto a outra conta paga"
+                readonly
+              />
+
+              <p class="text-xs text-base-content/68 sm:col-span-2">
+                Ao informar o seu valor, o restante é preenchido automaticamente para a outra conta.
+              </p>
+            </div>
           </div>
 
           <p :if={Enum.empty?(@account_links)} class="text-xs text-base-content/70">

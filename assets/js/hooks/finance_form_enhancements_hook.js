@@ -1,6 +1,5 @@
 const MONEY_SELECTOR = "input[data-money-mask='true']"
 const DATE_SELECTOR = "input[data-date-picker]"
-const CATEGORY_SHORTCUT_SELECTOR = "select[data-category-shortcut-for]"
 let datePickerControlSequence = 0
 
 const digitsOnly = (value) => `${value || ""}`.replace(/\D+/g, "")
@@ -118,10 +117,6 @@ const maskMonthInputValue = (value) => {
 
 const dispatchInputEvent = (element) => {
   element.dispatchEvent(new Event("input", {bubbles: true}))
-}
-
-const dispatchChangeEvent = (element) => {
-  element.dispatchEvent(new Event("change", {bubbles: true}))
 }
 
 const setInputValueAndNotify = (input, value) => {
@@ -357,39 +352,6 @@ const enhanceDateInput = (input, hook) => {
   })
 }
 
-const enhanceCategoryShortcut = (select, hook) => {
-  if (!(select instanceof HTMLSelectElement) || select.dataset.categoryShortcutBound === "true") {
-    return
-  }
-
-  const targetId = select.dataset.categoryShortcutFor
-
-  if (typeof targetId !== "string" || targetId.trim() === "") {
-    return
-  }
-
-  const handleChange = () => {
-    const target = document.getElementById(targetId)
-
-    if (!(target instanceof HTMLInputElement) || select.value.trim() === "") {
-      return
-    }
-
-    target.value = select.value
-    dispatchInputEvent(target)
-    dispatchChangeEvent(target)
-  }
-
-  select.addEventListener("change", handleChange)
-
-  select.dataset.categoryShortcutBound = "true"
-
-  hook.cleanups.push(() => {
-    select.removeEventListener("change", handleChange)
-    delete select.dataset.categoryShortcutBound
-  })
-}
-
 const enhanceFinanceFormInputs = (hook) => {
   hook.el.querySelectorAll(MONEY_SELECTOR).forEach((input) => {
     enhanceMoneyInput(input, hook)
@@ -397,10 +359,6 @@ const enhanceFinanceFormInputs = (hook) => {
 
   hook.el.querySelectorAll(DATE_SELECTOR).forEach((input) => {
     enhanceDateInput(input, hook)
-  })
-
-  hook.el.querySelectorAll(CATEGORY_SHORTCUT_SELECTOR).forEach((select) => {
-    enhanceCategoryShortcut(select, hook)
   })
 }
 
