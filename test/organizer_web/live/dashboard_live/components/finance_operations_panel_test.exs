@@ -47,10 +47,15 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanelTest do
   test "renders panel and filters" do
     html = render_component(&FinanceOperationsPanel.finance_operations_panel/1, base_assigns())
     assert html =~ ~s(id="finance-operations-panel")
+    assert html =~ ~s(phx-hook="FinanceFormEnhancements")
     assert html =~ ~s(id="finance-filters")
+    assert html =~ ~s(id="finance-filter-common-category")
+    assert html =~ ~s(id="finance-filter-category")
     assert html =~ ~s(id="finances" phx-update="stream")
     assert html =~ ~s(id="finances-scroll-area")
     assert html =~ ~s(phx-hook="InfiniteScroll")
+    assert html =~ ~s(data-money-mask="true")
+    assert html =~ ~s(data-date-picker="date")
     assert html =~ "Exibindo 0 de 0 lançamentos"
   end
 
@@ -113,6 +118,9 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanelTest do
     assert html =~ ~s(id="finance-edit-modal")
     assert html =~ ~s(name="finance[amount_cents]")
     assert html =~ ~s(value="330,00")
+    assert html =~ ~s(data-money-mask="true")
+    assert html =~ ~s(id="finance-common-category-101")
+    assert html =~ ~s(data-category-shortcut-for="finance-category-101")
     assert html =~ ~s(name="finance[installment_number]")
   end
 

@@ -28,6 +28,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
     <section
       id="finance-operations-panel"
       class="operations-shell surface-card rounded-2xl p-4 scroll-mt-20"
+      phx-hook="FinanceFormEnhancements"
     >
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="max-w-3xl">
@@ -128,6 +129,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           inputmode="numeric"
           maxlength="10"
           pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
+          data-date-picker="date"
         />
         <input
           type="text"
@@ -138,6 +140,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           inputmode="numeric"
           maxlength="7"
           pattern="^[0-9]{2}/[0-9]{4}$"
+          data-date-picker="month"
         />
         <input
           type="text"
@@ -148,6 +151,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           inputmode="numeric"
           maxlength="10"
           pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
+          data-date-picker="date"
         />
         <input
           type="text"
@@ -158,6 +162,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           inputmode="numeric"
           maxlength="10"
           pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
+          data-date-picker="date"
         />
         <select name="filters[weekday]" class="select select-bordered select-sm">
           <option value="all" selected={@finance_filters.weekday == "all"}>Todos os dias</option>
@@ -223,6 +228,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
         </select>
         <input
           type="text"
+          id="finance-filter-category"
           name="filters[category]"
           value={@finance_filters.category}
           placeholder="Categoria..."
@@ -230,6 +236,19 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           maxlength="50"
           list="finance-filter-categories"
         />
+        <select
+          id="finance-filter-common-category"
+          class="select select-bordered select-sm"
+          data-category-shortcut-for="finance-filter-category"
+        >
+          <option value="">Categorias comuns</option>
+          <option
+            :for={category <- finance_filter_common_category_options(@category_suggestions)}
+            value={category}
+          >
+            {category}
+          </option>
+        </select>
         <input
           type="text"
           name="filters[q]"
@@ -239,22 +258,36 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           maxlength="100"
         />
         <input
-          type="number"
+          type="hidden"
+          id="finance-filter-min-amount-cents"
           name="filters[min_amount_cents]"
           value={@finance_filters.min_amount_cents}
-          placeholder="Valor mín..."
-          class="input input-bordered input-sm"
-          min="0"
-          step="100"
         />
         <input
-          type="number"
+          type="text"
+          id="finance-filter-min-amount-display"
+          value={money_filter_input_value(@finance_filters.min_amount_cents)}
+          placeholder="Valor mín..."
+          class="input input-bordered input-sm"
+          inputmode="numeric"
+          data-money-mask="true"
+          data-money-hidden-target="finance-filter-min-amount-cents"
+        />
+        <input
+          type="hidden"
+          id="finance-filter-max-amount-cents"
           name="filters[max_amount_cents]"
           value={@finance_filters.max_amount_cents}
+        />
+        <input
+          type="text"
+          id="finance-filter-max-amount-display"
+          value={money_filter_input_value(@finance_filters.max_amount_cents)}
           placeholder="Valor máx..."
           class="input input-bordered input-sm"
-          min="0"
-          step="100"
+          inputmode="numeric"
+          data-money-mask="true"
+          data-money-hidden-target="finance-filter-max-amount-cents"
         />
       </form>
 
@@ -487,26 +520,19 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
                 class="text-xs font-medium text-base-content/70"
                 for={"finance-expense-profile-#{@entry.id}"}
               >
-                Natureza da despesa
+                {finance_profile_field_label(@entry.kind)}
               </label>
               <select
                 id={"finance-expense-profile-#{@entry.id}"}
                 name="finance[expense_profile]"
                 class="select select-bordered w-full"
               >
-                <option value="" selected={is_nil(@entry.expense_profile)}>Não se aplica</option>
-                <option value="fixed" selected={@entry.expense_profile == :fixed}>Fixa</option>
-                <option value="variable" selected={@entry.expense_profile == :variable}>
-                  Variável
-                </option>
-                <option value="recurring_fixed" selected={@entry.expense_profile == :recurring_fixed}>
-                  Recorrente fixa
-                </option>
                 <option
-                  value="recurring_variable"
-                  selected={@entry.expense_profile == :recurring_variable}
+                  :for={{label, value} <- finance_edit_profile_options(@entry.kind)}
+                  value={value}
+                  selected={to_string(@entry.expense_profile || "variable") == value}
                 >
-                  Recorrente variável
+                  {label}
                 </option>
               </select>
             </div>
@@ -543,9 +569,29 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
                 value={money_input_value(@entry.amount_cents)}
                 class="input input-bordered w-full"
                 placeholder="Ex: 330,00"
+                data-money-mask="true"
               />
             </div>
           </div>
+          <label
+            class="text-xs font-medium text-base-content/70"
+            for={"finance-common-category-#{@entry.id}"}
+          >
+            Categorias comuns
+          </label>
+          <select
+            id={"finance-common-category-#{@entry.id}"}
+            class="select select-bordered w-full"
+            data-category-shortcut-for={"finance-category-#{@entry.id}"}
+          >
+            <option value="">Selecionar categoria comum</option>
+            <option
+              :for={category <- finance_category_options(@entry.kind, @category_suggestions)}
+              value={category}
+            >
+              {category}
+            </option>
+          </select>
           <label
             class="text-xs font-medium text-base-content/70"
             for={"finance-category-#{@entry.id}"}
@@ -574,6 +620,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             inputmode="numeric"
             maxlength="10"
             pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
+            data-date-picker="date"
           />
           <label
             class="text-xs font-medium text-base-content/70"
@@ -677,6 +724,25 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   defp finance_kind_label(:expense), do: "Despesa"
   defp finance_kind_label(_), do: "Tipo"
 
+  defp finance_profile_field_label(:income), do: "Natureza da receita"
+  defp finance_profile_field_label(_), do: "Natureza da despesa"
+
+  defp finance_edit_profile_options(:income) do
+    [
+      {"Variável", "variable"},
+      {"Fixa (repete mensalmente)", "fixed"}
+    ]
+  end
+
+  defp finance_edit_profile_options(_kind) do
+    [
+      {"Fixa", "fixed"},
+      {"Variável", "variable"},
+      {"Recorrente fixa", "recurring_fixed"},
+      {"Recorrente variável", "recurring_variable"}
+    ]
+  end
+
   defp finance_profile_label(:fixed), do: "Fixa"
   defp finance_profile_label(:variable), do: "Variável"
   defp finance_profile_label(:recurring_fixed), do: "Recorrente fixa"
@@ -751,6 +817,17 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   defp money_input_value(cents) when is_integer(cents), do: Integer.to_string(cents)
   defp money_input_value(_cents), do: ""
 
+  defp money_filter_input_value(value) when is_integer(value), do: money_input_value(value)
+
+  defp money_filter_input_value(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {cents, ""} when cents >= 0 -> money_input_value(cents)
+      _ -> ""
+    end
+  end
+
+  defp money_filter_input_value(_value), do: ""
+
   defp finance_entry_category_datalist_id(entry_id, :income),
     do: "finance-entry-income-categories-#{entry_id}"
 
@@ -765,6 +842,16 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   defp finance_category_options(_kind, suggestions) do
     default_expense_categories()
     |> merge_with_category_suggestions(Map.get(suggestions, :expense, []))
+  end
+
+  defp finance_filter_common_category_options(suggestions) when is_map(suggestions) do
+    (default_expense_categories() ++ default_income_categories())
+    |> merge_with_category_suggestions(Map.get(suggestions, :all, []))
+  end
+
+  defp finance_filter_common_category_options(_suggestions) do
+    (default_expense_categories() ++ default_income_categories())
+    |> merge_with_category_suggestions([])
   end
 
   defp default_income_categories do

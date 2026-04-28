@@ -15,13 +15,14 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
       id="quick-finance-hero"
       class="surface-card rounded-2xl p-5 scroll-mt-20"
       data-onboarding-target="quick-finance"
+      phx-hook="FinanceFormEnhancements"
     >
       <header class="mb-4 space-y-1">
         <h2 class="text-2xl font-black tracking-[-0.02em] text-base-content">
           Lançamento rápido
         </h2>
         <p class="text-sm leading-6 text-base-content/75">
-          Registrar renda e gastos por formulário
+          Registrar receitas e despesas por formulário
         </p>
       </header>
 
@@ -33,7 +34,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           phx-value-preset="income_salary"
           class={preset_class(@quick_finance_preset == "income_salary")}
         >
-          Renda: salário
+          Receita: salário
         </button>
         <button
           id="quick-preset-income-extra"
@@ -42,7 +43,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           phx-value-preset="income_extra"
           class={preset_class(@quick_finance_preset == "income_extra")}
         >
-          Renda: extra
+          Receita: extra
         </button>
         <button
           id="quick-preset-expense-fixed"
@@ -51,7 +52,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           phx-value-preset="expense_fixed"
           class={preset_class(@quick_finance_preset == "expense_fixed")}
         >
-          Gasto fixo
+          Despesa fixa
         </button>
         <button
           id="quick-preset-expense-variable"
@@ -60,7 +61,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           phx-value-preset="expense_variable"
           class={preset_class(@quick_finance_preset == "expense_variable")}
         >
-          Gasto variável
+          Despesa variável
         </button>
       </div>
 
@@ -76,7 +77,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
             field={@quick_finance_form[:kind]}
             type="select"
             label="Tipo"
-            options={[{"Renda", "income"}, {"Gasto", "expense"}]}
+            options={[{"Receita", "income"}, {"Despesa", "expense"}]}
           />
 
           <.input
@@ -86,6 +87,8 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
             label="Valor"
             placeholder="Ex: 182,54"
             autocomplete="off"
+            inputmode="numeric"
+            data-money-mask="true"
             required
           />
 
@@ -97,11 +100,26 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
             inputmode="numeric"
             maxlength="10"
             pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
+            data-date-picker="date"
+          />
+
+          <.input
+            type="select"
+            id="quick-finance-common-category"
+            name="quick_finance_common_category"
+            value=""
+            label="Categorias comuns"
+            prompt="Selecionar categoria comum"
+            options={
+              Enum.map(category_options(@quick_finance_kind, @category_suggestions), &{&1, &1})
+            }
+            data-category-shortcut-for={@quick_finance_form[:category].id}
           />
 
           <.input
             field={@quick_finance_form[:category]}
             type="text"
+            id="quick-finance-category"
             label="Categoria"
             placeholder="Ex: Alimentação"
             list={category_datalist_id(@quick_finance_kind)}
@@ -217,6 +235,8 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
               label="Quanto você paga"
               placeholder="Ex: 200,00"
               autocomplete="off"
+              inputmode="numeric"
+              data-money-mask="true"
             />
 
             <.input
@@ -331,7 +351,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
     "Compartilhamento ##{link.id} • #{partner_email}"
   end
 
-  defp entry_profile_label("income"), do: "Natureza da renda"
+  defp entry_profile_label("income"), do: "Natureza da receita"
   defp entry_profile_label(_kind), do: "Natureza da despesa"
 
   defp entry_profile_options("income") do

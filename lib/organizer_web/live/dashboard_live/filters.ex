@@ -156,7 +156,7 @@ defmodule OrganizerWeb.DashboardLive.Filters do
 
     case DateSupport.parse_month_year(cleaned) do
       {:ok, {month_start, _month_end}} -> DateSupport.format_month_year(month_start)
-      :error -> ""
+      :error -> sanitize_partial_month_input(cleaned)
     end
   end
 
@@ -167,9 +167,25 @@ defmodule OrganizerWeb.DashboardLive.Filters do
 
     case DateSupport.parse_date(cleaned) do
       {:ok, date} -> DateSupport.format_pt_br(date)
-      :error -> ""
+      :error -> sanitize_partial_date_input(cleaned)
     end
   end
 
   defp sanitize_date_input(_value), do: ""
+
+  defp sanitize_partial_date_input(value) when is_binary(value) do
+    if Regex.match?(~r/^\d{0,2}(\/\d{0,2}(\/\d{0,4})?)?$/u, value) do
+      String.slice(value, 0, 10)
+    else
+      ""
+    end
+  end
+
+  defp sanitize_partial_month_input(value) when is_binary(value) do
+    if Regex.match?(~r/^\d{0,2}(\/\d{0,4})?$/u, value) do
+      String.slice(value, 0, 7)
+    else
+      ""
+    end
+  end
 end
