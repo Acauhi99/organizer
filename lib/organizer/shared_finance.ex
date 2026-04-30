@@ -649,6 +649,79 @@ defmodule Organizer.SharedFinance do
   end
 
   @doc """
+  Creates a SettlementRecord allocated to a specific SharedEntryDebt.
+  Validates the debt belongs to the same link and that the authenticated user is the debtor.
+  """
+  def create_settlement_record_for_debt(scope, cycle_id, shared_entry_debt_id, attrs) do
+    amount_cents = Map.get(attrs, :amount_cents) || Map.get(attrs, "amount_cents")
+
+    if is_nil(amount_cents) or amount_cents <= 0 do
+      {:error, {:validation, %{amount_cents: ["must be greater than 0"]}}}
+    else
+      case find_cycle_with_link(scope, cycle_id) do
+        {:error, reason} ->
+          {:error, reason}
+
+        {:ok, cycle, link} ->
+          case find_open_debt_for_payment(link.id, shared_entry_debt_id, scope.user.id) do
+            {:error, :not_found} ->
+              {:error, :not_found}
+
+            {:ok, debt} ->
+              if amount_cents > debt.outstanding_amount_cents do
+                {:error,
+                 {:validation,
+                  %{amount_cents: ["cannot exceed selected debt outstanding amount"]}}}
+              else
+                record_attrs = %{
+                  settlement_cycle_id: cycle.id,
+                  payer_id: scope.user.id,
+                  receiver_id: debt.creditor_id,
+                  amount_cents: amount_cents,
+                  method: Map.get(attrs, :method) || Map.get(attrs, "method"),
+                  transferred_at:
+                    Map.get(attrs, :transferred_at) || Map.get(attrs, "transferred_at")
+                }
+
+                Repo.transaction(fn ->
+                  with {:ok, record} <-
+                         %SettlementRecord{}
+                         |> Ecto.Changeset.change(record_attrs)
+                         |> Repo.insert(),
+                       :ok <- allocate_record_to_debt(record, debt, amount_cents),
+                       :ok <- refresh_cycle_status(cycle) do
+                    record
+                  else
+                    {:error, reason} -> Repo.rollback(reason)
+                  end
+                end)
+                |> case do
+                  {:ok, record} ->
+                    Phoenix.PubSub.broadcast(
+                      Organizer.PubSub,
+                      "account_link:#{link.id}",
+                      {:settlement_record_created, record}
+                    )
+
+                    {:ok, record}
+
+                  {:error, {:validation, _} = validation} ->
+                    {:error, validation}
+
+                  {:error, reason} when is_atom(reason) ->
+                    {:error, reason}
+
+                  {:error, _reason} ->
+                    {:error,
+                     {:validation, %{amount_cents: ["could not allocate payment for debt"]}}}
+                end
+              end
+          end
+      end
+    end
+  end
+
+  @doc """
   Confirms a user's acknowledgment of a SettlementCycle.
   When both users confirm, the cycle is marked as settled.
   Returns `{:error, :awaiting_counterpart_confirmation}` if only one user has confirmed.
@@ -1034,6 +1107,22 @@ defmodule Organizer.SharedFinance do
     |> Repo.all()
   end
 
+  defp find_open_debt_for_payment(link_id, debt_id, debtor_id) do
+    query =
+      from(d in SharedEntryDebt,
+        where:
+          d.id == ^debt_id and
+            d.account_link_id == ^link_id and
+            d.debtor_id == ^debtor_id and
+            d.status in [:open, :partial]
+      )
+
+    case Repo.one(query) do
+      nil -> {:error, :not_found}
+      debt -> {:ok, debt}
+    end
+  end
+
   defp allocate_record_fifo(record, debts) do
     remaining =
       Enum.reduce_while(debts, record.amount_cents, fn debt, pending_amount ->
@@ -1076,6 +1165,36 @@ defmodule Organizer.SharedFinance do
 
       true ->
         {:error, {:validation, %{amount_cents: ["allocation failed"]}}}
+    end
+  end
+
+  defp allocate_record_to_debt(record, debt, amount_cents)
+       when is_integer(amount_cents) and amount_cents > 0 do
+    if amount_cents > debt.outstanding_amount_cents do
+      {:error, {:validation, %{amount_cents: ["cannot exceed selected debt outstanding amount"]}}}
+    else
+      new_outstanding = debt.outstanding_amount_cents - amount_cents
+
+      with {:ok, _allocation} <-
+             %SettlementRecordAllocation{}
+             |> SettlementRecordAllocation.changeset(%{
+               settlement_record_id: record.id,
+               shared_entry_debt_id: debt.id,
+               amount_cents: amount_cents
+             })
+             |> Repo.insert(),
+           {:ok, _updated_debt} <-
+             debt
+             |> SharedEntryDebt.changeset(%{
+               outstanding_amount_cents: new_outstanding,
+               status: debt_status_from_outstanding(new_outstanding, debt.original_amount_cents)
+             })
+             |> Repo.update() do
+        :ok
+      else
+        {:error, _reason} ->
+          {:error, {:validation, %{amount_cents: ["allocation failed"]}}}
+      end
     end
   end
 

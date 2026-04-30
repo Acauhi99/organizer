@@ -50,6 +50,19 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
     updated_entry
   end
 
+  defp create_income_entry(scope, amount_cents, occurred_on \\ Date.utc_today()) do
+    {:ok, _entry} =
+      Planning.create_finance_entry(scope, %{
+        "description" => "Renda base",
+        "amount_cents" => amount_cents,
+        "kind" => "income",
+        "category" => "Salário",
+        "occurred_on" => Date.to_iso8601(occurred_on)
+      })
+
+    :ok
+  end
+
   defp create_shared_entry_on(scope, link_id, date, amount_cents) do
     {:ok, entry} =
       Planning.create_finance_entry(scope, %{
@@ -307,6 +320,53 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       :timer.sleep(50)
 
       refute has_element?(view, "#unshare-entry-#{entry.id}")
+    end
+  end
+
+  describe "targeted debt payments" do
+    setup %{conn: conn} do
+      %{user_a: user_a, scope_a: scope_a, scope_b: scope_b, link: link} = setup_linked_users()
+      conn = log_in_user(conn, user_a)
+      %{conn: conn, user_a: user_a, scope_a: scope_a, scope_b: scope_b, link: link}
+    end
+
+    test "allows selecting and clearing a specific debt target from the debts list", %{
+      conn: conn,
+      user_a: user_a,
+      scope_a: scope_a,
+      scope_b: scope_b,
+      link: link
+    } do
+      create_income_entry(scope_a, 20_000)
+      create_income_entry(scope_b, 20_000)
+
+      _shared_entry =
+        create_shared_expense_entry(scope_b, link.id, %{
+          "description" => "Mercado compartilhado",
+          "amount_cents" => 10_000
+        })
+
+      {:ok, [debt_before]} = SharedFinance.list_shared_entry_debts(scope_a, link.id)
+      assert debt_before.debtor_id == user_a.id
+      assert debt_before.outstanding_amount_cents > 0
+
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+
+      assert has_element?(view, "#pay-shared-entry-debt-#{debt_before.id}")
+
+      view
+      |> element("#pay-shared-entry-debt-#{debt_before.id}")
+      |> render_click()
+
+      assert has_element?(view, "#shared-payment-targeted-debt")
+      assert has_element?(view, "#payment-shared-entry-debt-id[value='#{debt_before.id}']")
+
+      view
+      |> element("#clear-payment-debt-target")
+      |> render_click()
+
+      refute has_element?(view, "#shared-payment-targeted-debt")
+      assert has_element?(view, "#payment-shared-entry-debt-id[value='']")
     end
   end
 

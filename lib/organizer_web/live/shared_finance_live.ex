@@ -448,15 +448,23 @@ defmodule OrganizerWeb.SharedFinanceLive do
     with {:ok, amount_cents} <- parse_amount_cents(Map.get(attrs, "amount_cents")),
          {:ok, method} <- parse_method(Map.get(attrs, "method")),
          {:ok, transferred_at} <- parse_transferred_at(Map.get(attrs, "transferred_at")),
+         {:ok, targeted_debt_id} <- parse_optional_debt_id(Map.get(attrs, "shared_entry_debt_id")),
          {:ok, _record} <-
-           SharedFinance.create_settlement_record(scope, cycle.id, %{
+           create_settlement_record_for_target(scope, cycle.id, targeted_debt_id, %{
              amount_cents: amount_cents,
              method: method,
              transferred_at: transferred_at
            }) do
+      success_message =
+        if is_integer(targeted_debt_id) do
+          "Pagamento direcionado registrado para o lançamento selecionado."
+        else
+          "Pagamento registrado e alocado nas dívidas em aberto."
+        end
+
       {:noreply,
        socket
-       |> put_flash(:info, "Pagamento registrado e alocado nas dívidas em aberto.")
+       |> put_flash(:info, success_message)
        |> assign(:payment_form, payment_form())
        |> reload_shared_data()}
     else
@@ -478,15 +486,60 @@ defmodule OrganizerWeb.SharedFinanceLive do
          |> assign(:payment_form, payment_form(attrs))
          |> put_flash(:error, "Informe uma data válida no formato dd/mm/aaaa.")}
 
+      {:error, :invalid_debt} ->
+        {:noreply,
+         socket
+         |> assign(:payment_form, payment_form(attrs))
+         |> put_flash(:error, "Selecione uma dívida válida para direcionar o pagamento.")}
+
+      {:error, :not_found} ->
+        {:noreply,
+         socket
+         |> assign(:payment_form, payment_form(attrs))
+         |> put_flash(:error, "A dívida selecionada não está disponível para pagamento.")}
+
       {:error, {:validation, %{amount_cents: _}}} ->
         {:noreply,
          socket
          |> assign(:payment_form, payment_form(attrs))
-         |> put_flash(:error, "O valor informado excede o saldo em aberto deste vínculo.")}
+         |> put_flash(:error, "O valor informado excede o saldo permitido para pagamento.")}
 
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, "Não foi possível registrar o pagamento.")}
     end
+  end
+
+  @impl true
+  def handle_event("prefill_payment_for_debt", %{"debt_id" => debt_id}, socket) do
+    with {:ok, parsed_debt_id} <- parse_int(debt_id),
+         {:ok, debt} <- debt_by_id(socket.assigns.shared_entry_debts, parsed_debt_id),
+         true <- can_target_debt_payment?(debt, socket.assigns.current_scope.user.id) do
+      params = %{
+        "amount_cents" => format_amount_input(debt.outstanding_amount_cents),
+        "method" => "pix",
+        "transferred_at" => DateSupport.format_pt_br(Date.utc_today()),
+        "shared_entry_debt_id" => Integer.to_string(debt.id)
+      }
+
+      {:noreply, assign(socket, :payment_form, payment_form(params))}
+    else
+      false ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "Você só pode direcionar pagamentos para suas dívidas em aberto."
+         )}
+
+      _ ->
+        {:noreply,
+         put_flash(socket, :error, "Não foi possível selecionar a dívida para pagamento.")}
+    end
+  end
+
+  @impl true
+  def handle_event("clear_payment_debt_target", _params, socket) do
+    {:noreply, assign(socket, :payment_form, payment_form())}
   end
 
   @impl true
@@ -837,9 +890,21 @@ defmodule OrganizerWeb.SharedFinanceLive do
                     )} • Em aberto: {format_cents(debt.outstanding_amount_cents)}
                   </p>
                 </div>
-                <span class={debt_status_badge_class(debt.status)}>
-                  {debt_status_label(debt.status)}
-                </span>
+                <div class="flex items-center gap-2 self-end sm:self-center">
+                  <span class={debt_status_badge_class(debt.status)}>
+                    {debt_status_label(debt.status)}
+                  </span>
+                  <button
+                    :if={can_target_debt_payment?(debt, @current_scope.user.id)}
+                    id={"pay-shared-entry-debt-#{debt.id}"}
+                    type="button"
+                    phx-click="prefill_payment_for_debt"
+                    phx-value-debt_id={debt.id}
+                    class="btn btn-outline btn-xs"
+                  >
+                    Pagar este lançamento
+                  </button>
+                </div>
               </article>
             </div>
 
@@ -857,12 +922,48 @@ defmodule OrganizerWeb.SharedFinanceLive do
             Registre um pagamento e o sistema distribui automaticamente por ordem FIFO nas dívidas abertas.
           </p>
 
+          <%= if selected_debt = selected_payment_debt(@payment_form, @shared_entry_debts) do %>
+            <div
+              id="shared-payment-targeted-debt"
+              class="mt-4 rounded-xl border border-info/35 bg-info/12 p-3"
+            >
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold uppercase tracking-[0.12em] text-info">
+                    Pagamento direcionado
+                  </p>
+                  <p class="mt-1 truncate text-sm font-medium text-base-content/92">
+                    {selected_debt.finance_entry.description || selected_debt.finance_entry.category}
+                  </p>
+                  <p class="mt-1 text-xs text-base-content/72">
+                    Saldo em aberto: {format_cents(selected_debt.outstanding_amount_cents)}
+                  </p>
+                </div>
+                <button
+                  id="clear-payment-debt-target"
+                  type="button"
+                  phx-click="clear_payment_debt_target"
+                  class="btn btn-ghost btn-xs border border-base-content/22"
+                >
+                  Limpar seleção
+                </button>
+              </div>
+            </div>
+          <% end %>
+
           <.form
             for={@payment_form}
             id="shared-payment-form"
             phx-submit="create_record"
             class="mt-4 space-y-4"
           >
+            <input
+              type="hidden"
+              id="payment-shared-entry-debt-id"
+              name="payment[shared_entry_debt_id]"
+              value={@payment_form[:shared_entry_debt_id].value || ""}
+            />
+
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <.input
                 field={@payment_form[:amount_cents]}
@@ -1808,10 +1909,20 @@ defmodule OrganizerWeb.SharedFinanceLive do
     defaults = %{
       "amount_cents" => "",
       "method" => "pix",
-      "transferred_at" => DateSupport.format_pt_br(Date.utc_today())
+      "transferred_at" => DateSupport.format_pt_br(Date.utc_today()),
+      "shared_entry_debt_id" => ""
     }
 
     to_form(Map.merge(defaults, params), as: :payment)
+  end
+
+  defp create_settlement_record_for_target(scope, cycle_id, nil, attrs) do
+    SharedFinance.create_settlement_record(scope, cycle_id, attrs)
+  end
+
+  defp create_settlement_record_for_target(scope, cycle_id, shared_entry_debt_id, attrs)
+       when is_integer(shared_entry_debt_id) do
+    SharedFinance.create_settlement_record_for_debt(scope, cycle_id, shared_entry_debt_id, attrs)
   end
 
   defp parse_int(value) when is_integer(value), do: {:ok, value}
@@ -1835,6 +1946,20 @@ defmodule OrganizerWeb.SharedFinanceLive do
   end
 
   defp parse_positive_page(_value), do: 1
+
+  defp parse_optional_debt_id(nil), do: {:ok, nil}
+  defp parse_optional_debt_id(""), do: {:ok, nil}
+
+  defp parse_optional_debt_id(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_optional_debt_id(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {debt_id, ""} when debt_id > 0 -> {:ok, debt_id}
+      _ -> {:error, :invalid_debt}
+    end
+  end
+
+  defp parse_optional_debt_id(_value), do: {:error, :invalid_debt}
 
   defp parse_amount_cents(nil), do: {:error, :invalid_amount}
   defp parse_amount_cents(""), do: {:error, :invalid_amount}
@@ -1883,6 +2008,33 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
   defp parse_transferred_at(%DateTime{} = value), do: {:ok, value}
   defp parse_transferred_at(_value), do: {:error, :invalid_date}
+
+  defp debt_by_id(debts, debt_id) when is_list(debts) and is_integer(debt_id) do
+    case Enum.find(debts, &(&1.id == debt_id)) do
+      nil -> {:error, :not_found}
+      debt -> {:ok, debt}
+    end
+  end
+
+  defp debt_by_id(_debts, _debt_id), do: {:error, :not_found}
+
+  defp can_target_debt_payment?(debt, current_user_id)
+       when is_map(debt) and is_integer(current_user_id) do
+    debt.status in [:open, :partial] and debt.debtor_id == current_user_id and
+      debt.outstanding_amount_cents > 0
+  end
+
+  defp can_target_debt_payment?(_debt, _current_user_id), do: false
+
+  defp selected_payment_debt(payment_form, debts) do
+    with debt_id <- payment_form[:shared_entry_debt_id].value,
+         {:ok, parsed_debt_id} <- parse_optional_debt_id(debt_id),
+         {:ok, debt} <- debt_by_id(debts, parsed_debt_id) do
+      debt
+    else
+      _ -> nil
+    end
+  end
 
   defp format_cents(cents) when is_integer(cents) do
     abs_cents = abs(cents)

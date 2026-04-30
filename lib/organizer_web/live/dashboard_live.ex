@@ -393,9 +393,11 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp load_operation_collections(socket, opts \\ []) do
     reset? = Keyword.get(opts, :reset, true)
+    keep_page? = Keyword.get(opts, :keep_page, false)
 
     finance_filters =
       socket.assigns.finance_filters
+      |> maybe_reset_finance_page(reset?, keep_page?)
       |> Map.put(:page_size, @finance_page_size)
       |> Filters.sanitize_finance_filters()
 
@@ -453,6 +455,9 @@ defmodule OrganizerWeb.DashboardLive do
       shared_total: shared_finances_total
     })
   end
+
+  defp maybe_reset_finance_page(filters, true, false), do: Map.put(filters, :page, 1)
+  defp maybe_reset_finance_page(filters, _reset?, _keep_page?), do: filters
 
   defp refresh_dashboard_insights(socket) do
     Insights.refresh_dashboard_insights(socket)
