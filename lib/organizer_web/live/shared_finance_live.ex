@@ -448,7 +448,8 @@ defmodule OrganizerWeb.SharedFinanceLive do
     with {:ok, amount_cents} <- parse_amount_cents(Map.get(attrs, "amount_cents")),
          {:ok, method} <- parse_method(Map.get(attrs, "method")),
          {:ok, transferred_at} <- parse_transferred_at(Map.get(attrs, "transferred_at")),
-         {:ok, targeted_debt_id} <- parse_optional_debt_id(Map.get(attrs, "shared_entry_debt_id")),
+         {:ok, targeted_debt_id} <-
+           parse_optional_debt_id(Map.get(attrs, "shared_entry_debt_id")),
          {:ok, _record} <-
            create_settlement_record_for_target(scope, cycle.id, targeted_debt_id, %{
              amount_cents: amount_cents,
