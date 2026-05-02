@@ -44,11 +44,17 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanelTest do
     assert html1 == html2
   end
 
-  test "renders panel and filters" do
+  test "renders panel with basic and advanced filters" do
     html = render_component(&FinanceOperationsPanel.finance_operations_panel/1, base_assigns())
     assert html =~ ~s(id="finance-operations-panel")
     assert html =~ ~s(phx-hook="FinanceFormEnhancements")
     assert html =~ ~s(id="finance-filters")
+    assert html =~ ~s(id="finance-filters-basic")
+    assert html =~ ~s(id="finance-filters-advanced")
+    assert html =~ ~s(id="finance-filters-advanced-summary")
+    assert html =~ ~s(id="finance-filters-advanced-guidance")
+    assert html =~ ~s(id="finance-filter-period-mode")
+    assert html =~ ~s(id="finance-filter-q")
     refute html =~ ~s(id="finance-filter-common-category")
     assert html =~ ~s(id="finance-filter-category")
     assert html =~ ~s(id="finances" phx-update="stream")
@@ -56,8 +62,51 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanelTest do
     assert html =~ ~s(phx-hook="InfiniteScroll")
     assert html =~ ~s(data-event="load_more_finances")
     assert html =~ ~s(data-money-mask="true")
-    assert html =~ ~s(data-date-picker="date")
+    refute html =~ ~s(id="finance-filter-occurred-on")
+    refute html =~ ~s(id="finance-filter-month")
+    refute html =~ ~s(id="finance-filter-occurred-from")
+    refute html =~ ~s(id="finance-filter-occurred-to")
+    refute html =~ ~s(id="finance-filter-weekday")
     assert html =~ "Exibindo 0 de 0 lançamentos"
+  end
+
+  test "keeps advanced filters collapsed for default quick filtering" do
+    html = render_component(&FinanceOperationsPanel.finance_operations_panel/1, base_assigns())
+
+    refute html =~
+             ~s(id="finance-filters-advanced" class="rounded-xl border border-base-content/12 bg-base-100/24 p-3" open)
+  end
+
+  test "auto-expands advanced filters when advanced fields are active" do
+    html =
+      render_component(
+        &FinanceOperationsPanel.finance_operations_panel/1,
+        base_assigns()
+        |> put_in([:finance_filters, :period_mode], "range")
+      )
+
+    assert html =~
+             ~s(id="finance-filters-advanced" class="rounded-xl border border-base-content/12 bg-base-100/24 p-3" open)
+
+    assert html =~ ~s(id="finance-filter-occurred-from")
+    assert html =~ ~s(id="finance-filter-occurred-to")
+    refute html =~ ~s(id="finance-filter-days")
+  end
+
+  test "shows specific date input and contextual summary when period mode is specific_date" do
+    html =
+      render_component(
+        &FinanceOperationsPanel.finance_operations_panel/1,
+        base_assigns()
+        |> put_in([:finance_filters, :period_mode], "specific_date")
+        |> put_in([:finance_filters, :occurred_on], "12/03/2026")
+      )
+
+    assert html =~ ~s(id="finance-filter-occurred-on")
+    assert html =~ ~s(data-date-picker="date")
+    assert html =~ "12/03/2026"
+    refute html =~ ~s(id="finance-filter-days")
+    assert html =~ "Saldo financeiro em data 12/03/2026"
   end
 
   test "renders finance empty state" do

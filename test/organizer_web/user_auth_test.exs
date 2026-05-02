@@ -212,8 +212,11 @@ defmodule OrganizerWeb.UserAuthTest do
 
       assert redirected_to(conn) == ~p"/users/log-in"
 
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-               "Você precisa se reautenticar para acessar esta página."
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~
+               "Você precisa se reautenticar para acessar esta página"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~
+               "Próximo passo: Entre novamente para continuar com segurança."
     end
   end
 
@@ -250,8 +253,11 @@ defmodule OrganizerWeb.UserAuthTest do
 
       assert redirected_to(conn) == ~p"/users/log-in"
 
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-               "Você precisa entrar para acessar esta página."
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~
+               "Você precisa entrar para acessar esta página"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~
+               "Próximo passo: Faça login para continuar."
     end
 
     test "stores the path to redirect to on GET", %{conn: conn} do

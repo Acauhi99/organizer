@@ -92,7 +92,8 @@ defmodule OrganizerWeb.UserSessionControllerTest do
         })
 
       assert redirected_to(conn) == "/foo/bar"
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Que bom ter você de volta!"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Que bom ter você de volta"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Próximo passo:"
     end
 
     test "emits error message with invalid credentials", %{conn: conn, user: user} do

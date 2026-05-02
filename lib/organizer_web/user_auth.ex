@@ -8,6 +8,7 @@ defmodule OrganizerWeb.UserAuth do
 
   alias Organizer.Accounts
   alias Organizer.Accounts.Scope
+  alias OrganizerWeb.FlashFeedback
 
   # Make the remember me cookie valid for 14 days. This should match
   # the session validity setting in UserToken.
@@ -180,7 +181,10 @@ defmodule OrganizerWeb.UserAuth do
       conn
     else
       conn
-      |> put_flash(:error, "Você precisa se reautenticar para acessar esta página.")
+      |> error_feedback(
+        "Você precisa se reautenticar para acessar esta página",
+        "Entre novamente para continuar com segurança"
+      )
       |> maybe_store_return_to()
       |> redirect(to: ~p"/users/log-in")
       |> halt()
@@ -210,7 +214,10 @@ defmodule OrganizerWeb.UserAuth do
       conn
     else
       conn
-      |> put_flash(:error, "Você precisa entrar para acessar esta página.")
+      |> error_feedback(
+        "Você precisa entrar para acessar esta página",
+        "Faça login para continuar"
+      )
       |> maybe_store_return_to()
       |> redirect(to: ~p"/users/log-in")
       |> halt()
@@ -238,6 +245,10 @@ defmodule OrganizerWeb.UserAuth do
   end
 
   defp maybe_store_return_to(conn), do: conn
+
+  defp error_feedback(conn, happened, next_step) do
+    put_flash(conn, :error, FlashFeedback.compose(happened, next_step))
+  end
 
   @doc """
   LiveView on_mount callback for authentication.

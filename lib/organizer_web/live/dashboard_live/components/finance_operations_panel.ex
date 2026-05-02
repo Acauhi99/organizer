@@ -49,11 +49,13 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
         <article
           id="finance-ops-card-total"
           class="micro-surface rounded-lg p-3"
-          aria-label={"Lançamentos no filtro nos últimos #{@finance_filters.days} dias"}
+          aria-label={"Lançamentos no filtro em #{finance_period_context_label(@finance_filters)}"}
         >
           <div class="flex items-center justify-between">
             <p class="text-xs uppercase tracking-wide text-base-content/65">Lançamentos no filtro</p>
-            <span class="text-xs text-base-content/65">{@finance_filters.days}d</span>
+            <span class="text-xs text-base-content/65">
+              {finance_period_context_badge(@finance_filters)}
+            </span>
           </div>
           <p class="mt-1 text-lg font-semibold text-base-content">{@ops_counts.finances_total}</p>
         </article>
@@ -79,11 +81,13 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
         <article
           id="finance-ops-card-balance"
           class="micro-surface rounded-lg p-3"
-          aria-label={"Saldo financeiro nos últimos #{@finance_filters.days} dias"}
+          aria-label={"Saldo financeiro em #{finance_period_context_label(@finance_filters)}"}
         >
           <div class="flex items-center justify-between">
             <p class="text-xs uppercase tracking-wide text-base-content/65">Saldo no filtro</p>
-            <span class="text-xs text-base-content/65">{@finance_filters.days}d</span>
+            <span class="text-xs text-base-content/65">
+              {finance_period_context_badge(@finance_filters)}
+            </span>
           </div>
           <p class={[
             "mt-1 text-lg font-semibold",
@@ -98,188 +102,294 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
         id="finance-filters"
         phx-change="filter_finances"
         phx-debounce="500"
-        class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
+        class="mt-3 space-y-3"
         aria-label="Filtros de lançamentos"
       >
-        <select name="filters[period_mode]" class="select select-bordered select-sm">
-          <option value="rolling" selected={@finance_filters.period_mode == "rolling"}>
-            Janela móvel (dias)
-          </option>
-          <option value="specific_date" selected={@finance_filters.period_mode == "specific_date"}>
-            Data específica
-          </option>
-          <option value="month" selected={@finance_filters.period_mode == "month"}>
-            Mês específico
-          </option>
-          <option value="range" selected={@finance_filters.period_mode == "range"}>
-            Intervalo de datas
-          </option>
-          <option value="weekday" selected={@finance_filters.period_mode == "weekday"}>
-            Dia da semana
-          </option>
-        </select>
-        <select name="filters[days]" class="select select-bordered select-sm">
-          <option value="7" selected={@finance_filters.days == "7"}>Últimos 7 dias</option>
-          <option value="30" selected={@finance_filters.days == "30"}>Últimos 30 dias</option>
-          <option value="90" selected={@finance_filters.days == "90"}>Últimos 90 dias</option>
-          <option value="365" selected={@finance_filters.days == "365"}>Últimos 365 dias</option>
-        </select>
-        <input
-          type="text"
-          name="filters[occurred_on]"
-          value={@finance_filters.occurred_on}
-          placeholder="Data exata: dd/mm/aaaa"
-          class="input input-bordered input-sm"
-          inputmode="numeric"
-          maxlength="10"
-          pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
-          data-date-picker="date"
-        />
-        <input
-          type="text"
-          name="filters[month]"
-          value={@finance_filters.month}
-          placeholder="Mês: mm/aaaa"
-          class="input input-bordered input-sm"
-          inputmode="numeric"
-          maxlength="7"
-          pattern="^[0-9]{2}/[0-9]{4}$"
-          data-date-picker="month"
-        />
-        <input
-          type="text"
-          name="filters[occurred_from]"
-          value={@finance_filters.occurred_from}
-          placeholder="De: dd/mm/aaaa"
-          class="input input-bordered input-sm"
-          inputmode="numeric"
-          maxlength="10"
-          pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
-          data-date-picker="date"
-        />
-        <input
-          type="text"
-          name="filters[occurred_to]"
-          value={@finance_filters.occurred_to}
-          placeholder="Até: dd/mm/aaaa"
-          class="input input-bordered input-sm"
-          inputmode="numeric"
-          maxlength="10"
-          pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
-          data-date-picker="date"
-        />
-        <select name="filters[weekday]" class="select select-bordered select-sm">
-          <option value="all" selected={@finance_filters.weekday == "all"}>Todos os dias</option>
-          <option value="1" selected={@finance_filters.weekday == "1"}>Segunda</option>
-          <option value="2" selected={@finance_filters.weekday == "2"}>Terça</option>
-          <option value="3" selected={@finance_filters.weekday == "3"}>Quarta</option>
-          <option value="4" selected={@finance_filters.weekday == "4"}>Quinta</option>
-          <option value="5" selected={@finance_filters.weekday == "5"}>Sexta</option>
-          <option value="6" selected={@finance_filters.weekday == "6"}>Sábado</option>
-          <option value="0" selected={@finance_filters.weekday == "0"}>Domingo</option>
-        </select>
-        <select name="filters[sort_by]" class="select select-bordered select-sm">
-          <option value="date_desc" selected={@finance_filters.sort_by == "date_desc"}>
-            Data mais recente
-          </option>
-          <option value="date_asc" selected={@finance_filters.sort_by == "date_asc"}>
-            Data mais antiga
-          </option>
-          <option value="amount_desc" selected={@finance_filters.sort_by == "amount_desc"}>
-            Maior valor
-          </option>
-          <option value="amount_asc" selected={@finance_filters.sort_by == "amount_asc"}>
-            Menor valor
-          </option>
-          <option value="category_asc" selected={@finance_filters.sort_by == "category_asc"}>
-            Categoria A-Z
-          </option>
-        </select>
-        <select name="filters[kind]" class="select select-bordered select-sm">
-          <option value="all" selected={@finance_filters.kind == "all"}>Todos tipos</option>
-          <option value="income" selected={@finance_filters.kind == "income"}>Receita</option>
-          <option value="expense" selected={@finance_filters.kind == "expense"}>Despesa</option>
-        </select>
-        <select name="filters[expense_profile]" class="select select-bordered select-sm">
-          <option value="all" selected={@finance_filters.expense_profile == "all"}>
-            Todos perfis
-          </option>
-          <option value="fixed" selected={@finance_filters.expense_profile == "fixed"}>Fixa</option>
-          <option value="variable" selected={@finance_filters.expense_profile == "variable"}>
-            Variável
-          </option>
-          <option
-            value="recurring_fixed"
-            selected={@finance_filters.expense_profile == "recurring_fixed"}
+        <div
+          id="finance-filters-basic"
+          class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
+        >
+          <select
+            id="finance-filter-period-mode"
+            name="filters[period_mode]"
+            aria-label="Modo de período"
+            class="select select-bordered select-sm"
           >
-            Recorrente fixa
-          </option>
-          <option
-            value="recurring_variable"
-            selected={@finance_filters.expense_profile == "recurring_variable"}
+            <option value="rolling" selected={@finance_filters.period_mode == "rolling"}>
+              Janela móvel (dias)
+            </option>
+            <option value="specific_date" selected={@finance_filters.period_mode == "specific_date"}>
+              Data específica
+            </option>
+            <option value="month" selected={@finance_filters.period_mode == "month"}>
+              Mês específico
+            </option>
+            <option value="range" selected={@finance_filters.period_mode == "range"}>
+              Intervalo de datas
+            </option>
+            <option value="weekday" selected={@finance_filters.period_mode == "weekday"}>
+              Dia da semana
+            </option>
+          </select>
+
+          <select
+            :if={rolling_period_mode?(@finance_filters)}
+            id="finance-filter-days"
+            name="filters[days]"
+            aria-label="Janela em dias"
+            class="select select-bordered select-sm"
           >
-            Recorrente variável
-          </option>
-        </select>
-        <select name="filters[payment_method]" class="select select-bordered select-sm">
-          <option value="all" selected={@finance_filters.payment_method == "all"}>
-            Todos métodos
-          </option>
-          <option value="credit" selected={@finance_filters.payment_method == "credit"}>
-            Crédito
-          </option>
-          <option value="debit" selected={@finance_filters.payment_method == "debit"}>Débito</option>
-        </select>
-        <input
-          type="text"
-          id="finance-filter-category"
-          name="filters[category]"
-          value={@finance_filters.category}
-          placeholder="Categoria..."
-          class="input input-bordered input-sm"
-          maxlength="50"
-          list="finance-filter-categories"
-        />
-        <input
-          type="text"
-          name="filters[q]"
-          value={@finance_filters.q}
-          placeholder="Buscar descrição..."
-          class="input input-bordered input-sm"
-          maxlength="100"
-        />
-        <input
-          type="hidden"
-          id="finance-filter-min-amount-cents"
-          name="filters[min_amount_cents]"
-          value={@finance_filters.min_amount_cents}
-        />
-        <input
-          type="text"
-          id="finance-filter-min-amount-display"
-          value={money_filter_input_value(@finance_filters.min_amount_cents)}
-          placeholder="Valor mín..."
-          class="input input-bordered input-sm"
-          inputmode="numeric"
-          data-money-mask="true"
-          data-money-hidden-target="finance-filter-min-amount-cents"
-        />
-        <input
-          type="hidden"
-          id="finance-filter-max-amount-cents"
-          name="filters[max_amount_cents]"
-          value={@finance_filters.max_amount_cents}
-        />
-        <input
-          type="text"
-          id="finance-filter-max-amount-display"
-          value={money_filter_input_value(@finance_filters.max_amount_cents)}
-          placeholder="Valor máx..."
-          class="input input-bordered input-sm"
-          inputmode="numeric"
-          data-money-mask="true"
-          data-money-hidden-target="finance-filter-max-amount-cents"
-        />
+            <option value="7" selected={@finance_filters.days == "7"}>Últimos 7 dias</option>
+            <option value="30" selected={@finance_filters.days == "30"}>Últimos 30 dias</option>
+            <option value="90" selected={@finance_filters.days == "90"}>Últimos 90 dias</option>
+            <option value="365" selected={@finance_filters.days == "365"}>Últimos 365 dias</option>
+          </select>
+
+          <select
+            id="finance-filter-kind"
+            name="filters[kind]"
+            aria-label="Tipo de lançamento"
+            class="select select-bordered select-sm"
+          >
+            <option value="all" selected={@finance_filters.kind == "all"}>Todos tipos</option>
+            <option value="income" selected={@finance_filters.kind == "income"}>Receita</option>
+            <option value="expense" selected={@finance_filters.kind == "expense"}>Despesa</option>
+          </select>
+
+          <select
+            id="finance-filter-payment-method"
+            name="filters[payment_method]"
+            aria-label="Método de pagamento"
+            class="select select-bordered select-sm"
+          >
+            <option value="all" selected={@finance_filters.payment_method == "all"}>
+              Todos métodos
+            </option>
+            <option value="credit" selected={@finance_filters.payment_method == "credit"}>
+              Crédito
+            </option>
+            <option value="debit" selected={@finance_filters.payment_method == "debit"}>
+              Débito
+            </option>
+          </select>
+
+          <input
+            type="text"
+            id="finance-filter-category"
+            name="filters[category]"
+            value={@finance_filters.category}
+            aria-label="Filtrar por categoria"
+            placeholder="Categoria..."
+            class="input input-bordered input-sm"
+            maxlength="50"
+            list="finance-filter-categories"
+          />
+
+          <input
+            type="text"
+            id="finance-filter-q"
+            name="filters[q]"
+            value={@finance_filters.q}
+            aria-label="Buscar por descrição"
+            placeholder="Buscar descrição..."
+            class="input input-bordered input-sm"
+            maxlength="100"
+          />
+
+          <input
+            type="hidden"
+            id="finance-filter-min-amount-cents"
+            name="filters[min_amount_cents]"
+            value={@finance_filters.min_amount_cents}
+          />
+
+          <input
+            type="text"
+            id="finance-filter-min-amount-display"
+            value={money_filter_input_value(@finance_filters.min_amount_cents)}
+            aria-label="Valor mínimo"
+            placeholder="Valor mín..."
+            class="input input-bordered input-sm"
+            inputmode="numeric"
+            data-money-mask="true"
+            data-money-hidden-target="finance-filter-min-amount-cents"
+          />
+
+          <input
+            type="hidden"
+            id="finance-filter-max-amount-cents"
+            name="filters[max_amount_cents]"
+            value={@finance_filters.max_amount_cents}
+          />
+
+          <input
+            type="text"
+            id="finance-filter-max-amount-display"
+            value={money_filter_input_value(@finance_filters.max_amount_cents)}
+            aria-label="Valor máximo"
+            placeholder="Valor máx..."
+            class="input input-bordered input-sm"
+            inputmode="numeric"
+            data-money-mask="true"
+            data-money-hidden-target="finance-filter-max-amount-cents"
+          />
+        </div>
+
+        <details
+          id="finance-filters-advanced"
+          class="rounded-xl border border-base-content/12 bg-base-100/24 p-3"
+          open={advanced_filters_active?(@finance_filters)}
+        >
+          <summary
+            id="finance-filters-advanced-summary"
+            class="flex cursor-pointer list-none items-center justify-between gap-2"
+          >
+            <span class="text-xs font-semibold uppercase tracking-[0.12em] text-base-content/70">
+              Filtros avançados
+            </span>
+            <span class="text-xs text-base-content/62">
+              {advanced_filters_summary_hint(@finance_filters)}
+            </span>
+          </summary>
+
+          <p
+            id="finance-filters-advanced-guidance"
+            class="mt-2 text-xs leading-5 text-base-content/68"
+          >
+            {advanced_filters_guidance(@finance_filters)}
+          </p>
+
+          <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+            <input
+              :if={period_mode?(@finance_filters, "specific_date")}
+              type="text"
+              id="finance-filter-occurred-on"
+              name="filters[occurred_on]"
+              value={@finance_filters.occurred_on}
+              aria-label="Data específica"
+              placeholder="Data exata: dd/mm/aaaa"
+              class="input input-bordered input-sm"
+              inputmode="numeric"
+              maxlength="10"
+              pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
+              data-date-picker="date"
+            />
+
+            <input
+              :if={period_mode?(@finance_filters, "month")}
+              type="text"
+              id="finance-filter-month"
+              name="filters[month]"
+              value={@finance_filters.month}
+              aria-label="Mês de referência"
+              placeholder="Mês: mm/aaaa"
+              class="input input-bordered input-sm"
+              inputmode="numeric"
+              maxlength="7"
+              pattern="^[0-9]{2}/[0-9]{4}$"
+              data-date-picker="month"
+            />
+
+            <input
+              :if={period_mode?(@finance_filters, "range")}
+              type="text"
+              id="finance-filter-occurred-from"
+              name="filters[occurred_from]"
+              value={@finance_filters.occurred_from}
+              aria-label="Data inicial do intervalo"
+              placeholder="De: dd/mm/aaaa"
+              class="input input-bordered input-sm"
+              inputmode="numeric"
+              maxlength="10"
+              pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
+              data-date-picker="date"
+            />
+
+            <input
+              :if={period_mode?(@finance_filters, "range")}
+              type="text"
+              id="finance-filter-occurred-to"
+              name="filters[occurred_to]"
+              value={@finance_filters.occurred_to}
+              aria-label="Data final do intervalo"
+              placeholder="Até: dd/mm/aaaa"
+              class="input input-bordered input-sm"
+              inputmode="numeric"
+              maxlength="10"
+              pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
+              data-date-picker="date"
+            />
+
+            <select
+              :if={period_mode?(@finance_filters, "weekday")}
+              id="finance-filter-weekday"
+              name="filters[weekday]"
+              aria-label="Dia da semana"
+              class="select select-bordered select-sm"
+            >
+              <option value="all" selected={@finance_filters.weekday == "all"}>Todos os dias</option>
+              <option value="1" selected={@finance_filters.weekday == "1"}>Segunda</option>
+              <option value="2" selected={@finance_filters.weekday == "2"}>Terça</option>
+              <option value="3" selected={@finance_filters.weekday == "3"}>Quarta</option>
+              <option value="4" selected={@finance_filters.weekday == "4"}>Quinta</option>
+              <option value="5" selected={@finance_filters.weekday == "5"}>Sexta</option>
+              <option value="6" selected={@finance_filters.weekday == "6"}>Sábado</option>
+              <option value="0" selected={@finance_filters.weekday == "0"}>Domingo</option>
+            </select>
+
+            <select
+              id="finance-filter-sort-by"
+              name="filters[sort_by]"
+              aria-label="Ordenar lançamentos"
+              class="select select-bordered select-sm"
+            >
+              <option value="date_desc" selected={@finance_filters.sort_by == "date_desc"}>
+                Data mais recente
+              </option>
+              <option value="date_asc" selected={@finance_filters.sort_by == "date_asc"}>
+                Data mais antiga
+              </option>
+              <option value="amount_desc" selected={@finance_filters.sort_by == "amount_desc"}>
+                Maior valor
+              </option>
+              <option value="amount_asc" selected={@finance_filters.sort_by == "amount_asc"}>
+                Menor valor
+              </option>
+              <option value="category_asc" selected={@finance_filters.sort_by == "category_asc"}>
+                Categoria A-Z
+              </option>
+            </select>
+
+            <select
+              id="finance-filter-expense-profile"
+              name="filters[expense_profile]"
+              aria-label="Perfil de despesa"
+              class="select select-bordered select-sm"
+            >
+              <option value="all" selected={@finance_filters.expense_profile == "all"}>
+                Todos perfis
+              </option>
+              <option value="fixed" selected={@finance_filters.expense_profile == "fixed"}>
+                Fixa
+              </option>
+              <option value="variable" selected={@finance_filters.expense_profile == "variable"}>
+                Variável
+              </option>
+              <option
+                value="recurring_fixed"
+                selected={@finance_filters.expense_profile == "recurring_fixed"}
+              >
+                Recorrente fixa
+              </option>
+              <option
+                value="recurring_variable"
+                selected={@finance_filters.expense_profile == "recurring_variable"}
+              >
+                Recorrente variável
+              </option>
+            </select>
+          </div>
+        </details>
       </form>
 
       <datalist id="finance-filter-categories">
@@ -388,7 +498,6 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
                     type="button"
                     phx-click="prompt_delete_finance"
                     phx-value-id={entry.id}
-                    phx-value-category={entry.category}
                     class="ds-inline-btn ds-inline-btn-danger rounded-md px-2 py-1 text-xs"
                   >
                     Excluir
@@ -413,11 +522,14 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
         id="finance-delete-confirmation-modal"
         show={is_map(@pending_finance_delete)}
         title="Excluir lançamento financeiro?"
-        message="Essa ação remove o lançamento da sua lista e não pode ser desfeita."
+        message="Você está prestes a remover este lançamento do histórico financeiro."
+        severity="danger"
+        impact_label="Impacto: o lançamento some da lista e dos indicadores"
         confirm_event="confirm_delete_finance"
         cancel_event="cancel_delete_finance"
         confirm_button_id="finance-delete-confirm-btn"
         cancel_button_id="finance-delete-cancel-btn"
+        confirm_label="Sim, excluir lançamento"
       >
         <p :if={is_map(@pending_finance_delete)} class="font-medium text-base-content">
           {Map.get(@pending_finance_delete, :category, "Lançamento sem categoria")}
@@ -870,6 +982,188 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
       max_amount_cents: ""
     }
   end
+
+  defp advanced_filters_active?(filters) when is_map(filters) do
+    Map.get(filters, :period_mode, "rolling") in ["specific_date", "month", "range", "weekday"] or
+      non_empty_filter_value?(Map.get(filters, :occurred_on, "")) or
+      non_empty_filter_value?(Map.get(filters, :month, "")) or
+      non_empty_filter_value?(Map.get(filters, :occurred_from, "")) or
+      non_empty_filter_value?(Map.get(filters, :occurred_to, "")) or
+      Map.get(filters, :weekday, "all") != "all" or
+      Map.get(filters, :sort_by, "date_desc") != "date_desc" or
+      Map.get(filters, :expense_profile, "all") != "all"
+  end
+
+  defp advanced_filters_active?(_filters), do: false
+
+  defp period_mode?(filters, mode) when is_binary(mode), do: finance_period_mode(filters) == mode
+
+  defp rolling_period_mode?(filters), do: period_mode?(filters, "rolling")
+
+  defp finance_period_context_badge(filters) do
+    case finance_period_mode(filters) do
+      "specific_date" ->
+        period_specific_date(filters)
+
+      "month" ->
+        period_month(filters)
+
+      "range" ->
+        period_range_badge(filters)
+
+      "weekday" ->
+        period_weekday_badge(filters)
+
+      _ ->
+        "#{period_days(filters)}d"
+    end
+  end
+
+  defp finance_period_context_label(filters) do
+    case finance_period_mode(filters) do
+      "specific_date" ->
+        "data #{period_specific_date(filters)}"
+
+      "month" ->
+        "mês #{period_month(filters)}"
+
+      "range" ->
+        period_range_label(filters)
+
+      "weekday" ->
+        "dia da semana #{period_weekday_label(filters)}"
+
+      _ ->
+        "janela móvel dos últimos #{period_days(filters)} dias"
+    end
+  end
+
+  defp advanced_filters_summary_hint(filters) do
+    case finance_period_mode(filters) do
+      "specific_date" -> "Data específica, ordenação e perfil"
+      "month" -> "Mês específico, ordenação e perfil"
+      "range" -> "Intervalo de datas, ordenação e perfil"
+      "weekday" -> "Dia da semana, ordenação e perfil"
+      _ -> "Data específica, intervalo, dia da semana, ordenação e perfil"
+    end
+  end
+
+  defp advanced_filters_guidance(filters) do
+    case finance_period_mode(filters) do
+      "specific_date" ->
+        "Selecione uma data exata para investigar eventos pontuais e validar ajustes do dia."
+
+      "month" ->
+        "Selecione um mês para revisar fechamento mensal e comparar tendências."
+
+      "range" ->
+        "Defina início e fim para analisar o comportamento entre dois marcos."
+
+      "weekday" ->
+        "Filtre por dia da semana para identificar padrões recorrentes de receita e despesa."
+
+      _ ->
+        "Use estes filtros quando precisar investigar um período ou comportamento específico."
+    end
+  end
+
+  defp finance_period_mode(filters) when is_map(filters) do
+    case Map.get(filters, :period_mode, "rolling") do
+      mode when mode in ["rolling", "specific_date", "month", "range", "weekday"] -> mode
+      _ -> "rolling"
+    end
+  end
+
+  defp finance_period_mode(_filters), do: "rolling"
+
+  defp period_days(filters) do
+    case Integer.parse(to_string(Map.get(filters, :days, "30"))) do
+      {days, ""} when days > 0 -> days
+      _ -> 30
+    end
+  end
+
+  defp period_specific_date(filters) do
+    Map.get(filters, :occurred_on, "")
+    |> to_string()
+    |> String.trim()
+    |> case do
+      "" -> "data específica"
+      value -> value
+    end
+  end
+
+  defp period_month(filters) do
+    Map.get(filters, :month, "")
+    |> to_string()
+    |> String.trim()
+    |> case do
+      "" -> "mês específico"
+      value -> value
+    end
+  end
+
+  defp period_range_badge(filters) do
+    from_date = period_from_date(filters)
+    to_date = period_to_date(filters)
+
+    cond do
+      from_date != "" and to_date != "" -> "#{from_date} → #{to_date}"
+      from_date != "" -> "Desde #{from_date}"
+      to_date != "" -> "Até #{to_date}"
+      true -> "Intervalo"
+    end
+  end
+
+  defp period_range_label(filters) do
+    from_date = period_from_date(filters)
+    to_date = period_to_date(filters)
+
+    cond do
+      from_date != "" and to_date != "" -> "intervalo de #{from_date} até #{to_date}"
+      from_date != "" -> "intervalo a partir de #{from_date}"
+      to_date != "" -> "intervalo até #{to_date}"
+      true -> "intervalo de datas personalizado"
+    end
+  end
+
+  defp period_from_date(filters) do
+    Map.get(filters, :occurred_from, "") |> to_string() |> String.trim()
+  end
+
+  defp period_to_date(filters) do
+    Map.get(filters, :occurred_to, "") |> to_string() |> String.trim()
+  end
+
+  defp period_weekday_badge(filters) do
+    case Map.get(filters, :weekday, "all") |> to_string() |> String.trim() do
+      "0" -> "Dom"
+      "1" -> "Seg"
+      "2" -> "Ter"
+      "3" -> "Qua"
+      "4" -> "Qui"
+      "5" -> "Sex"
+      "6" -> "Sáb"
+      _ -> "Dia da semana"
+    end
+  end
+
+  defp period_weekday_label(filters) do
+    case Map.get(filters, :weekday, "all") |> to_string() |> String.trim() do
+      "0" -> "domingo"
+      "1" -> "segunda"
+      "2" -> "terça"
+      "3" -> "quarta"
+      "4" -> "quinta"
+      "5" -> "sexta"
+      "6" -> "sábado"
+      _ -> "selecionado"
+    end
+  end
+
+  defp non_empty_filter_value?(value) when is_binary(value), do: String.trim(value) != ""
+  defp non_empty_filter_value?(nil), do: false
+  defp non_empty_filter_value?(_value), do: true
 
   defp normalize_category_suggestions(suggestions) when is_map(suggestions) do
     Map.merge(%{income: [], expense: [], all: []}, suggestions)

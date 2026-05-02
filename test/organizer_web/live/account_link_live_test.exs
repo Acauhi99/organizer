@@ -6,12 +6,40 @@ defmodule OrganizerWeb.AccountLinkLiveTest do
 
   alias Organizer.SharedFinance
 
+  @funnel_event [:organizer, :product, :funnel, :step]
+
   defp create_active_link_for(scope_owner) do
     user = user_fixture()
     scope = user_scope_fixture(user)
     {:ok, invite} = SharedFinance.create_invite(scope_owner)
     {:ok, link} = SharedFinance.accept_invite(scope, invite.token)
     link
+  end
+
+  defp attach_funnel_listener do
+    handler_id = "account-link-live-test-funnel-#{System.unique_integer([:positive, :monotonic])}"
+    test_pid = self()
+
+    :ok =
+      :telemetry.attach(
+        handler_id,
+        @funnel_event,
+        fn _event, measurements, metadata, _config ->
+          send(test_pid, {:funnel_event, measurements, metadata})
+        end,
+        nil
+      )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+    :ok
+  end
+
+  defp drain_funnel_events do
+    receive do
+      {:funnel_event, _, _} -> drain_funnel_events()
+    after
+      0 -> :ok
+    end
   end
 
   describe "access" do
@@ -117,7 +145,8 @@ defmodule OrganizerWeb.AccountLinkLiveTest do
 
       assert_push_event(view, "copy-to-clipboard", payload)
       assert payload.text =~ "account-links/accept/"
-      assert render(view) =~ "Link copiado. Agora é só enviar para a outra conta."
+      assert render(view) =~ "Link de convite copiado."
+      assert render(view) =~ "Próximo passo: Envie o link para a outra conta."
     end
   end
 
@@ -138,6 +167,21 @@ defmodule OrganizerWeb.AccountLinkLiveTest do
       }
     end
 
+    test "deactivate event opens confirmation before removing link", %{conn: conn, link: link} do
+      {:ok, view, _html} = live(conn, ~p"/account-links")
+
+      assert has_element?(view, "#account-link-#{link.id}")
+
+      render_hook(view, "deactivate_link", %{"id" => to_string(link.id)})
+
+      assert has_element?(view, "#account-link-deactivate-confirmation-modal")
+      assert has_element?(view, "#account-link-#{link.id}")
+
+      view |> element("#confirm-deactivate-link-btn") |> render_click()
+
+      refute has_element?(view, "#account-link-#{link.id}")
+    end
+
     test "deactivates a link and removes it from the list", %{conn: conn, link: link} do
       {:ok, view, _html} = live(conn, ~p"/account-links")
 
@@ -152,6 +196,59 @@ defmodule OrganizerWeb.AccountLinkLiveTest do
       view |> element("#confirm-deactivate-link-btn") |> render_click()
 
       refute has_element?(view, "#account-link-#{link.id}")
+    end
+  end
+
+  describe "funnel telemetry" do
+    test "emits start and success for invite creation", %{conn: conn} do
+      attach_funnel_listener()
+      drain_funnel_events()
+
+      user = user_fixture()
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, ~p"/account-links/invite")
+
+      view |> element("#create-invite-btn") |> render_click()
+
+      assert_receive {:funnel_event, %{count: 1},
+                      %{journey: "account_links", action: "invite_create", outcome: "start"}}
+
+      assert_receive {:funnel_event, %{count: 1},
+                      %{journey: "account_links", action: "invite_create", outcome: "success"}}
+    end
+
+    test "emits start and cancel for link deactivation", %{conn: conn} do
+      attach_funnel_listener()
+      drain_funnel_events()
+
+      user_a = user_fixture()
+      user_b = user_fixture()
+      scope_a = user_scope_fixture(user_a)
+      scope_b = user_scope_fixture(user_b)
+
+      {:ok, invite} = SharedFinance.create_invite(scope_a)
+      {:ok, link} = SharedFinance.accept_invite(scope_b, invite.token)
+
+      conn = log_in_user(conn, user_a)
+      {:ok, view, _html} = live(conn, ~p"/account-links")
+
+      render_hook(view, "prompt_deactivate_link", %{"id" => to_string(link.id)})
+      render_hook(view, "cancel_deactivate_link", %{})
+
+      assert_receive {:funnel_event, %{count: 1},
+                      %{
+                        journey: "account_links",
+                        action: "account_link_deactivate",
+                        outcome: "start"
+                      }}
+
+      assert_receive {:funnel_event, %{count: 1},
+                      %{
+                        journey: "account_links",
+                        action: "account_link_deactivate",
+                        outcome: "cancel"
+                      }}
     end
   end
 end

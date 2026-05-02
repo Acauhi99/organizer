@@ -212,6 +212,8 @@ defmodule OrganizerWeb.CoreComponents do
   attr :cancel_label, :string, default: "Cancelar"
   attr :confirm_button_id, :string, default: nil
   attr :cancel_button_id, :string, default: nil
+  attr :severity, :string, default: "danger", values: ~w(danger critical)
+  attr :impact_label, :string, default: nil
 
   slot :inner_block
 
@@ -220,6 +222,11 @@ defmodule OrganizerWeb.CoreComponents do
       assigns
       |> assign_new(:confirm_button_id, fn -> "#{assigns.id}-confirm" end)
       |> assign_new(:cancel_button_id, fn -> "#{assigns.id}-cancel" end)
+      |> assign(:dialog_class, destructive_dialog_class(assigns.severity))
+      |> assign(:icon_name, destructive_icon_name(assigns.severity))
+      |> assign(:icon_wrapper_class, destructive_icon_wrapper_class(assigns.severity))
+      |> assign(:impact_badge_class, destructive_impact_badge_class(assigns.severity))
+      |> assign(:confirm_button_class, destructive_confirm_button_class(assigns.severity))
 
     ~H"""
     <.app_modal
@@ -229,11 +236,11 @@ defmodule OrganizerWeb.CoreComponents do
       aria_labelledby={"#{@id}-title"}
       z_index_class="z-[140]"
       backdrop_class="bg-slate-950/70 backdrop-blur-[2px]"
-      dialog_class="max-w-md rounded-2xl border-error/30 p-5 shadow-[0_32px_110px_rgba(10,18,34,0.56)] sm:p-6"
+      dialog_class={@dialog_class}
     >
       <div class="flex items-start gap-3">
-        <div class="mt-0.5 rounded-full border border-error/35 bg-error/14 p-2 text-error">
-          <.icon name="hero-exclamation-triangle" class="size-5" />
+        <div class={@icon_wrapper_class}>
+          <.icon name={@icon_name} class="size-5" />
         </div>
         <div class="min-w-0">
           <h2 id={"#{@id}-title"} class="text-base font-semibold text-base-content">
@@ -241,6 +248,12 @@ defmodule OrganizerWeb.CoreComponents do
           </h2>
           <p class="mt-1 text-sm leading-6 text-base-content/74">
             {@message}
+          </p>
+          <p
+            :if={is_binary(@impact_label) and String.trim(@impact_label) != ""}
+            class={@impact_badge_class}
+          >
+            {@impact_label}
           </p>
           <div :if={@inner_block != []} class="mt-2 text-sm text-base-content/82">
             {render_slot(@inner_block)}
@@ -261,7 +274,7 @@ defmodule OrganizerWeb.CoreComponents do
           id={@confirm_button_id}
           type="button"
           phx-click={@confirm_event}
-          class="btn btn-error btn-sm"
+          class={@confirm_button_class}
         >
           {@confirm_label}
         </button>
@@ -269,6 +282,35 @@ defmodule OrganizerWeb.CoreComponents do
     </.app_modal>
     """
   end
+
+  defp destructive_dialog_class("critical") do
+    "max-w-md rounded-2xl border-error/45 p-5 shadow-[0_32px_110px_rgba(10,18,34,0.62)] sm:p-6"
+  end
+
+  defp destructive_dialog_class(_severity) do
+    "max-w-md rounded-2xl border-error/30 p-5 shadow-[0_32px_110px_rgba(10,18,34,0.56)] sm:p-6"
+  end
+
+  defp destructive_icon_name("critical"), do: "hero-exclamation-circle"
+  defp destructive_icon_name(_severity), do: "hero-exclamation-triangle"
+
+  defp destructive_icon_wrapper_class("critical") do
+    "mt-0.5 rounded-full border border-error/45 bg-error/18 p-2 text-error"
+  end
+
+  defp destructive_icon_wrapper_class(_severity) do
+    "mt-0.5 rounded-full border border-error/35 bg-error/14 p-2 text-error"
+  end
+
+  defp destructive_impact_badge_class("critical") do
+    "mt-2 inline-flex rounded-full border border-error/42 bg-error/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-error"
+  end
+
+  defp destructive_impact_badge_class(_severity) do
+    "mt-2 inline-flex rounded-full border border-base-content/16 bg-base-100/65 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-base-content/76"
+  end
+
+  defp destructive_confirm_button_class(_severity), do: "btn btn-error btn-sm"
 
   @doc """
   Renders an input with label and error messages.

@@ -8,10 +8,12 @@ defmodule OrganizerWeb.DashboardLive do
   alias Organizer.Repo
   alias Organizer.SharedFinance
   alias OrganizerWeb.DashboardLive.{Filters, Insights}
+  alias OrganizerWeb.{FlashFeedback, FunnelTelemetry}
 
   alias OrganizerWeb.DashboardLive.Components.{
     FinanceMetricsPanel,
-    FinanceOperationsPanel
+    FinanceOperationsPanel,
+    PlanningOperationsPanel
   }
 
   alias OrganizerWeb.Components.QuickFinanceHero
@@ -74,15 +76,23 @@ defmodule OrganizerWeb.DashboardLive do
     normalized =
       normalize_quick_finance_attrs(attrs, socket.assigns.account_links, parse_amount?: true)
 
+    track_funnel(:quick_finance_create, :start)
+
     case create_quick_finance_entry(socket.assigns.current_scope, normalized) do
       {:ok, _entry, share_result} ->
         kind = normalized["kind"]
         reset_form = quick_finance_defaults(kind, socket.assigns.account_links)
+        track_funnel(:quick_finance_create, :success, %{shared: share_result == :shared})
 
-        flash_message =
+        {happened, next_step} =
           case share_result do
-            :shared -> "Lançamento registrado e compartilhado no compartilhamento."
-            :not_shared -> "Lançamento registrado."
+            :shared ->
+              {"Lançamento registrado e compartilhado no vínculo selecionado",
+               "Acompanhe o saldo atualizado na seção de colaboração"}
+
+            :not_shared ->
+              {"Lançamento registrado",
+               "Revise os detalhes na lista abaixo e ajuste se necessário"}
           end
 
         {:noreply,
@@ -90,23 +100,33 @@ defmodule OrganizerWeb.DashboardLive do
          |> assign(:quick_finance_kind, kind)
          |> assign(:quick_finance_preset, default_quick_finance_preset(kind))
          |> assign(:quick_finance_form, to_form(reset_form, as: :quick_finance))
-         |> put_flash(:info, flash_message)
+         |> info_feedback(happened, next_step)
          |> load_operation_collections()
          |> refresh_dashboard_insights()}
 
       {:error, {:validation, details}} ->
+        track_funnel(:quick_finance_create, :error, %{reason: "validation"})
+
         {:noreply,
          socket
          |> assign(:quick_finance_kind, normalized["kind"])
          |> assign(:quick_finance_form, to_form(normalized, as: :quick_finance))
-         |> put_flash(:error, quick_finance_creation_error_message(details))}
+         |> error_feedback(
+           quick_finance_creation_error_message(details),
+           quick_finance_creation_error_next_step(details)
+         )}
 
       _ ->
+        track_funnel(:quick_finance_create, :error, %{reason: "unexpected"})
+
         {:noreply,
          socket
          |> assign(:quick_finance_kind, normalized["kind"])
          |> assign(:quick_finance_form, to_form(normalized, as: :quick_finance))
-         |> put_flash(:error, "Não foi possível registrar o lançamento.")}
+         |> error_feedback(
+           "Não foi possível registrar o lançamento",
+           "Tente novamente em instantes"
+         )}
     end
   end
 
@@ -174,6 +194,326 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   @impl true
+  def handle_event("create_fixed_cost", %{"fixed_cost" => attrs}, socket) do
+    normalized = normalize_fixed_cost_attrs(attrs)
+
+    track_funnel(:fixed_cost_create, :start)
+
+    case Planning.create_fixed_cost(socket.assigns.current_scope, normalized) do
+      {:ok, _cost} ->
+        track_funnel(:fixed_cost_create, :success)
+
+        {:noreply,
+         socket
+         |> assign(:fixed_cost_form, to_form(fixed_cost_defaults(), as: :fixed_cost))
+         |> load_planning_collections()
+         |> info_feedback(
+           "Custo fixo salvo com sucesso",
+           "Confira se ele já aparece na lista de planejamento"
+         )}
+
+      {:error, {:validation, _details}} ->
+        track_funnel(:fixed_cost_create, :error, %{reason: "validation"})
+
+        {:noreply,
+         socket
+         |> assign(:fixed_cost_form, to_form(normalized, as: :fixed_cost))
+         |> error_feedback(
+           "Verifique os campos do custo fixo",
+           "Corrija os campos destacados e tente salvar novamente"
+         )}
+
+      _ ->
+        track_funnel(:fixed_cost_create, :error, %{reason: "unexpected"})
+
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível salvar o custo fixo",
+           "Tente novamente em instantes"
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("start_edit_fixed_cost", %{"id" => id}, socket) do
+    case Planning.get_fixed_cost(socket.assigns.current_scope, id) do
+      {:ok, cost} ->
+        {:noreply,
+         socket
+         |> assign(:fixed_cost_edit_entry, cost)
+         |> assign(
+           :fixed_cost_edit_form,
+           to_form(fixed_cost_form_params(cost), as: :fixed_cost_edit)
+         )}
+
+      {:error, :not_found} ->
+        {:noreply,
+         error_feedback(
+           socket,
+           "Custo fixo não encontrado",
+           "Atualize a página para recarregar a lista e tente novamente"
+         )}
+
+      _ ->
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível carregar o custo fixo",
+           "Atualize a página e tente novamente"
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("cancel_edit_fixed_cost", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:fixed_cost_edit_entry, nil)
+     |> assign(:fixed_cost_edit_form, to_form(%{}, as: :fixed_cost_edit))}
+  end
+
+  @impl true
+  def handle_event("save_fixed_cost", %{"_id" => id, "fixed_cost_edit" => attrs}, socket) do
+    normalized = normalize_fixed_cost_attrs(attrs)
+
+    track_funnel(:fixed_cost_update, :start)
+
+    case Planning.update_fixed_cost(socket.assigns.current_scope, id, normalized) do
+      {:ok, _cost} ->
+        track_funnel(:fixed_cost_update, :success)
+
+        {:noreply,
+         socket
+         |> assign(:fixed_cost_edit_entry, nil)
+         |> assign(:fixed_cost_edit_form, to_form(%{}, as: :fixed_cost_edit))
+         |> load_planning_collections()
+         |> info_feedback(
+           "Custo fixo atualizado",
+           "Revise a lista para garantir que os dados ficaram corretos"
+         )}
+
+      {:error, {:validation, _details}} ->
+        track_funnel(:fixed_cost_update, :error, %{reason: "validation"})
+
+        {:noreply,
+         socket
+         |> assign(:fixed_cost_edit_form, to_form(normalized, as: :fixed_cost_edit))
+         |> error_feedback(
+           "Verifique os campos do custo fixo",
+           "Corrija os campos destacados e salve novamente"
+         )}
+
+      {:error, :not_found} ->
+        track_funnel(:fixed_cost_update, :error, %{reason: "not_found"})
+
+        {:noreply,
+         socket
+         |> assign(:fixed_cost_edit_entry, nil)
+         |> assign(:fixed_cost_edit_form, to_form(%{}, as: :fixed_cost_edit))
+         |> error_feedback(
+           "Custo fixo não encontrado",
+           "Atualize a página para recarregar os dados"
+         )}
+
+      _ ->
+        track_funnel(:fixed_cost_update, :error, %{reason: "unexpected"})
+
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível atualizar o custo fixo",
+           "Tente novamente em instantes"
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("prompt_delete_fixed_cost", %{"id" => id}, socket) do
+    track_funnel(:fixed_cost_delete, :start)
+    {:noreply, prepare_fixed_cost_delete_confirmation(socket, id)}
+  end
+
+  @impl true
+  def handle_event("cancel_delete_fixed_cost", _params, socket) do
+    track_funnel(:fixed_cost_delete, :cancel)
+    {:noreply, assign(socket, :pending_fixed_cost_delete, nil)}
+  end
+
+  @impl true
+  def handle_event("confirm_delete_fixed_cost", _params, socket) do
+    case socket.assigns.pending_fixed_cost_delete do
+      %{id: id} ->
+        {:noreply, perform_fixed_cost_deletion(socket, id)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("create_important_date", %{"important_date" => attrs}, socket) do
+    normalized = normalize_important_date_attrs(attrs)
+
+    track_funnel(:important_date_create, :start)
+
+    case Planning.create_important_date(socket.assigns.current_scope, normalized) do
+      {:ok, _important_date} ->
+        track_funnel(:important_date_create, :success)
+
+        {:noreply,
+         socket
+         |> assign(:important_date_form, to_form(important_date_defaults(), as: :important_date))
+         |> load_planning_collections()
+         |> info_feedback(
+           "Data importante salva com sucesso",
+           "Confira se ela já aparece na linha do tempo de planejamento"
+         )}
+
+      {:error, {:validation, _details}} ->
+        track_funnel(:important_date_create, :error, %{reason: "validation"})
+
+        {:noreply,
+         socket
+         |> assign(:important_date_form, to_form(normalized, as: :important_date))
+         |> error_feedback(
+           "Verifique os campos da data importante",
+           "Corrija os campos destacados e tente salvar novamente"
+         )}
+
+      _ ->
+        track_funnel(:important_date_create, :error, %{reason: "unexpected"})
+
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível salvar a data importante",
+           "Tente novamente em instantes"
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("start_edit_important_date", %{"id" => id}, socket) do
+    case Planning.get_important_date(socket.assigns.current_scope, id) do
+      {:ok, important_date} ->
+        {:noreply,
+         socket
+         |> assign(:important_date_edit_entry, important_date)
+         |> assign(
+           :important_date_edit_form,
+           to_form(important_date_form_params(important_date), as: :important_date_edit)
+         )}
+
+      {:error, :not_found} ->
+        {:noreply,
+         error_feedback(
+           socket,
+           "Data importante não encontrada",
+           "Atualize a página para recarregar a lista e tente novamente"
+         )}
+
+      _ ->
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível carregar a data importante",
+           "Atualize a página e tente novamente"
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("cancel_edit_important_date", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:important_date_edit_entry, nil)
+     |> assign(:important_date_edit_form, to_form(%{}, as: :important_date_edit))}
+  end
+
+  @impl true
+  def handle_event(
+        "save_important_date",
+        %{"_id" => id, "important_date_edit" => attrs},
+        socket
+      ) do
+    normalized = normalize_important_date_attrs(attrs)
+
+    track_funnel(:important_date_update, :start)
+
+    case Planning.update_important_date(socket.assigns.current_scope, id, normalized) do
+      {:ok, _important_date} ->
+        track_funnel(:important_date_update, :success)
+
+        {:noreply,
+         socket
+         |> assign(:important_date_edit_entry, nil)
+         |> assign(:important_date_edit_form, to_form(%{}, as: :important_date_edit))
+         |> load_planning_collections()
+         |> info_feedback(
+           "Data importante atualizada",
+           "Revise a linha do tempo para validar os detalhes"
+         )}
+
+      {:error, {:validation, _details}} ->
+        track_funnel(:important_date_update, :error, %{reason: "validation"})
+
+        {:noreply,
+         socket
+         |> assign(:important_date_edit_form, to_form(normalized, as: :important_date_edit))
+         |> error_feedback(
+           "Verifique os campos da data importante",
+           "Corrija os campos destacados e salve novamente"
+         )}
+
+      {:error, :not_found} ->
+        track_funnel(:important_date_update, :error, %{reason: "not_found"})
+
+        {:noreply,
+         socket
+         |> assign(:important_date_edit_entry, nil)
+         |> assign(:important_date_edit_form, to_form(%{}, as: :important_date_edit))
+         |> error_feedback(
+           "Data importante não encontrada",
+           "Atualize a página para recarregar os dados"
+         )}
+
+      _ ->
+        track_funnel(:important_date_update, :error, %{reason: "unexpected"})
+
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível atualizar a data importante",
+           "Tente novamente em instantes"
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("prompt_delete_important_date", %{"id" => id}, socket) do
+    track_funnel(:important_date_delete, :start)
+    {:noreply, prepare_important_date_delete_confirmation(socket, id)}
+  end
+
+  @impl true
+  def handle_event("cancel_delete_important_date", _params, socket) do
+    track_funnel(:important_date_delete, :cancel)
+    {:noreply, assign(socket, :pending_important_date_delete, nil)}
+  end
+
+  @impl true
+  def handle_event("confirm_delete_important_date", _params, socket) do
+    case socket.assigns.pending_important_date_delete do
+      %{id: id} ->
+        {:noreply, perform_important_date_deletion(socket, id)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
   def handle_event("next_onboarding_step", _params, socket) do
     current_step = socket.assigns.onboarding_step
     new_step = min(current_step + 1, 6)
@@ -212,7 +552,10 @@ defmodule OrganizerWeb.DashboardLive do
             {:noreply,
              socket
              |> assign(:onboarding_active, false)
-             |> put_flash(:error, "Não foi possível salvar preferência.")}
+             |> error_feedback(
+               "Não foi possível salvar sua preferência de onboarding",
+               "Tente novamente em instantes"
+             )}
         end
 
       {:error, _} ->
@@ -229,13 +572,19 @@ defmodule OrganizerWeb.DashboardLive do
             {:noreply,
              socket
              |> assign(:onboarding_active, false)
-             |> put_flash(:info, "Onboarding concluído! Bem-vindo ao Organizer.")}
+             |> info_feedback(
+               "Onboarding concluído",
+               "Use os atalhos e blocos da página para acelerar sua rotina"
+             )}
 
           {:error, _} ->
             {:noreply,
              socket
              |> assign(:onboarding_active, false)
-             |> put_flash(:error, "Não foi possível salvar preferência.")}
+             |> error_feedback(
+               "Não foi possível salvar sua preferência de onboarding",
+               "Tente novamente em instantes"
+             )}
         end
 
       {:error, _} ->
@@ -264,7 +613,10 @@ defmodule OrganizerWeb.DashboardLive do
       normalized_key == "?" ->
         {:noreply,
          socket
-         |> put_flash(:info, "Atalhos: Alt+B (lançamento rápido), ? (ajuda)")}
+         |> info_feedback(
+           "Atalhos disponíveis: Alt+B (lançamento rápido) e ? (ajuda)",
+           "Use Alt+B para focar direto no formulário de lançamento"
+         )}
 
       true ->
         {:noreply, socket}
@@ -281,10 +633,20 @@ defmodule OrganizerWeb.DashboardLive do
          |> assign(:finance_edit_modal_entry, entry)}
 
       {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Lançamento não encontrado.")}
+        {:noreply,
+         error_feedback(
+           socket,
+           "Lançamento não encontrado",
+           "Atualize a lista para sincronizar os dados"
+         )}
 
       _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível carregar o lançamento.")}
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível carregar o lançamento",
+           "Tente novamente em instantes"
+         )}
     end
   end
 
@@ -300,43 +662,66 @@ defmodule OrganizerWeb.DashboardLive do
   def handle_event("save_finance", %{"_id" => id, "finance" => attrs}, socket) do
     normalized = normalize_finance_edit_attrs(attrs)
 
+    track_funnel(:finance_edit, :start)
+
     case Planning.update_finance_entry(socket.assigns.current_scope, id, normalized) do
       {:ok, _entry} ->
+        track_funnel(:finance_edit, :success)
+
         {:noreply,
          socket
-         |> put_flash(:info, "Lançamento atualizado.")
+         |> info_feedback(
+           "Lançamento atualizado",
+           "Confira os totais e categorias para validar o impacto"
+         )
          |> assign(:editing_finance_id, nil)
          |> assign(:finance_edit_modal_entry, nil)
          |> load_operation_collections()
          |> refresh_dashboard_insights()}
 
       {:error, {:validation, _details}} ->
-        {:noreply, put_flash(socket, :error, "Verifique os campos do lançamento.")}
+        track_funnel(:finance_edit, :error, %{reason: "validation"})
+
+        {:noreply,
+         error_feedback(
+           socket,
+           "Verifique os campos do lançamento",
+           "Corrija os campos destacados e salve novamente"
+         )}
 
       {:error, :not_found} ->
+        track_funnel(:finance_edit, :error, %{reason: "not_found"})
+
         {:noreply,
          socket
-         |> put_flash(:error, "Lançamento não encontrado.")
+         |> error_feedback(
+           "Lançamento não encontrado",
+           "Atualize a lista para sincronizar os dados"
+         )
          |> assign(:editing_finance_id, nil)
          |> assign(:finance_edit_modal_entry, nil)}
 
       _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível atualizar o lançamento.")}
+        track_funnel(:finance_edit, :error, %{reason: "unexpected"})
+
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível atualizar o lançamento",
+           "Tente novamente em instantes"
+         )}
     end
   end
 
   @impl true
-  def handle_event("prompt_delete_finance", %{"id" => id} = params, socket) do
-    pending_delete = %{
-      id: id,
-      category: Map.get(params, "category", "Lançamento sem categoria")
-    }
-
-    {:noreply, assign(socket, :pending_finance_delete, pending_delete)}
+  def handle_event("prompt_delete_finance", %{"id" => id}, socket) do
+    track_funnel(:finance_delete, :start)
+    {:noreply, prepare_finance_delete_confirmation(socket, id)}
   end
 
   @impl true
   def handle_event("cancel_delete_finance", _params, socket) do
+    track_funnel(:finance_delete, :cancel)
     {:noreply, assign(socket, :pending_finance_delete, nil)}
   end
 
@@ -353,7 +738,12 @@ defmodule OrganizerWeb.DashboardLive do
 
   @impl true
   def handle_event("delete_finance", %{"id" => id}, socket) do
-    {:noreply, perform_finance_deletion(socket, id)}
+    {:noreply,
+     prepare_finance_delete_confirmation(socket, id)
+     |> info_feedback(
+       "Confirmação necessária para excluir o lançamento",
+       "Revise os dados no modal e confirme para continuar"
+     )}
   end
 
   defp initialize_dashboard_state(socket, scope) do
@@ -381,6 +771,16 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:editing_finance_id, nil)
     |> assign(:finance_edit_modal_entry, nil)
     |> assign(:pending_finance_delete, nil)
+    |> assign(:fixed_cost_form, to_form(fixed_cost_defaults(), as: :fixed_cost))
+    |> assign(:important_date_form, to_form(important_date_defaults(), as: :important_date))
+    |> assign(:fixed_cost_edit_entry, nil)
+    |> assign(:fixed_cost_edit_form, to_form(%{}, as: :fixed_cost_edit))
+    |> assign(:important_date_edit_entry, nil)
+    |> assign(:important_date_edit_form, to_form(%{}, as: :important_date_edit))
+    |> assign(:pending_fixed_cost_delete, nil)
+    |> assign(:pending_important_date_delete, nil)
+    |> assign(:fixed_costs, [])
+    |> assign(:important_dates, [])
     |> assign(:onboarding_active, onboarding_active)
     |> assign(:onboarding_step, onboarding_progress.current_step)
     |> assign(:finance_flow_chart, %{loading: true, chart_svg: nil})
@@ -388,6 +788,7 @@ defmodule OrganizerWeb.DashboardLive do
     |> assign(:finance_composition_chart, %{loading: true, chart_svg: nil})
     |> assign(:finance_highlights, Insights.default_finance_highlights())
     |> load_operation_collections()
+    |> load_planning_collections()
     |> refresh_dashboard_insights()
   end
 
@@ -458,6 +859,26 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp maybe_reset_finance_page(filters, true, false), do: Map.put(filters, :page, 1)
   defp maybe_reset_finance_page(filters, _reset?, _keep_page?), do: filters
+
+  defp load_planning_collections(socket) do
+    scope = socket.assigns.current_scope
+
+    fixed_costs =
+      case Planning.list_fixed_costs_with_meta(scope, %{page: 1, page_size: 200}) do
+        {:ok, {items, _meta}} -> items
+        _ -> []
+      end
+
+    important_dates =
+      case Planning.list_important_dates_with_meta(scope, %{days: 365, page: 1, page_size: 200}) do
+        {:ok, {items, _meta}} -> items
+        _ -> []
+      end
+
+    socket
+    |> assign(:fixed_costs, fixed_costs)
+    |> assign(:important_dates, important_dates)
+  end
 
   defp refresh_dashboard_insights(socket) do
     Insights.refresh_dashboard_insights(socket)
@@ -651,6 +1072,161 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp normalize_finance_edit_attrs(attrs), do: attrs
 
+  defp normalize_fixed_cost_attrs(attrs) when is_map(attrs) do
+    attrs
+    |> string_key_map()
+    |> Map.update("amount_cents", "", &normalize_money_input/1)
+    |> Map.update("billing_day", "", &normalize_integer_input/1)
+    |> Map.update("starts_on", "", &normalize_date_input/1)
+    |> Map.update("active", "true", fn value ->
+      if value in [true, "true", "1", "on"], do: "true", else: "false"
+    end)
+  end
+
+  defp normalize_fixed_cost_attrs(attrs), do: attrs
+
+  defp normalize_important_date_attrs(attrs) when is_map(attrs) do
+    attrs
+    |> string_key_map()
+    |> Map.update("date", "", &normalize_date_input/1)
+  end
+
+  defp normalize_important_date_attrs(attrs), do: attrs
+
+  defp normalize_money_input(value) when is_binary(value) do
+    case AmountParser.parse(String.trim(value)) do
+      {:ok, cents} -> Integer.to_string(cents)
+      _ -> value
+    end
+  end
+
+  defp normalize_money_input(value) when is_integer(value), do: Integer.to_string(value)
+  defp normalize_money_input(value), do: value
+
+  defp normalize_integer_input(value) when is_binary(value) do
+    value
+    |> String.trim()
+  end
+
+  defp normalize_integer_input(value) when is_integer(value), do: Integer.to_string(value)
+  defp normalize_integer_input(value), do: value
+
+  defp normalize_date_input(value) when is_binary(value) do
+    case DateSupport.parse_date(value) do
+      {:ok, date} -> DateSupport.format_pt_br(date)
+      :error -> String.trim(value)
+    end
+  end
+
+  defp normalize_date_input(%Date{} = value), do: DateSupport.format_pt_br(value)
+  defp normalize_date_input(value), do: value
+
+  defp fixed_cost_defaults do
+    %{
+      "name" => "",
+      "amount_cents" => "",
+      "billing_day" => "",
+      "starts_on" => "",
+      "active" => "true"
+    }
+  end
+
+  defp important_date_defaults do
+    %{
+      "title" => "",
+      "category" => "personal",
+      "date" => DateSupport.format_pt_br(Date.utc_today()),
+      "notes" => ""
+    }
+  end
+
+  defp fixed_cost_form_params(cost) do
+    %{
+      "name" => cost.name || "",
+      "amount_cents" => format_amount_input(cost.amount_cents),
+      "billing_day" =>
+        if(is_integer(cost.billing_day), do: Integer.to_string(cost.billing_day), else: ""),
+      "starts_on" => DateSupport.format_pt_br(cost.starts_on),
+      "active" => if(cost.active, do: "true", else: "false")
+    }
+  end
+
+  defp important_date_form_params(important_date) do
+    %{
+      "title" => important_date.title || "",
+      "category" => to_string(important_date.category || :personal),
+      "date" => DateSupport.format_pt_br(important_date.date),
+      "notes" => important_date.notes || ""
+    }
+  end
+
+  defp perform_fixed_cost_deletion(socket, id) do
+    case Planning.delete_fixed_cost(socket.assigns.current_scope, id) do
+      {:ok, _cost} ->
+        track_funnel(:fixed_cost_delete, :success)
+
+        socket
+        |> assign(:pending_fixed_cost_delete, nil)
+        |> load_planning_collections()
+        |> info_feedback(
+          "Custo fixo removido",
+          "Revise o planejamento para ajustar possíveis impactos"
+        )
+
+      {:error, :not_found} ->
+        track_funnel(:fixed_cost_delete, :error, %{reason: "not_found"})
+
+        socket
+        |> assign(:pending_fixed_cost_delete, nil)
+        |> error_feedback(
+          "Custo fixo não encontrado",
+          "Atualize a lista para sincronizar os dados"
+        )
+
+      _ ->
+        track_funnel(:fixed_cost_delete, :error, %{reason: "unexpected"})
+
+        socket
+        |> assign(:pending_fixed_cost_delete, nil)
+        |> error_feedback("Não foi possível remover o custo fixo", "Tente novamente em instantes")
+    end
+  end
+
+  defp perform_important_date_deletion(socket, id) do
+    case Planning.delete_important_date(socket.assigns.current_scope, id) do
+      {:ok, _important_date} ->
+        track_funnel(:important_date_delete, :success)
+
+        socket
+        |> assign(:pending_important_date_delete, nil)
+        |> load_planning_collections()
+        |> info_feedback(
+          "Data importante removida",
+          "Confira a linha do tempo para validar os próximos marcos"
+        )
+
+      {:error, :not_found} ->
+        track_funnel(:important_date_delete, :error, %{reason: "not_found"})
+
+        socket
+        |> assign(:pending_important_date_delete, nil)
+        |> error_feedback(
+          "Data importante não encontrada",
+          "Atualize a lista para sincronizar os dados"
+        )
+
+      _ ->
+        track_funnel(:important_date_delete, :error, %{reason: "unexpected"})
+
+        socket
+        |> assign(:pending_important_date_delete, nil)
+        |> error_feedback(
+          "Não foi possível remover a data importante",
+          "Tente novamente em instantes"
+        )
+    end
+  end
+
   defp maybe_parse_finance_edit_amount(attrs) do
     case parse_quick_finance_amount_cents(Map.get(attrs, "amount_cents")) do
       {:ok, cents} -> Map.put(attrs, "amount_cents", Integer.to_string(cents))
@@ -837,7 +1413,22 @@ defmodule OrganizerWeb.DashboardLive do
   end
 
   defp quick_finance_creation_error_message(_details),
-    do: "Não foi possível registrar o lançamento."
+    do: "Não foi possível registrar o lançamento"
+
+  defp quick_finance_creation_error_next_step(details) when is_map(details) do
+    cond do
+      Map.has_key?(details, :shared_manual_mine_cents) ->
+        "Ajuste os valores manuais para manter a divisão dentro do total"
+
+      Map.has_key?(details, :shared_with_link_id) ->
+        "Escolha um vínculo válido antes de compartilhar"
+
+      true ->
+        "Corrija os campos destacados e tente novamente"
+    end
+  end
+
+  defp quick_finance_creation_error_next_step(_details), do: "Tente novamente em instantes"
 
   defp format_amount_input(cents) when is_integer(cents) and cents >= 0 do
     integer_part = cents |> div(100) |> Integer.to_string()
@@ -853,6 +1444,111 @@ defmodule OrganizerWeb.DashboardLive do
     |> case do
       {link_id, ""} when link_id > 0 -> {:ok, link_id}
       _ -> :error
+    end
+  end
+
+  defp parse_positive_id(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_positive_id(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
+    end
+  end
+
+  defp parse_positive_id(_), do: :error
+
+  defp prepare_finance_delete_confirmation(socket, id) do
+    with {:ok, parsed_id} <- parse_positive_id(id),
+         {:ok, entry} <- Planning.get_finance_entry(socket.assigns.current_scope, parsed_id) do
+      assign(socket, :pending_finance_delete, %{
+        id: entry.id,
+        category: default_if_blank(entry.category, "Lançamento sem categoria")
+      })
+    else
+      {:error, :not_found} ->
+        error_feedback(
+          socket,
+          "Lançamento não encontrado",
+          "Atualize a lista para sincronizar os dados"
+        )
+
+      :error ->
+        error_feedback(
+          socket,
+          "Não foi possível preparar a exclusão do lançamento",
+          "Tente novamente em instantes"
+        )
+
+      _ ->
+        error_feedback(
+          socket,
+          "Não foi possível preparar a exclusão do lançamento",
+          "Tente novamente em instantes"
+        )
+    end
+  end
+
+  defp prepare_fixed_cost_delete_confirmation(socket, id) do
+    with {:ok, parsed_id} <- parse_positive_id(id),
+         {:ok, cost} <- Planning.get_fixed_cost(socket.assigns.current_scope, parsed_id) do
+      assign(socket, :pending_fixed_cost_delete, %{
+        id: cost.id,
+        name: default_if_blank(cost.name, "Custo fixo")
+      })
+    else
+      {:error, :not_found} ->
+        error_feedback(
+          socket,
+          "Custo fixo não encontrado",
+          "Atualize a lista para sincronizar os dados"
+        )
+
+      :error ->
+        error_feedback(
+          socket,
+          "Não foi possível preparar a exclusão do custo fixo",
+          "Tente novamente em instantes"
+        )
+
+      _ ->
+        error_feedback(
+          socket,
+          "Não foi possível preparar a exclusão do custo fixo",
+          "Tente novamente em instantes"
+        )
+    end
+  end
+
+  defp prepare_important_date_delete_confirmation(socket, id) do
+    with {:ok, parsed_id} <- parse_positive_id(id),
+         {:ok, important_date} <-
+           Planning.get_important_date(socket.assigns.current_scope, parsed_id) do
+      assign(socket, :pending_important_date_delete, %{
+        id: important_date.id,
+        title: default_if_blank(important_date.title, "Data importante")
+      })
+    else
+      {:error, :not_found} ->
+        error_feedback(
+          socket,
+          "Data importante não encontrada",
+          "Atualize a lista para sincronizar os dados"
+        )
+
+      :error ->
+        error_feedback(
+          socket,
+          "Não foi possível preparar a exclusão da data importante",
+          "Tente novamente em instantes"
+        )
+
+      _ ->
+        error_feedback(
+          socket,
+          "Não foi possível preparar a exclusão da data importante",
+          "Tente novamente em instantes"
+        )
     end
   end
 
@@ -956,6 +1652,19 @@ defmodule OrganizerWeb.DashboardLive do
           finance_category_chart={@finance_category_chart}
           finance_composition_chart={@finance_composition_chart}
         />
+
+        <PlanningOperationsPanel.planning_operations_panel
+          fixed_cost_form={@fixed_cost_form}
+          important_date_form={@important_date_form}
+          fixed_costs={@fixed_costs}
+          important_dates={@important_dates}
+          fixed_cost_edit_entry={@fixed_cost_edit_entry}
+          fixed_cost_edit_form={@fixed_cost_edit_form}
+          important_date_edit_entry={@important_date_edit_entry}
+          important_date_edit_form={@important_date_edit_form}
+          pending_fixed_cost_delete={@pending_fixed_cost_delete}
+          pending_important_date_delete={@pending_important_date_delete}
+        />
       </div>
     </Layouts.app>
     """
@@ -993,8 +1702,13 @@ defmodule OrganizerWeb.DashboardLive do
   defp perform_finance_deletion(socket, id) do
     case Planning.delete_finance_entry(socket.assigns.current_scope, id) do
       {:ok, _entry} ->
+        track_funnel(:finance_delete, :success)
+
         socket
-        |> put_flash(:info, "Lançamento removido.")
+        |> info_feedback(
+          "Lançamento removido",
+          "Confira os totais e registre um novo lançamento se necessário"
+        )
         |> assign(:editing_finance_id, nil)
         |> assign(:finance_edit_modal_entry, nil)
         |> assign(:pending_finance_delete, nil)
@@ -1002,14 +1716,33 @@ defmodule OrganizerWeb.DashboardLive do
         |> refresh_dashboard_insights()
 
       {:error, :not_found} ->
+        track_funnel(:finance_delete, :error, %{reason: "not_found"})
+
         socket
         |> assign(:pending_finance_delete, nil)
-        |> put_flash(:error, "Lançamento não encontrado.")
+        |> error_feedback(
+          "Lançamento não encontrado",
+          "Atualize a lista para sincronizar os dados"
+        )
 
       _ ->
+        track_funnel(:finance_delete, :error, %{reason: "unexpected"})
+
         socket
         |> assign(:pending_finance_delete, nil)
-        |> put_flash(:error, "Não foi possível remover o lançamento.")
+        |> error_feedback("Não foi possível remover o lançamento", "Tente novamente em instantes")
     end
+  end
+
+  defp info_feedback(socket, happened, next_step) do
+    put_flash(socket, :info, FlashFeedback.compose(happened, next_step))
+  end
+
+  defp error_feedback(socket, happened, next_step) do
+    put_flash(socket, :error, FlashFeedback.compose(happened, next_step))
+  end
+
+  defp track_funnel(action, outcome, metadata \\ %{}) do
+    FunnelTelemetry.track_step(:finances, action, outcome, metadata)
   end
 end

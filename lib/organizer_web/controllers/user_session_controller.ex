@@ -2,6 +2,7 @@ defmodule OrganizerWeb.UserSessionController do
   use OrganizerWeb, :controller
 
   alias Organizer.Accounts
+  alias OrganizerWeb.FlashFeedback
   alias OrganizerWeb.UserAuth
 
   def new(conn, _params) do
@@ -18,21 +19,27 @@ defmodule OrganizerWeb.UserSessionController do
 
     if user = Accounts.get_user_by_email_and_password(email, password) do
       conn
-      |> put_flash(:info, "Que bom ter você de volta!")
+      |> info_feedback(
+        "Que bom ter você de volta",
+        "Siga para o painel e retome sua rotina"
+      )
       |> UserAuth.log_in_user(user, user_params)
     else
       form = Phoenix.Component.to_form(user_params, as: "user")
 
       # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
       conn
-      |> put_flash(:error, "E-mail ou senha inválidos")
+      |> error_feedback(
+        "E-mail ou senha inválidos",
+        "Revise os dados e tente novamente"
+      )
       |> render(:new, form: form, invite_pending?: invite_pending?(conn))
     end
   end
 
   def delete(conn, _params) do
     conn
-    |> put_flash(:info, "Você saiu com sucesso.")
+    |> info_feedback("Você saiu com sucesso", "Volte quando quiser continuar sua organização")
     |> UserAuth.log_out_user()
   end
 
@@ -41,5 +48,13 @@ defmodule OrganizerWeb.UserSessionController do
       "/account-links/accept/" <> _token -> true
       _ -> false
     end
+  end
+
+  defp info_feedback(conn, happened, next_step) do
+    put_flash(conn, :info, FlashFeedback.compose(happened, next_step))
+  end
+
+  defp error_feedback(conn, happened, next_step) do
+    put_flash(conn, :error, FlashFeedback.compose(happened, next_step))
   end
 end

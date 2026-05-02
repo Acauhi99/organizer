@@ -3,6 +3,7 @@ defmodule OrganizerWeb.UserRegistrationController do
 
   alias Organizer.Accounts
   alias Organizer.Accounts.User
+  alias OrganizerWeb.FlashFeedback
   alias OrganizerWeb.UserAuth
 
   import Phoenix.Component, only: [to_form: 2]
@@ -20,7 +21,10 @@ defmodule OrganizerWeb.UserRegistrationController do
     case Accounts.register_user_with_password(user_params) do
       {:ok, user} ->
         conn
-        |> put_flash(:info, "Conta criada com sucesso. Bem-vindo!")
+        |> info_feedback(
+          "Conta criada com sucesso",
+          "Você já pode começar a registrar seus lançamentos"
+        )
         |> UserAuth.log_in_user(user)
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -36,5 +40,9 @@ defmodule OrganizerWeb.UserRegistrationController do
       "/account-links/accept/" <> _token -> true
       _ -> false
     end
+  end
+
+  defp info_feedback(conn, happened, next_step) do
+    put_flash(conn, :info, FlashFeedback.compose(happened, next_step))
   end
 end

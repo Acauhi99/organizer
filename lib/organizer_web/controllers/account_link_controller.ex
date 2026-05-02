@@ -2,6 +2,7 @@ defmodule OrganizerWeb.AccountLinkController do
   use OrganizerWeb, :controller
 
   alias Organizer.SharedFinance
+  alias OrganizerWeb.FlashFeedback
 
   def accept(conn, %{"token" => token}) do
     case conn.assigns.current_scope do
@@ -11,7 +12,10 @@ defmodule OrganizerWeb.AccountLinkController do
       _ ->
         conn
         |> put_session(:user_return_to, current_path(conn))
-        |> put_flash(:info, "Faça login ou crie sua conta para aceitar o convite.")
+        |> info_feedback(
+          "Faça login ou crie sua conta para aceitar o convite",
+          "Entre e você será redirecionado automaticamente para concluir o aceite"
+        )
         |> redirect(to: ~p"/users/log-in")
     end
   end
@@ -20,23 +24,43 @@ defmodule OrganizerWeb.AccountLinkController do
     case SharedFinance.accept_invite(scope, token) do
       {:ok, link} ->
         conn
-        |> put_flash(:info, "Compartilhamento estabelecido com sucesso.")
+        |> info_feedback(
+          "Compartilhamento estabelecido com sucesso",
+          "Revise os detalhes do vínculo e siga para os lançamentos compartilhados"
+        )
         |> redirect(to: ~p"/account-links/#{link.id}")
 
       {:error, :invite_invalid} ->
         conn
-        |> put_flash(:error, "Convite inválido ou expirado.")
+        |> error_feedback(
+          "Convite inválido ou expirado",
+          "Solicite um novo convite e tente novamente"
+        )
         |> redirect(to: ~p"/account-links/invite")
 
       {:error, :self_invite_not_allowed} ->
         conn
-        |> put_flash(:error, "Você não pode aceitar o próprio convite.")
+        |> error_feedback(
+          "Você não pode aceitar o próprio convite",
+          "Gere um novo convite para a outra conta"
+        )
         |> redirect(to: ~p"/account-links/invite")
 
       {:error, :link_already_exists} ->
         conn
-        |> put_flash(:info, "Este compartilhamento já está ativo.")
+        |> info_feedback(
+          "Este compartilhamento já está ativo",
+          "Acesse a lista de vínculos para continuar o gerenciamento"
+        )
         |> redirect(to: ~p"/account-links")
     end
+  end
+
+  defp info_feedback(conn, happened, next_step) do
+    put_flash(conn, :info, FlashFeedback.compose(happened, next_step))
+  end
+
+  defp error_feedback(conn, happened, next_step) do
+    put_flash(conn, :error, FlashFeedback.compose(happened, next_step))
   end
 end

@@ -151,6 +151,7 @@ defmodule Organizer.SharedFinance do
       from l in AccountLink,
         where:
           l.id == ^link_id and
+            l.status == :active and
             (l.user_a_id == ^user_id or l.user_b_id == ^user_id),
         preload: [:user_a, :user_b]
 
@@ -237,6 +238,21 @@ defmodule Organizer.SharedFinance do
     end
 
     :ok
+  end
+
+  @doc """
+  Returns a shared FinanceEntry owned by the authenticated user for a given account link.
+  """
+  def get_shared_entry_owned_by_user(scope, link_id, entry_id) do
+    user_id = scope.user.id
+
+    with {:ok, _link} <- get_account_link(scope, link_id),
+         %FinanceEntry{} = entry <- shared_entry_owned_by_user(user_id, link_id, entry_id) do
+      {:ok, entry}
+    else
+      nil -> {:error, :not_found}
+      {:error, _reason} = error -> error
+    end
   end
 
   @doc """
@@ -607,6 +623,7 @@ defmodule Organizer.SharedFinance do
                   receiver_id: receiver_id,
                   amount_cents: amount_cents,
                   method: Map.get(attrs, :method) || Map.get(attrs, "method"),
+                  status: :active,
                   transferred_at:
                     Map.get(attrs, :transferred_at) || Map.get(attrs, "transferred_at")
                 }
@@ -679,6 +696,7 @@ defmodule Organizer.SharedFinance do
                   receiver_id: debt.creditor_id,
                   amount_cents: amount_cents,
                   method: Map.get(attrs, :method) || Map.get(attrs, "method"),
+                  status: :active,
                   transferred_at:
                     Map.get(attrs, :transferred_at) || Map.get(attrs, "transferred_at")
                 }
@@ -718,6 +736,70 @@ defmodule Organizer.SharedFinance do
               end
           end
       end
+    end
+  end
+
+  @doc """
+  Reverts a previously created settlement record and restores debt outstanding balances.
+  The caller must be a participant of the link and the record must be active.
+  """
+  def reverse_settlement_record(scope, settlement_record_id, attrs \\ %{}) do
+    reason =
+      attrs
+      |> Map.get(:reason, Map.get(attrs, "reason", ""))
+      |> to_string()
+      |> String.trim()
+
+    case find_record_with_link(scope, settlement_record_id) do
+      {:error, reason_code} ->
+        {:error, reason_code}
+
+      {:ok, record, cycle, link} ->
+        if record.status != :active do
+          {:error, :already_reversed}
+        else
+          Repo.transaction(fn ->
+            allocations =
+              from(a in SettlementRecordAllocation,
+                where: a.settlement_record_id == ^record.id,
+                preload: [:shared_entry_debt],
+                order_by: [asc: a.id]
+              )
+              |> Repo.all()
+
+            with :ok <- restore_allocated_debts(allocations),
+                 {:ok, _record} <-
+                   record
+                   |> Ecto.Changeset.change(%{
+                     status: :reversed,
+                     reversed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+                     reversed_by_id: scope.user.id,
+                     reversal_reason: if(reason == "", do: nil, else: reason)
+                   })
+                   |> Repo.update(),
+                 :ok <- refresh_cycle_status(cycle) do
+              record.id
+            else
+              {:error, reason_code} -> Repo.rollback(reason_code)
+            end
+          end)
+          |> case do
+            {:ok, _record_id} ->
+              Phoenix.PubSub.broadcast(
+                Organizer.PubSub,
+                "account_link:#{link.id}",
+                {:settlement_record_reversed, settlement_record_id}
+              )
+
+              {:ok, :reversed}
+
+            {:error, reason_code} when is_atom(reason_code) ->
+              {:error, reason_code}
+
+            {:error, _reason_code} ->
+              {:error, :could_not_reverse_record}
+          end
+        end
     end
   end
 
@@ -796,8 +878,8 @@ defmodule Organizer.SharedFinance do
         records =
           from(sr in SettlementRecord,
             where: sr.settlement_cycle_id == ^cycle_id,
-            preload: [allocations: [shared_entry_debt: :finance_entry]],
-            order_by: [asc: sr.transferred_at]
+            preload: [:reversed_by, allocations: [shared_entry_debt: :finance_entry]],
+            order_by: [asc: sr.transferred_at, asc: sr.inserted_at]
           )
           |> Repo.all()
 
@@ -814,7 +896,7 @@ defmodule Organizer.SharedFinance do
         query =
           from(sr in SettlementRecord,
             where: sr.settlement_cycle_id == ^cycle_id,
-            preload: [allocations: [shared_entry_debt: :finance_entry]]
+            preload: [:reversed_by, allocations: [shared_entry_debt: :finance_entry]]
           )
           |> maybe_filter_settlement_records_query(params)
 
@@ -858,9 +940,7 @@ defmodule Organizer.SharedFinance do
     with {:ok, _link} <- get_account_link(scope, link_id) do
       statuses =
         opts
-        |> Map.get(:statuses, Map.get(opts, "statuses", SharedEntryDebt.statuses()))
-        |> List.wrap()
-        |> Enum.filter(&(&1 in SharedEntryDebt.statuses()))
+        |> extract_statuses_option(SharedEntryDebt.statuses())
 
       from(d in SharedEntryDebt,
         where: d.account_link_id == ^link_id and d.status in ^statuses,
@@ -876,9 +956,7 @@ defmodule Organizer.SharedFinance do
     with {:ok, _link} <- get_account_link(scope, link_id) do
       statuses =
         opts
-        |> Map.get(:statuses, Map.get(opts, "statuses", SharedEntryDebt.statuses()))
-        |> List.wrap()
-        |> Enum.filter(&(&1 in SharedEntryDebt.statuses()))
+        |> extract_statuses_option(SharedEntryDebt.statuses())
 
       query =
         from(d in SharedEntryDebt,
@@ -912,8 +990,8 @@ defmodule Organizer.SharedFinance do
           join: sc in SettlementCycle,
           on: sc.id == sr.settlement_cycle_id,
           where: sc.account_link_id == ^link_id,
-          preload: [allocations: [shared_entry_debt: :finance_entry]],
-          order_by: [asc: sr.transferred_at, asc: sr.id]
+          preload: [:reversed_by, allocations: [shared_entry_debt: :finance_entry]],
+          order_by: [asc: sr.transferred_at, asc: sr.inserted_at]
         )
         |> Repo.all()
 
@@ -1046,10 +1124,7 @@ defmodule Organizer.SharedFinance do
         :ok
 
       debt ->
-        if Repo.exists?(
-             from a in SettlementRecordAllocation,
-               where: a.shared_entry_debt_id == ^debt.id
-           ) do
+        if active_allocation_exists_for_debt?(debt.id) do
           {:error, :shared_entry_has_allocations}
         else
           _ = Repo.delete(debt)
@@ -1063,7 +1138,9 @@ defmodule Organizer.SharedFinance do
       from a in SettlementRecordAllocation,
         join: d in SharedEntryDebt,
         on: d.id == a.shared_entry_debt_id,
-        where: d.finance_entry_id == ^entry_id
+        join: sr in SettlementRecord,
+        on: sr.id == a.settlement_record_id,
+        where: d.finance_entry_id == ^entry_id and sr.status == :active
     )
   end
 
@@ -1196,6 +1273,42 @@ defmodule Organizer.SharedFinance do
           {:error, {:validation, %{amount_cents: ["allocation failed"]}}}
       end
     end
+  end
+
+  defp restore_allocated_debts(allocations) when is_list(allocations) do
+    Enum.reduce_while(allocations, :ok, fn allocation, :ok ->
+      debt = allocation.shared_entry_debt
+
+      if is_nil(debt) do
+        {:halt, {:error, :allocation_debt_not_found}}
+      else
+        updated_outstanding = debt.outstanding_amount_cents + allocation.amount_cents
+
+        if updated_outstanding > debt.original_amount_cents do
+          {:halt, {:error, :allocation_restore_out_of_bounds}}
+        else
+          case debt
+               |> SharedEntryDebt.changeset(%{
+                 outstanding_amount_cents: updated_outstanding,
+                 status:
+                   debt_status_from_outstanding(updated_outstanding, debt.original_amount_cents)
+               })
+               |> Repo.update() do
+            {:ok, _updated_debt} -> {:cont, :ok}
+            {:error, _changeset} -> {:halt, {:error, :allocation_restore_failed}}
+          end
+        end
+      end
+    end)
+  end
+
+  defp active_allocation_exists_for_debt?(debt_id) do
+    Repo.exists?(
+      from a in SettlementRecordAllocation,
+        join: sr in SettlementRecord,
+        on: sr.id == a.settlement_record_id,
+        where: a.shared_entry_debt_id == ^debt_id and sr.status == :active
+    )
   end
 
   defp debt_status_from_outstanding(0, _original), do: :settled
@@ -1916,8 +2029,11 @@ defmodule Organizer.SharedFinance do
         from sr in query,
           where:
             ilike(fragment("CAST(? AS TEXT)", sr.method), ^like_q) or
-              ilike(fragment("to_char(?, 'DD/MM/YYYY')", sr.transferred_at), ^like_q) or
-              ilike(fragment("CAST(? AS TEXT)", sr.amount_cents), ^like_q)
+              ilike(fragment("strftime('%d/%m/%Y', ?)", sr.transferred_at), ^like_q) or
+              ilike(fragment("CAST(? AS TEXT)", sr.amount_cents), ^like_q) or
+              ilike(fragment("CAST(? AS TEXT)", sr.status), ^like_q) or
+              ilike(fragment("strftime('%d/%m/%Y', ?)", sr.reversed_at), ^like_q) or
+              ilike(sr.reversal_reason, ^like_q)
     end
   end
 
@@ -1928,6 +2044,38 @@ defmodule Organizer.SharedFinance do
   end
 
   defp extract_filter_q(_params), do: nil
+
+  defp extract_statuses_option(opts, default_statuses) when is_map(opts) do
+    opts
+    |> Map.get(:statuses, Map.get(opts, "statuses", default_statuses))
+    |> List.wrap()
+    |> Enum.map(fn
+      status when is_atom(status) -> status
+      status when is_binary(status) -> parse_status_atom(status)
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.filter(&(&1 in SharedEntryDebt.statuses()))
+  end
+
+  defp extract_statuses_option(_opts, default_statuses), do: default_statuses
+
+  defp parse_status_atom(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> case do
+      "" ->
+        nil
+
+      normalized ->
+        case normalized do
+          "open" -> :open
+          "partial" -> :partial
+          "settled" -> :settled
+          _ -> nil
+        end
+    end
+  end
 
   defp normalize_filter_q(value) when is_binary(value) do
     value
@@ -2013,12 +2161,37 @@ defmodule Organizer.SharedFinance do
         on: l.id == sc.account_link_id,
         where:
           sc.id == ^cycle_id and
+            l.status == :active and
             (l.user_a_id == ^user_id or l.user_b_id == ^user_id),
         preload: [account_link: l]
 
     case Repo.one(query) do
       nil -> {:error, :not_found}
       cycle -> {:ok, cycle, cycle.account_link}
+    end
+  end
+
+  defp find_record_with_link(scope, settlement_record_id) do
+    user_id = scope.user.id
+
+    query =
+      from sr in SettlementRecord,
+        join: sc in SettlementCycle,
+        on: sc.id == sr.settlement_cycle_id,
+        join: l in AccountLink,
+        on: l.id == sc.account_link_id,
+        where:
+          sr.id == ^settlement_record_id and
+            l.status == :active and
+            (l.user_a_id == ^user_id or l.user_b_id == ^user_id),
+        select: {sr, sc, l}
+
+    case Repo.one(query) do
+      nil ->
+        {:error, :not_found}
+
+      {record, cycle, link} ->
+        {:ok, record, cycle, link}
     end
   end
 end

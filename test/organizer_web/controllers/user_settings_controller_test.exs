@@ -40,8 +40,11 @@ defmodule OrganizerWeb.UserSettingsControllerTest do
 
       assert redirected_to(conn) == ~p"/users/log-in"
 
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-               "Você precisa se reautenticar para acessar esta página."
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~
+               "Você precisa se reautenticar para acessar esta página"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~
+               "Próximo passo: Entre novamente para continuar com segurança."
     end
 
     test "updates the user password and resets tokens", %{conn: conn, user: user} do

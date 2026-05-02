@@ -1,16 +1,17 @@
 defmodule OrganizerWeb.AccountLinkLive do
   use OrganizerWeb, :live_view
 
+  import Ecto.Query
+
   alias Organizer.Planning
+  alias Organizer.Repo
   alias Organizer.SharedFinance
+  alias Organizer.SharedFinance.SharedEntryDebt
+  alias OrganizerWeb.{FlashFeedback, FunnelTelemetry}
 
   @impl true
   def mount(_params, _session, socket) do
     scope = socket.assigns.current_scope
-
-    if connected?(socket) do
-      Phoenix.PubSub.subscribe(Organizer.PubSub, "account_links:#{scope.user.id}")
-    end
 
     page = 1
     page_size = 10
@@ -38,7 +39,6 @@ defmodule OrganizerWeb.AccountLinkLive do
       |> assign(:account_links_filter_q, filter_q)
       |> assign(:sharing_metrics, sharing_metrics)
       |> assign(:invite_url, nil)
-      |> assign(:invite_token, nil)
       |> assign(:pending_link_deactivation, nil)
       |> assign(:invite_accept_form, invite_accept_form())
 
@@ -65,19 +65,28 @@ defmodule OrganizerWeb.AccountLinkLive do
   def handle_event("create_invite", _params, socket) do
     scope = socket.assigns.current_scope
 
+    track_funnel(:invite_create, :start)
+
     case SharedFinance.create_invite(scope) do
       {:ok, invite} ->
+        track_funnel(:invite_create, :success)
         invite_url = OrganizerWeb.Endpoint.url() <> "/account-links/accept/#{invite.token}"
 
         socket =
           socket
           |> assign(:invite_url, invite_url)
-          |> assign(:invite_token, invite.token)
 
         {:noreply, socket}
 
       {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Não foi possível gerar o convite.")}
+        track_funnel(:invite_create, :error, %{reason: "unexpected"})
+
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível gerar o convite",
+           "Tente novamente em alguns instantes"
+         )}
     end
   end
 
@@ -88,10 +97,15 @@ defmodule OrganizerWeb.AccountLinkLive do
         {:noreply,
          socket
          |> push_event("copy-to-clipboard", %{text: invite_url})
-         |> put_flash(:info, "Link copiado. Agora é só enviar para a outra conta.")}
+         |> info_feedback("Link de convite copiado", "Envie o link para a outra conta")}
 
       _ ->
-        {:noreply, put_flash(socket, :error, "Gere um convite antes de copiar o link.")}
+        {:noreply,
+         error_feedback(
+           socket,
+           "Nenhum convite foi gerado",
+           "Clique em gerar convite e tente copiar novamente"
+         )}
     end
   end
 
@@ -100,49 +114,61 @@ defmodule OrganizerWeb.AccountLinkLive do
     scope = socket.assigns.current_scope
     token = extract_invite_token(params)
 
+    track_funnel(:invite_accept, :start)
+
     case SharedFinance.accept_invite(scope, token) do
       {:ok, link} ->
+        track_funnel(:invite_accept, :success)
+
         {:noreply,
          socket
-         |> put_flash(:info, "Compartilhamento estabelecido com sucesso.")
+         |> info_feedback(
+           "Compartilhamento estabelecido com sucesso",
+           "Você será redirecionado para gerenciar o vínculo"
+         )
          |> push_navigate(to: ~p"/account-links/#{link.id}")}
 
       {:error, :invite_invalid} ->
+        track_funnel(:invite_accept, :error, %{reason: "invite_invalid"})
+
         {:noreply,
          socket
          |> assign(:invite_accept_form, invite_accept_form(%{"token" => token}))
-         |> put_flash(:error, "Convite inválido ou expirado.")}
+         |> error_feedback("Convite inválido ou expirado", "Peça um novo convite para continuar")}
 
       {:error, :self_invite_not_allowed} ->
+        track_funnel(:invite_accept, :error, %{reason: "self_invite_not_allowed"})
+
         {:noreply,
          socket
          |> assign(:invite_accept_form, invite_accept_form(%{"token" => token}))
-         |> put_flash(:error, "Você não pode aceitar o próprio convite.")}
+         |> error_feedback(
+           "Você não pode aceitar o próprio convite",
+           "Use o convite em outra conta"
+         )}
 
       {:error, :link_already_exists} ->
+        track_funnel(:invite_accept, :error, %{reason: "link_already_exists"})
+
         {:noreply,
          socket
          |> assign(:invite_accept_form, invite_accept_form(%{"token" => token}))
-         |> put_flash(:error, "Já existe um compartilhamento ativo com este usuário.")}
+         |> error_feedback(
+           "Este compartilhamento já está ativo",
+           "Acesse o vínculo na lista de compartilhamentos"
+         )}
     end
   end
 
   @impl true
-  def handle_event("prompt_deactivate_link", %{"id" => id} = params, socket) do
-    with {:ok, link_id} <- parse_int(id) do
-      pending_link_deactivation = %{
-        id: link_id,
-        partner_email: Map.get(params, "partner_email", "")
-      }
-
-      {:noreply, assign(socket, :pending_link_deactivation, pending_link_deactivation)}
-    else
-      _ -> {:noreply, put_flash(socket, :error, "Não foi possível preparar a desativação.")}
-    end
+  def handle_event("prompt_deactivate_link", %{"id" => id}, socket) do
+    track_funnel(:account_link_deactivate, :start)
+    {:noreply, prepare_link_deactivation_confirmation(socket, id)}
   end
 
   @impl true
   def handle_event("cancel_deactivate_link", _params, socket) do
+    track_funnel(:account_link_deactivate, :cancel)
     {:noreply, assign(socket, :pending_link_deactivation, nil)}
   end
 
@@ -156,13 +182,14 @@ defmodule OrganizerWeb.AccountLinkLive do
 
   @impl true
   def handle_event("deactivate_link", %{"id" => id}, socket) do
-    case parse_int(id) do
-      {:ok, link_id} ->
-        {:noreply, deactivate_link(socket, link_id)}
+    track_funnel(:account_link_deactivate, :start)
 
-      :error ->
-        {:noreply, put_flash(socket, :error, "Não foi possível desativar o compartilhamento.")}
-    end
+    {:noreply,
+     prepare_link_deactivation_confirmation(socket, id)
+     |> info_feedback(
+       "A desativação do compartilhamento precisa de confirmação",
+       "Revise o vínculo e confirme para continuar"
+     )}
   end
 
   @impl true
@@ -199,11 +226,6 @@ defmodule OrganizerWeb.AccountLinkLive do
          |> assign(:account_links_loading_more?, true)
          |> load_account_links_page(next_page, reset: false)}
     end
-  end
-
-  @impl true
-  def handle_info({:account_link_updated, _}, socket) do
-    {:noreply, load_account_links_page(socket, 1, reset: true)}
   end
 
   @impl true
@@ -248,15 +270,6 @@ defmodule OrganizerWeb.AccountLinkLive do
 
               <article class="micro-surface rounded-2xl p-4">
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
-                  Lançamentos no vínculo
-                </p>
-                <p class="mt-1 text-2xl font-semibold text-base-content">
-                  {@sharing_metrics.finances_shared_total}
-                </p>
-              </article>
-
-              <article class="micro-surface rounded-2xl p-4">
-                <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
                   Compartilhamentos ativos
                 </p>
                 <p class="mt-1 text-2xl font-semibold text-base-content">
@@ -266,10 +279,19 @@ defmodule OrganizerWeb.AccountLinkLive do
 
               <article class="micro-surface rounded-2xl p-4">
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
-                  Itens sincronizados
+                  Dívidas em aberto
                 </p>
                 <p class="mt-1 text-2xl font-semibold text-base-content">
-                  {@sharing_metrics.shared_total}
+                  {@sharing_metrics.open_debts_total}
+                </p>
+              </article>
+
+              <article class="micro-surface rounded-2xl p-4">
+                <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
+                  Saldo pendente
+                </p>
+                <p class="mt-1 text-2xl font-semibold font-mono text-warning">
+                  {format_cents(@sharing_metrics.outstanding_total_cents)}
                 </p>
               </article>
             </section>
@@ -336,7 +358,6 @@ defmodule OrganizerWeb.AccountLinkLive do
                           type="button"
                           phx-click="prompt_deactivate_link"
                           phx-value-id={link.id}
-                          phx-value-partner_email={partner_email(@current_scope.user.id, link)}
                           class="btn btn-outline btn-xs btn-error"
                         >
                           Desativar
@@ -357,13 +378,15 @@ defmodule OrganizerWeb.AccountLinkLive do
             <.destructive_confirm_modal
               id="account-link-deactivate-confirmation-modal"
               show={is_map(@pending_link_deactivation)}
-              title="Desativar compartilhamento?"
-              message="Essa ação encerra o vínculo entre as contas e interrompe novos compartilhamentos por este link."
+              title="Desativar compartilhamento entre contas?"
+              message="Você vai encerrar o vínculo ativo e bloquear novos compartilhamentos neste link."
+              severity="critical"
+              impact_label="Impacto: colaboração interrompida para as duas contas"
               confirm_event="confirm_deactivate_link"
               cancel_event="cancel_deactivate_link"
               confirm_button_id="confirm-deactivate-link-btn"
               cancel_button_id="cancel-deactivate-link-btn"
-              confirm_label="Desativar compartilhamento"
+              confirm_label="Sim, desativar compartilhamento"
             >
               <p :if={is_map(@pending_link_deactivation)} class="font-medium text-base-content">
                 Parceiro: {Map.get(@pending_link_deactivation, :partner_email, "conta vinculada")}
@@ -463,9 +486,35 @@ defmodule OrganizerWeb.AccountLinkLive do
     to_form(Map.merge(%{"token" => ""}, params), as: :invite)
   end
 
-  defp extract_invite_token(%{"invite" => %{"token" => token}}), do: String.trim(token || "")
-  defp extract_invite_token(%{"token" => token}), do: String.trim(token || "")
+  defp extract_invite_token(%{"invite" => %{"token" => token}}), do: parse_invite_token(token)
+  defp extract_invite_token(%{"token" => token}), do: parse_invite_token(token)
   defp extract_invite_token(_), do: ""
+
+  defp parse_invite_token(token) when is_binary(token) do
+    cleaned = String.trim(token)
+
+    cond do
+      cleaned == "" ->
+        ""
+
+      String.contains?(cleaned, "/account-links/accept/") ->
+        cleaned
+        |> URI.parse()
+        |> Map.get(:path, "")
+        |> String.split("/account-links/accept/")
+        |> List.last()
+        |> to_string()
+        |> String.split("/")
+        |> List.first()
+        |> to_string()
+        |> String.trim()
+
+      true ->
+        cleaned
+    end
+  end
+
+  defp parse_invite_token(_token), do: ""
 
   defp parse_int(value) when is_integer(value), do: {:ok, value}
 
@@ -489,19 +538,51 @@ defmodule OrganizerWeb.AccountLinkLive do
 
   defp parse_positive_page(_value), do: 1
 
+  defp prepare_link_deactivation_confirmation(socket, id) do
+    scope = socket.assigns.current_scope
+
+    with {:ok, link_id} <- parse_int(id),
+         {:ok, link} <- SharedFinance.get_account_link(scope, link_id) do
+      assign(socket, :pending_link_deactivation, %{
+        id: link.id,
+        partner_email: partner_email(scope.user.id, link)
+      })
+    else
+      {:error, :not_found} ->
+        error_feedback(
+          socket,
+          "Compartilhamento não encontrado",
+          "Atualize a lista e tente novamente"
+        )
+
+      _ ->
+        error_feedback(socket, "Não foi possível preparar a desativação", "Tente novamente")
+    end
+  end
+
   defp deactivate_link(socket, link_id) do
     scope = socket.assigns.current_scope
 
     with {:ok, _link} <- SharedFinance.deactivate_account_link(scope, link_id) do
+      track_funnel(:account_link_deactivate, :success)
+
       socket
       |> assign(:pending_link_deactivation, nil)
       |> load_account_links_page(1, reset: true)
-      |> put_flash(:info, "Compartilhamento desativado.")
+      |> info_feedback(
+        "Compartilhamento desativado",
+        "Se precisar, gere um novo convite para reconectar"
+      )
     else
       _ ->
+        track_funnel(:account_link_deactivate, :error, %{reason: "unexpected"})
+
         socket
         |> assign(:pending_link_deactivation, nil)
-        |> put_flash(:error, "Não foi possível desativar o compartilhamento.")
+        |> error_feedback(
+          "Não foi possível desativar o compartilhamento",
+          "Tente novamente em alguns instantes"
+        )
     end
   end
 
@@ -516,10 +597,16 @@ defmodule OrganizerWeb.AccountLinkLive do
 
     finances_shared_total = Enum.count(finances, &is_integer(&1.shared_with_link_id))
 
+    {open_debts_total, outstanding_total_cents} =
+      scope
+      |> active_link_ids_for_scope()
+      |> outstanding_debt_totals_for_links()
+
     %{
       links_active: links_active_count,
       finances_shared_total: finances_shared_total,
-      shared_total: finances_shared_total
+      open_debts_total: open_debts_total,
+      outstanding_total_cents: outstanding_total_cents
     }
   end
 
@@ -561,7 +648,10 @@ defmodule OrganizerWeb.AccountLinkLive do
       _ ->
         socket
         |> assign(:account_links_loading_more?, false)
-        |> put_flash(:error, "Não foi possível carregar os compartilhamentos.")
+        |> error_feedback(
+          "Não foi possível carregar os compartilhamentos",
+          "Atualize a página e tente novamente"
+        )
     end
   end
 
@@ -589,5 +679,64 @@ defmodule OrganizerWeb.AccountLinkLive do
     else
       link.user_a.email
     end
+  end
+
+  defp active_link_ids_for_scope(scope) do
+    case SharedFinance.list_account_links(scope) do
+      {:ok, links} -> Enum.map(links, & &1.id)
+      _ -> []
+    end
+  end
+
+  defp outstanding_debt_totals_for_links([]), do: {0, 0}
+
+  defp outstanding_debt_totals_for_links(link_ids) when is_list(link_ids) do
+    totals =
+      from(d in SharedEntryDebt,
+        where: d.account_link_id in ^link_ids and d.status in [:open, :partial],
+        select: %{
+          debt_count: count(d.id),
+          amount_total: coalesce(sum(d.outstanding_amount_cents), 0)
+        }
+      )
+      |> Repo.one()
+
+    {
+      if(is_nil(totals), do: 0, else: totals.debt_count || 0),
+      if(is_nil(totals), do: 0, else: totals.amount_total || 0)
+    }
+  end
+
+  defp format_cents(cents) when is_integer(cents) do
+    abs_cents = abs(cents)
+    integer_part = abs_cents |> div(100) |> Integer.to_string() |> add_thousands_separator()
+    decimal_part = abs_cents |> rem(100) |> Integer.to_string() |> String.pad_leading(2, "0")
+    sign = if cents < 0, do: "-", else: ""
+
+    "R$ #{sign}#{integer_part},#{decimal_part}"
+  end
+
+  defp format_cents(_cents), do: "R$ 0,00"
+
+  defp add_thousands_separator(value) when is_binary(value) do
+    value
+    |> String.reverse()
+    |> String.graphemes()
+    |> Enum.chunk_every(3)
+    |> Enum.map(&Enum.join/1)
+    |> Enum.join(".")
+    |> String.reverse()
+  end
+
+  defp info_feedback(socket, happened, next_step) do
+    put_flash(socket, :info, FlashFeedback.compose(happened, next_step))
+  end
+
+  defp error_feedback(socket, happened, next_step) do
+    put_flash(socket, :error, FlashFeedback.compose(happened, next_step))
+  end
+
+  defp track_funnel(action, outcome, metadata \\ %{}) do
+    FunnelTelemetry.track_step(:account_links, action, outcome, metadata)
   end
 end

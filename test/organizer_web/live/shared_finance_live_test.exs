@@ -130,6 +130,28 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       assert has_element?(view, "#unshare-entry-#{entry.id}")
     end
 
+    test "unshare event opens confirmation before removing shared entry", %{
+      conn: conn,
+      scope_a: scope_a,
+      link: link
+    } do
+      entry = create_shared_entry(scope_a, link.id)
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+
+      assert has_element?(view, "#unshare-entry-#{entry.id}")
+
+      render_hook(view, "unshare_entry", %{"entry_id" => to_string(entry.id)})
+
+      assert has_element?(view, "#shared-entry-unshare-confirmation-modal")
+      assert has_element?(view, "#unshare-entry-#{entry.id}")
+
+      view
+      |> element("#confirm-unshare-entry-btn")
+      |> render_click()
+
+      refute has_element?(view, "#unshare-entry-#{entry.id}")
+    end
+
     test "requires confirmation before unsharing a shared entry", %{
       conn: conn,
       scope_a: scope_a,
@@ -390,6 +412,87 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       assert html =~ ~r/\d+,\d%/
       refute html =~ "R$ 100.00"
       refute html =~ "100.0%"
+    end
+  end
+
+  describe "settlement reversal telemetry" do
+    setup %{conn: conn} do
+      handler_id =
+        "shared-finance-reversal-telemetry-#{System.unique_integer([:positive, :monotonic])}"
+
+      test_pid = self()
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          [:organizer, :product, :funnel, :step],
+          fn _event, measurements, metadata, _config ->
+            send(test_pid, {:funnel_event, measurements, metadata})
+          end,
+          nil
+        )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      %{user_a: user_a, scope_a: scope_a, scope_b: scope_b, link: link} = setup_linked_users()
+      conn = log_in_user(conn, user_a)
+
+      %{conn: conn, scope_a: scope_a, scope_b: scope_b, link: link}
+    end
+
+    test "emits start and cancel when opening reversal modal and cancelling", %{
+      conn: conn,
+      scope_a: scope_a,
+      scope_b: scope_b,
+      link: link
+    } do
+      create_income_entry(scope_a, 20_000)
+      create_income_entry(scope_b, 20_000)
+
+      _shared_entry =
+        create_shared_expense_entry(scope_b, link.id, %{
+          "description" => "Despesa para estorno",
+          "amount_cents" => 10_000
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+
+      view
+      |> form("#shared-payment-form", %{
+        "payment" => %{
+          "amount_cents" => "50,00",
+          "method" => "pix",
+          "transferred_at" => Organizer.DateSupport.format_pt_br(Date.utc_today())
+        }
+      })
+      |> render_submit()
+
+      assert has_element?(view, "button[id^='reverse-settlement-record-']")
+
+      record_id =
+        Regex.run(~r/id="reverse-settlement-record-(\d+)"/, render(view), capture: :all_but_first)
+        |> List.first()
+
+      assert is_binary(record_id)
+
+      render_hook(view, "prompt_reverse_settlement_record", %{"id" => record_id})
+      render_hook(view, "cancel_reverse_settlement_record", %{})
+
+      assert_receive {:funnel_event, %{count: 1},
+                      %{
+                        journey: "shared_finance",
+                        action: "settlement_record_reverse",
+                        outcome: "start"
+                      }},
+                     500
+
+      assert_receive {:funnel_event, %{count: 1},
+                      %{
+                        journey: "shared_finance",
+                        action: "settlement_record_reverse",
+                        outcome: "cancel"
+                      }},
+                     500
     end
   end
 end

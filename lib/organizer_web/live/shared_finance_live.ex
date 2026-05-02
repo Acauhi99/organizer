@@ -6,6 +6,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
   alias Organizer.Planning.AmountParser
   alias Organizer.SharedFinance
   alias Organizer.SharedFinance.{SettlementRecord, SplitCalculator}
+  alias OrganizerWeb.{FlashFeedback, FunnelTelemetry}
 
   @shared_period_filters ["current_month", "last_3_months", "all"]
   @shared_entries_page_size 10
@@ -122,6 +123,8 @@ defmodule OrganizerWeb.SharedFinanceLive do
         |> assign(:shared_entry_edit_form, to_form(%{}, as: :shared_entry_edit))
         |> assign(:shared_entry_edit_preview, nil)
         |> assign(:pending_unshare_entry, nil)
+        |> assign(:pending_settlement_record_reversal, nil)
+        |> assign(:settlement_reversal_form, settlement_reversal_form())
         |> assign(:page_title, "Finanças Compartilhadas")
         |> stream_configure(:shared_entries, dom_id: &"shared-entry-view-#{&1.entry.id}")
         |> stream_configure(:settlement_records, dom_id: &"shared-settlement-record-#{&1.id}")
@@ -133,7 +136,10 @@ defmodule OrganizerWeb.SharedFinanceLive do
       _ ->
         {:ok,
          socket
-         |> put_flash(:error, "Compartilhamento não encontrado.")
+         |> error_feedback(
+           "Compartilhamento não encontrado",
+           "Volte para a lista e selecione um vínculo ativo"
+         )
          |> push_navigate(to: ~p"/account-links")}
     end
   end
@@ -164,21 +170,14 @@ defmodule OrganizerWeb.SharedFinanceLive do
   end
 
   @impl true
-  def handle_event("prompt_unshare_entry", %{"entry_id" => entry_id} = params, socket) do
-    with {:ok, parsed_entry_id} <- parse_int(entry_id) do
-      pending_unshare_entry = %{
-        id: parsed_entry_id,
-        label: Map.get(params, "entry_label", "Lançamento compartilhado")
-      }
-
-      {:noreply, assign(socket, :pending_unshare_entry, pending_unshare_entry)}
-    else
-      _ -> {:noreply, put_flash(socket, :error, "Não foi possível abrir a confirmação.")}
-    end
+  def handle_event("prompt_unshare_entry", %{"entry_id" => entry_id}, socket) do
+    track_funnel(:shared_entry_unshare, :start)
+    {:noreply, prepare_unshare_entry_confirmation(socket, entry_id)}
   end
 
   @impl true
   def handle_event("cancel_unshare_entry", _params, socket) do
+    track_funnel(:shared_entry_unshare, :cancel)
     {:noreply, assign(socket, :pending_unshare_entry, nil)}
   end
 
@@ -192,13 +191,14 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
   @impl true
   def handle_event("unshare_entry", %{"entry_id" => entry_id}, socket) do
-    case parse_int(entry_id) do
-      {:ok, parsed_entry_id} ->
-        {:noreply, perform_unshare_entry(socket, parsed_entry_id)}
+    track_funnel(:shared_entry_unshare, :start)
 
-      :error ->
-        {:noreply, put_flash(socket, :error, "Não foi possível remover o compartilhamento.")}
-    end
+    {:noreply,
+     prepare_unshare_entry_confirmation(socket, entry_id)
+     |> info_feedback(
+       "A remoção do compartilhamento precisa de confirmação",
+       "Revise o lançamento e confirme para continuar"
+     )}
   end
 
   @impl true
@@ -222,10 +222,19 @@ defmodule OrganizerWeb.SharedFinanceLive do
     else
       false ->
         {:noreply,
-         put_flash(socket, :error, "Você só pode editar lançamentos compartilhados da sua conta.")}
+         error_feedback(
+           socket,
+           "Você só pode editar lançamentos compartilhados da sua conta",
+           "Selecione um lançamento criado por você"
+         )}
 
       _ ->
-        {:noreply, put_flash(socket, :error, "Não foi possível abrir a edição do lançamento.")}
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível abrir a edição do lançamento",
+           "Atualize a página e tente novamente"
+         )}
     end
   end
 
@@ -267,7 +276,10 @@ defmodule OrganizerWeb.SharedFinanceLive do
           {:ok, _updated_entry} ->
             {:noreply,
              socket
-             |> put_flash(:info, "Lançamento compartilhado atualizado.")
+             |> info_feedback(
+               "Lançamento compartilhado atualizado",
+               "Confira o resumo para validar a nova divisão"
+             )
              |> close_shared_entry_edit_modal()
              |> reload_shared_data()}
 
@@ -297,21 +309,37 @@ defmodule OrganizerWeb.SharedFinanceLive do
                )
              )
              |> assign(:shared_entry_edit_preview, preview)
-             |> put_flash(:error, shared_entry_edit_validation_message(details))}
+             |> error_feedback(
+               shared_entry_edit_validation_message(details),
+               "Ajuste os campos e tente salvar novamente"
+             )}
 
           {:error, :not_found} ->
             {:noreply,
              socket
              |> close_shared_entry_edit_modal()
              |> reload_shared_data()
-             |> put_flash(:error, "Lançamento compartilhado não encontrado para edição.")}
+             |> error_feedback(
+               "Lançamento compartilhado não encontrado para edição",
+               "Atualize a lista e escolha outro lançamento"
+             )}
 
           _ ->
-            {:noreply, put_flash(socket, :error, "Não foi possível atualizar o lançamento.")}
+            {:noreply,
+             error_feedback(
+               socket,
+               "Não foi possível atualizar o lançamento",
+               "Tente novamente em alguns instantes"
+             )}
         end
 
       _ ->
-        {:noreply, put_flash(socket, :error, "Nenhum lançamento foi selecionado para edição.")}
+        {:noreply,
+         error_feedback(
+           socket,
+           "Nenhum lançamento foi selecionado para edição",
+           "Abra um lançamento e tente novamente"
+         )}
     end
   end
 
@@ -445,6 +473,8 @@ defmodule OrganizerWeb.SharedFinanceLive do
     scope = socket.assigns.current_scope
     cycle = socket.assigns.settlement_cycle
 
+    track_funnel(:settlement_record_create, :start)
+
     with {:ok, amount_cents} <- parse_amount_cents(Map.get(attrs, "amount_cents")),
          {:ok, method} <- parse_method(Map.get(attrs, "method")),
          {:ok, transferred_at} <- parse_transferred_at(Map.get(attrs, "transferred_at")),
@@ -463,50 +493,89 @@ defmodule OrganizerWeb.SharedFinanceLive do
           "Pagamento registrado e alocado nas dívidas em aberto."
         end
 
+      track_funnel(:settlement_record_create, :success, %{targeted: is_integer(targeted_debt_id)})
+
       {:noreply,
        socket
-       |> put_flash(:info, success_message)
+       |> info_feedback(success_message, "Confira o saldo atualizado do vínculo")
        |> assign(:payment_form, payment_form())
        |> reload_shared_data()}
     else
       {:error, :invalid_amount} ->
+        track_funnel(:settlement_record_create, :error, %{reason: "invalid_amount"})
+
         {:noreply,
          socket
          |> assign(:payment_form, payment_form(attrs))
-         |> put_flash(:error, "Informe um valor válido maior que zero.")}
+         |> error_feedback(
+           "Informe um valor válido maior que zero",
+           "Preencha o valor e tente novamente"
+         )}
 
       {:error, :invalid_method} ->
+        track_funnel(:settlement_record_create, :error, %{reason: "invalid_method"})
+
         {:noreply,
          socket
          |> assign(:payment_form, payment_form(attrs))
-         |> put_flash(:error, "Selecione um método de pagamento válido.")}
+         |> error_feedback(
+           "Selecione um método de pagamento válido",
+           "Escolha PIX, dinheiro ou transferência"
+         )}
 
       {:error, :invalid_date} ->
+        track_funnel(:settlement_record_create, :error, %{reason: "invalid_date"})
+
         {:noreply,
          socket
          |> assign(:payment_form, payment_form(attrs))
-         |> put_flash(:error, "Informe uma data válida no formato dd/mm/aaaa.")}
+         |> error_feedback(
+           "Informe uma data válida no formato dd/mm/aaaa",
+           "Ajuste a data e tente novamente"
+         )}
 
       {:error, :invalid_debt} ->
+        track_funnel(:settlement_record_create, :error, %{reason: "invalid_debt"})
+
         {:noreply,
          socket
          |> assign(:payment_form, payment_form(attrs))
-         |> put_flash(:error, "Selecione uma dívida válida para direcionar o pagamento.")}
+         |> error_feedback(
+           "Selecione uma dívida válida para direcionar o pagamento",
+           "Escolha uma dívida da lista e tente novamente"
+         )}
 
       {:error, :not_found} ->
+        track_funnel(:settlement_record_create, :error, %{reason: "not_found"})
+
         {:noreply,
          socket
          |> assign(:payment_form, payment_form(attrs))
-         |> put_flash(:error, "A dívida selecionada não está disponível para pagamento.")}
+         |> error_feedback(
+           "A dívida selecionada não está disponível para pagamento",
+           "Atualize a lista de dívidas e selecione outra opção"
+         )}
 
       {:error, {:validation, %{amount_cents: _}}} ->
+        track_funnel(:settlement_record_create, :error, %{reason: "amount_exceeds_outstanding"})
+
         {:noreply,
          socket
          |> assign(:payment_form, payment_form(attrs))
-         |> put_flash(:error, "O valor informado excede o saldo permitido para pagamento.")}
+         |> error_feedback(
+           "O valor informado excede o saldo permitido para pagamento",
+           "Informe um valor menor ou igual ao saldo em aberto"
+         )}
 
       {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Não foi possível registrar o pagamento.")}
+        track_funnel(:settlement_record_create, :error, %{reason: "unexpected"})
+
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível registrar o pagamento",
+           "Tente novamente em alguns instantes"
+         )}
     end
   end
 
@@ -526,15 +595,19 @@ defmodule OrganizerWeb.SharedFinanceLive do
     else
       false ->
         {:noreply,
-         put_flash(
+         error_feedback(
            socket,
-           :error,
-           "Você só pode direcionar pagamentos para suas dívidas em aberto."
+           "Você só pode direcionar pagamentos para suas dívidas em aberto",
+           "Selecione uma dívida na qual você seja o devedor"
          )}
 
       _ ->
         {:noreply,
-         put_flash(socket, :error, "Não foi possível selecionar a dívida para pagamento.")}
+         error_feedback(
+           socket,
+           "Não foi possível selecionar a dívida para pagamento",
+           "Atualize a página e tente novamente"
+         )}
     end
   end
 
@@ -544,28 +617,157 @@ defmodule OrganizerWeb.SharedFinanceLive do
   end
 
   @impl true
+  def handle_event("prompt_reverse_settlement_record", %{"id" => id}, socket) do
+    track_funnel(:settlement_record_reverse, :start)
+
+    case parse_int(id) do
+      {:ok, parsed_id} ->
+        {:noreply,
+         socket
+         |> assign(:pending_settlement_record_reversal, %{id: parsed_id})
+         |> assign(:settlement_reversal_form, settlement_reversal_form(%{"reason" => ""}))}
+
+      :error ->
+        track_funnel(:settlement_record_reverse, :error, %{reason: "invalid_id"})
+
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível preparar o estorno",
+           "Selecione um pagamento válido e tente novamente"
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("cancel_reverse_settlement_record", _params, socket) do
+    track_funnel(:settlement_record_reverse, :cancel)
+
+    {:noreply,
+     socket
+     |> assign(:pending_settlement_record_reversal, nil)
+     |> assign(:settlement_reversal_form, settlement_reversal_form())}
+  end
+
+  @impl true
+  def handle_event(
+        "confirm_reverse_settlement_record",
+        %{"settlement_reversal" => params},
+        socket
+      ) do
+    scope = socket.assigns.current_scope
+
+    with {:ok, record_id} <- parse_int(Map.get(params, "id", "")) do
+      case SharedFinance.reverse_settlement_record(scope, record_id, %{
+             reason: Map.get(params, "reason", "")
+           }) do
+        {:ok, :reversed} ->
+          track_funnel(:settlement_record_reverse, :success)
+
+          {:noreply,
+           socket
+           |> assign(:pending_settlement_record_reversal, nil)
+           |> assign(:settlement_reversal_form, settlement_reversal_form())
+           |> info_feedback("Pagamento estornado com sucesso", "Confira o saldo do vínculo")
+           |> reload_shared_data()}
+
+        {:error, :already_reversed} ->
+          track_funnel(:settlement_record_reverse, :error, %{reason: "already_reversed"})
+
+          {:noreply,
+           socket
+           |> assign(:pending_settlement_record_reversal, nil)
+           |> assign(:settlement_reversal_form, settlement_reversal_form())
+           |> error_feedback(
+             "Este pagamento já foi estornado",
+             "Atualize a lista de pagamentos para conferir o status"
+           )
+           |> reload_shared_data()}
+
+        {:error, :not_found} ->
+          track_funnel(:settlement_record_reverse, :error, %{reason: "not_found"})
+
+          {:noreply,
+           socket
+           |> assign(:pending_settlement_record_reversal, nil)
+           |> assign(:settlement_reversal_form, settlement_reversal_form())
+           |> error_feedback(
+             "Pagamento não encontrado para estorno",
+             "Atualize a lista e tente novamente"
+           )
+           |> reload_shared_data()}
+
+        _ ->
+          track_funnel(:settlement_record_reverse, :error, %{reason: "unexpected"})
+
+          {:noreply,
+           socket
+           |> assign(:settlement_reversal_form, settlement_reversal_form(params))
+           |> error_feedback("Não foi possível estornar o pagamento", "Tente novamente")}
+      end
+    else
+      :error ->
+        track_funnel(:settlement_record_reverse, :error, %{reason: "invalid_payload"})
+
+        {:noreply,
+         socket
+         |> assign(:settlement_reversal_form, settlement_reversal_form(params))
+         |> error_feedback(
+           "Não foi possível identificar o pagamento para estorno",
+           "Selecione um pagamento válido"
+         )}
+    end
+  end
+
+  @impl true
   def handle_event("confirm_settlement", _params, socket) do
     scope = socket.assigns.current_scope
     cycle = socket.assigns.settlement_cycle
 
+    track_funnel(:settlement_confirm, :start)
+
     case SharedFinance.confirm_settlement(scope, cycle.id) do
       {:ok, _updated_cycle} ->
+        track_funnel(:settlement_confirm, :success)
+
         {:noreply,
          socket
-         |> put_flash(:info, "Confirmação bilateral concluída para o mês.")
+         |> info_feedback(
+           "Confirmação bilateral concluída para o mês",
+           "Acompanhe o próximo ciclo de pagamentos"
+         )
          |> reload_shared_data()}
 
       {:error, :awaiting_counterpart_confirmation} ->
+        track_funnel(:settlement_confirm, :success, %{status: "awaiting_counterpart_confirmation"})
+
         {:noreply,
          socket
-         |> put_flash(:info, "Sua confirmação foi registrada. Aguardando a outra conta.")
+         |> info_feedback(
+           "Sua confirmação foi registrada",
+           "Aguarde a confirmação da outra conta"
+         )
          |> reload_shared_data()}
 
       {:error, :cycle_has_pending_debts} ->
-        {:noreply, put_flash(socket, :error, "Ainda há dívidas em aberto neste mês.")}
+        track_funnel(:settlement_confirm, :error, %{reason: "cycle_has_pending_debts"})
+
+        {:noreply,
+         error_feedback(
+           socket,
+           "Ainda há dívidas em aberto neste mês",
+           "Quite as pendências antes de confirmar"
+         )}
 
       {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Não foi possível confirmar o fechamento mensal.")}
+        track_funnel(:settlement_confirm, :error, %{reason: "unexpected"})
+
+        {:noreply,
+         error_feedback(
+           socket,
+           "Não foi possível confirmar o fechamento mensal",
+           "Tente novamente em alguns instantes"
+         )}
     end
   end
 
@@ -587,6 +789,15 @@ defmodule OrganizerWeb.SharedFinanceLive do
   @impl true
   def handle_info({:settlement_cycle_settled, _cycle}, socket) do
     {:noreply, reload_shared_data(socket)}
+  end
+
+  @impl true
+  def handle_info({:settlement_record_reversed, _record_id}, socket) do
+    {:noreply,
+     socket
+     |> assign(:pending_settlement_record_reversal, nil)
+     |> assign(:settlement_reversal_form, settlement_reversal_form())
+     |> reload_shared_data()}
   end
 
   @impl true
@@ -794,11 +1005,11 @@ defmodule OrganizerWeb.SharedFinanceLive do
                     Editar
                   </button>
                   <button
+                    :if={view.entry.user_id == @current_scope.user.id}
                     id={"unshare-entry-#{view.entry.id}"}
                     type="button"
                     phx-click="prompt_unshare_entry"
                     phx-value-entry_id={view.entry.id}
-                    phx-value-entry_label={view.entry.description || view.entry.category}
                     class="btn btn-outline btn-xs btn-error shrink-0"
                   >
                     Remover
@@ -1040,13 +1251,29 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 class="micro-surface rounded-2xl p-4"
               >
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                  <p class="text-sm font-semibold font-mono text-base-content">
+                  <p class={[
+                    "text-sm font-semibold font-mono",
+                    settlement_record_amount_class(record.status)
+                  ]}>
                     {format_cents(record.amount_cents)}
                   </p>
                   <p class="text-xs text-base-content/62">
                     {format_method(record.method)} • {format_date(record.transferred_at)}
                   </p>
                 </div>
+
+                <div
+                  :if={record.status == :reversed}
+                  class="mt-2 rounded-lg border border-warning/35 bg-warning/12 p-2"
+                >
+                  <p class="text-xs font-semibold uppercase tracking-[0.1em] text-warning-content">
+                    Pagamento estornado
+                  </p>
+                  <p class="mt-1 text-xs text-base-content/70">
+                    {format_reversed_metadata(record)}
+                  </p>
+                </div>
+
                 <ul class="mt-2 space-y-1">
                   <li
                     :for={allocation <- record.allocations}
@@ -1056,6 +1283,19 @@ defmodule OrganizerWeb.SharedFinanceLive do
                       allocation.shared_entry_debt.finance_entry.category}
                   </li>
                 </ul>
+
+                <div class="mt-3 flex justify-end">
+                  <button
+                    :if={record.status == :active}
+                    id={"reverse-settlement-record-#{record.id}"}
+                    type="button"
+                    phx-click="prompt_reverse_settlement_record"
+                    phx-value-id={record.id}
+                    class="btn btn-outline btn-xs btn-warning"
+                  >
+                    Estornar pagamento
+                  </button>
+                </div>
               </article>
             </div>
 
@@ -1091,18 +1331,73 @@ defmodule OrganizerWeb.SharedFinanceLive do
         <.destructive_confirm_modal
           id="shared-entry-unshare-confirmation-modal"
           show={is_map(@pending_unshare_entry)}
-          title="Remover compartilhamento do lançamento?"
-          message="A transação continuará na conta de origem, mas deixará de fazer parte deste compartilhamento."
+          title="Remover compartilhamento deste lançamento?"
+          message="O lançamento continuará na conta de origem, mas sairá deste fluxo colaborativo."
+          severity="danger"
+          impact_label="Impacto: o item deixa de compor dívidas e acertos do vínculo"
           confirm_event="confirm_unshare_entry"
           cancel_event="cancel_unshare_entry"
           confirm_button_id="confirm-unshare-entry-btn"
           cancel_button_id="cancel-unshare-entry-btn"
-          confirm_label="Remover compartilhamento"
+          confirm_label="Sim, remover compartilhamento"
         >
           <p :if={is_map(@pending_unshare_entry)} class="font-medium text-base-content">
             {Map.get(@pending_unshare_entry, :label, "Lançamento compartilhado")}
           </p>
         </.destructive_confirm_modal>
+
+        <.app_modal
+          id="settlement-record-reversal-modal"
+          show={is_map(@pending_settlement_record_reversal)}
+          cancel_event="cancel_reverse_settlement_record"
+          aria_labelledby="settlement-record-reversal-title"
+          dialog_class="max-w-xl rounded-2xl p-5 sm:p-6"
+        >
+          <section id="settlement-record-reversal-dialog">
+            <h3 id="settlement-record-reversal-title" class="text-lg font-semibold text-base-content">
+              Estornar pagamento
+            </h3>
+            <p class="mt-2 text-sm text-base-content/72">
+              O valor será devolvido às dívidas em aberto, permitindo correção do acerto.
+            </p>
+
+            <.form
+              for={@settlement_reversal_form}
+              id="settlement-record-reversal-form"
+              phx-submit="confirm_reverse_settlement_record"
+              class="mt-4 space-y-3"
+            >
+              <input
+                type="hidden"
+                name="settlement_reversal[id]"
+                value={
+                  if is_map(@pending_settlement_record_reversal),
+                    do: Map.get(@pending_settlement_record_reversal, :id),
+                    else: ""
+                }
+              />
+
+              <.input
+                field={@settlement_reversal_form[:reason]}
+                type="text"
+                label="Motivo (opcional)"
+                placeholder="Ex: valor informado incorretamente"
+                maxlength="300"
+              />
+
+              <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm"
+                  phx-click="cancel_reverse_settlement_record"
+                >
+                  Cancelar
+                </button>
+                <button type="submit" class="btn btn-warning btn-sm">Confirmar estorno</button>
+              </div>
+            </.form>
+          </section>
+        </.app_modal>
 
         <section id="recurring-variable-trend" class="surface-card rounded-3xl p-5 sm:p-6">
           <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
@@ -1489,7 +1784,10 @@ defmodule OrganizerWeb.SharedFinanceLive do
       _ ->
         socket
         |> assign(:shared_entries_loading_more?, false)
-        |> put_flash(:error, "Não foi possível carregar lançamentos compartilhados.")
+        |> error_feedback(
+          "Não foi possível carregar lançamentos compartilhados",
+          "Atualize a página e tente novamente"
+        )
     end
   end
 
@@ -1527,7 +1825,10 @@ defmodule OrganizerWeb.SharedFinanceLive do
       _ ->
         socket
         |> assign(:shared_entry_debts_loading_more?, false)
-        |> put_flash(:error, "Não foi possível carregar dívidas por lançamento.")
+        |> error_feedback(
+          "Não foi possível carregar dívidas por lançamento",
+          "Atualize a página e tente novamente"
+        )
     end
   end
 
@@ -1565,7 +1866,10 @@ defmodule OrganizerWeb.SharedFinanceLive do
       _ ->
         socket
         |> assign(:settlement_records_loading_more?, false)
-        |> put_flash(:error, "Não foi possível carregar pagamentos.")
+        |> error_feedback(
+          "Não foi possível carregar pagamentos",
+          "Atualize a página e tente novamente"
+        )
     end
   end
 
@@ -1580,22 +1884,61 @@ defmodule OrganizerWeb.SharedFinanceLive do
     scope = socket.assigns.current_scope
 
     with {:ok, _entry} <- SharedFinance.unshare_finance_entry(scope, entry_id) do
+      track_funnel(:shared_entry_unshare, :success)
+
       socket
       |> assign(:pending_unshare_entry, nil)
       |> reload_shared_data()
     else
       {:error, {:validation, _}} ->
+        track_funnel(:shared_entry_unshare, :error, %{reason: "validation"})
+
         socket
         |> assign(:pending_unshare_entry, nil)
-        |> put_flash(
-          :error,
-          "Este lançamento já possui pagamentos alocados e não pode ser removido."
+        |> error_feedback(
+          "Este lançamento já possui pagamentos alocados e não pode ser removido",
+          "Remova ou ajuste os pagamentos antes de tentar novamente"
         )
 
       _ ->
+        track_funnel(:shared_entry_unshare, :error, %{reason: "unexpected"})
+
         socket
         |> assign(:pending_unshare_entry, nil)
-        |> put_flash(:error, "Não foi possível remover o compartilhamento.")
+        |> error_feedback(
+          "Não foi possível remover o compartilhamento",
+          "Tente novamente em alguns instantes"
+        )
+    end
+  end
+
+  defp prepare_unshare_entry_confirmation(socket, entry_id) do
+    scope = socket.assigns.current_scope
+    link_id = socket.assigns.link_id
+
+    with {:ok, parsed_entry_id} <- parse_int(entry_id),
+         {:ok, entry} <-
+           SharedFinance.get_shared_entry_owned_by_user(scope, link_id, parsed_entry_id) do
+      label =
+        entry.description
+        |> default_if_blank(entry.category)
+        |> default_if_blank("Lançamento compartilhado")
+
+      assign(socket, :pending_unshare_entry, %{id: entry.id, label: label})
+    else
+      {:error, :not_found} ->
+        error_feedback(
+          socket,
+          "Lançamento compartilhado não encontrado",
+          "Atualize a lista e selecione outro lançamento"
+        )
+
+      _ ->
+        error_feedback(
+          socket,
+          "Não foi possível abrir a confirmação",
+          "Tente novamente"
+        )
     end
   end
 
@@ -1917,6 +2260,15 @@ defmodule OrganizerWeb.SharedFinanceLive do
     to_form(Map.merge(defaults, params), as: :payment)
   end
 
+  defp settlement_reversal_form(params \\ %{}) do
+    defaults = %{
+      "id" => "",
+      "reason" => ""
+    }
+
+    to_form(Map.merge(defaults, params), as: :settlement_reversal)
+  end
+
   defp create_settlement_record_for_target(scope, cycle_id, nil, attrs) do
     SharedFinance.create_settlement_record(scope, cycle_id, attrs)
   end
@@ -2054,6 +2406,32 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
   defp format_method(method) when is_atom(method), do: SettlementRecord.method_label(method)
   defp format_method(_), do: "—"
+
+  defp settlement_record_amount_class(:active), do: "text-base-content"
+  defp settlement_record_amount_class(:reversed), do: "text-warning line-through"
+  defp settlement_record_amount_class(_status), do: "text-base-content"
+
+  defp format_reversed_metadata(record) do
+    reversed_at = format_date(record.reversed_at)
+
+    reversed_by =
+      case record.reversed_by do
+        %{email: email} when is_binary(email) and email != "" -> email
+        _ -> "conta vinculada"
+      end
+
+    reason =
+      case record.reversal_reason do
+        reason when is_binary(reason) ->
+          cleaned = String.trim(reason)
+          if cleaned == "", do: "", else: " • Motivo: #{cleaned}"
+
+        _ ->
+          ""
+      end
+
+    "Estornado em #{reversed_at} por #{reversed_by}#{reason}"
+  end
 
   defp format_date(%DateTime{} = dt) do
     day = dt.day |> Integer.to_string() |> String.pad_leading(2, "0")
@@ -2208,6 +2586,13 @@ defmodule OrganizerWeb.SharedFinanceLive do
   defp normalize_list_filter_q(value) when is_binary(value), do: String.trim(value)
   defp normalize_list_filter_q(_value), do: ""
 
+  defp default_if_blank(value, fallback) when is_binary(value) do
+    if String.trim(value) == "", do: fallback, else: value
+  end
+
+  defp default_if_blank(nil, fallback), do: fallback
+  defp default_if_blank(value, _fallback), do: value
+
   defp maybe_put_non_blank_param(params, _key, value) when value in [nil, ""], do: params
   defp maybe_put_non_blank_param(params, key, value), do: Map.put(params, key, value)
 
@@ -2217,5 +2602,17 @@ defmodule OrganizerWeb.SharedFinanceLive do
       {"Percentual fixo", "percentage"},
       {"Valor fixo para você", "fixed_amount"}
     ]
+  end
+
+  defp info_feedback(socket, happened, next_step) do
+    put_flash(socket, :info, FlashFeedback.compose(happened, next_step))
+  end
+
+  defp error_feedback(socket, happened, next_step) do
+    put_flash(socket, :error, FlashFeedback.compose(happened, next_step))
+  end
+
+  defp track_funnel(action, outcome, metadata \\ %{}) do
+    FunnelTelemetry.track_step(:shared_finance, action, outcome, metadata)
   end
 end

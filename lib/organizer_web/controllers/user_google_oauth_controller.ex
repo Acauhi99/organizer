@@ -2,6 +2,7 @@ defmodule OrganizerWeb.UserGoogleOAuthController do
   use OrganizerWeb, :controller
 
   alias Organizer.Accounts
+  alias OrganizerWeb.FlashFeedback
   alias OrganizerWeb.UserAuth
 
   @oauth_state_key :google_oauth_state
@@ -26,12 +27,18 @@ defmodule OrganizerWeb.UserGoogleOAuthController do
 
       {:error, :missing_configuration} ->
         conn
-        |> put_flash(:error, "Login com Google ainda não está configurado.")
+        |> error_feedback(
+          "Login com Google ainda não está configurado",
+          "Use e-mail e senha para entrar enquanto a integração não estiver disponível"
+        )
         |> redirect(to: ~p"/users/log-in")
 
       {:error, _reason} ->
         conn
-        |> put_flash(:error, "Não foi possível iniciar o login com Google.")
+        |> error_feedback(
+          "Não foi possível iniciar o login com Google",
+          "Tente novamente em instantes ou use e-mail e senha"
+        )
         |> redirect(to: ~p"/users/log-in")
     end
   end
@@ -39,7 +46,10 @@ defmodule OrganizerWeb.UserGoogleOAuthController do
   def callback(conn, %{"error" => _error}) do
     conn
     |> clear_oauth_session()
-    |> put_flash(:error, "Login com Google foi cancelado ou negado.")
+    |> error_feedback(
+      "Login com Google foi cancelado ou negado",
+      "Inicie novamente o login quando quiser continuar"
+    )
     |> redirect(to: ~p"/users/log-in")
   end
 
@@ -55,40 +65,55 @@ defmodule OrganizerWeb.UserGoogleOAuthController do
          {:ok, user} <- find_or_create_user(profile) do
       conn
       |> clear_oauth_session()
-      |> put_flash(:info, "Login com Google realizado com sucesso.")
+      |> info_feedback(
+        "Login com Google realizado com sucesso",
+        "Revise seus dados e continue sua rotina financeira"
+      )
       |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
     else
       {:error, :invalid_state} ->
         conn
         |> clear_oauth_session()
-        |> put_flash(:error, "Sessão de login com Google inválida. Tente novamente.")
+        |> error_feedback(
+          "Sessão de login com Google inválida",
+          "Tente novamente iniciando o login desde o começo"
+        )
         |> redirect(to: ~p"/users/log-in")
 
       {:error, :missing_configuration} ->
         conn
         |> clear_oauth_session()
-        |> put_flash(:error, "Login com Google ainda não está configurado.")
+        |> error_feedback(
+          "Login com Google ainda não está configurado",
+          "Use e-mail e senha para acessar sua conta"
+        )
         |> redirect(to: ~p"/users/log-in")
 
       {:error, :google_email_not_verified} ->
         conn
         |> clear_oauth_session()
-        |> put_flash(:error, "Seu e-mail do Google precisa estar verificado para entrar.")
+        |> error_feedback(
+          "Seu e-mail do Google precisa estar verificado para entrar",
+          "Verifique o e-mail no Google e tente novamente"
+        )
         |> redirect(to: ~p"/users/log-in")
 
       {:error, :google_account_conflict} ->
         conn
         |> clear_oauth_session()
-        |> put_flash(
-          :error,
-          "Este e-mail já está vinculado a outra conta Google. Entre com senha para recuperar acesso."
+        |> error_feedback(
+          "Este e-mail já está vinculado a outra conta Google",
+          "Entre com senha para recuperar acesso"
         )
         |> redirect(to: ~p"/users/log-in")
 
       {:error, _reason} ->
         conn
         |> clear_oauth_session()
-        |> put_flash(:error, "Não foi possível concluir o login com Google.")
+        |> error_feedback(
+          "Não foi possível concluir o login com Google",
+          "Tente novamente em instantes"
+        )
         |> redirect(to: ~p"/users/log-in")
     end
   end
@@ -96,7 +121,10 @@ defmodule OrganizerWeb.UserGoogleOAuthController do
   def callback(conn, _params) do
     conn
     |> clear_oauth_session()
-    |> put_flash(:error, "Resposta inválida do login com Google.")
+    |> error_feedback(
+      "Resposta inválida do login com Google",
+      "Inicie novamente o login para gerar uma nova resposta"
+    )
     |> redirect(to: ~p"/users/log-in")
   end
 
@@ -152,5 +180,13 @@ defmodule OrganizerWeb.UserGoogleOAuthController do
 
   defp oauth_client do
     Application.get_env(:organizer, :google_oauth_client, Organizer.GoogleOAuth)
+  end
+
+  defp info_feedback(conn, happened, next_step) do
+    put_flash(conn, :info, FlashFeedback.compose(happened, next_step))
+  end
+
+  defp error_feedback(conn, happened, next_step) do
+    put_flash(conn, :error, FlashFeedback.compose(happened, next_step))
   end
 end

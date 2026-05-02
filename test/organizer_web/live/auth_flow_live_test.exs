@@ -63,8 +63,11 @@ defmodule OrganizerWeb.AuthFlowLiveTest do
 
       assert redirected_to(redirected_conn) == ~p"/users/log-in"
 
-      assert Phoenix.Flash.get(redirected_conn.assigns.flash, :error) ==
-               "Você precisa se reautenticar para acessar esta página."
+      assert Phoenix.Flash.get(redirected_conn.assigns.flash, :error) =~
+               "Você precisa se reautenticar para acessar esta página"
+
+      assert Phoenix.Flash.get(redirected_conn.assigns.flash, :error) =~
+               "Próximo passo: Entre novamente para continuar com segurança."
 
       reauth_conn =
         post(recycle(redirected_conn), ~p"/users/log-in", %{
@@ -75,7 +78,8 @@ defmodule OrganizerWeb.AuthFlowLiveTest do
         })
 
       assert redirected_to(reauth_conn) == ~p"/finances"
-      assert Phoenix.Flash.get(reauth_conn.assigns.flash, :info) =~ "Que bom ter você de volta!"
+      assert Phoenix.Flash.get(reauth_conn.assigns.flash, :info) =~ "Que bom ter você de volta"
+      assert Phoenix.Flash.get(reauth_conn.assigns.flash, :info) =~ "Próximo passo:"
     end
 
     test "rejects invalid credentials and keeps user logged out", %{conn: conn} do

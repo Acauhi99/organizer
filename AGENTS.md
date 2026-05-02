@@ -1,5 +1,54 @@
 This is a web application written using the Phoenix web framework.
 
+## Agent coding workflow (mandatory)
+
+Before implementing any new feature, run a structured discovery phase first. The goal is to reduce architectural gaps to the minimum (ideally zero), improve final product quality, and ship in fewer iterations.
+
+Keep Elixir and Phoenix best practices in this document as mandatory implementation standards. This workflow complements them and comes before technology and code decisions.
+
+### 0) Discovery before code (DDD estratégico)
+
+For each feature/initiative, always complete this sequence before choosing technologies, data modeling details, or API contracts:
+
+1. **Domínio e Linguagem Ubíqua**
+   - Define core concepts unambiguously (e.g. what is a "Group", "Expense", "Settlement/quitação").
+   - Capture a shared vocabulary and forbidden ambiguous terms.
+
+2. **Casos de Uso e Histórias de Usuário**
+   - Identify actors, goals, and primary flows.
+   - Explicitly document critical edge cases and failure/exception flows.
+
+3. **Bounded Contexts**
+   - Identify natural domain boundaries and responsibilities.
+   - Describe how contexts interact (e.g. finance, identity, notifications), including ownership of rules and data.
+
+4. **Invariantes e Regras de Negócio**
+   - List what must never happen (business invariants).
+   - Add validation rules, authorization boundaries, consistency expectations, and conflict-resolution policies.
+
+5. **Só então: tecnologia e implementação**
+   - Only after steps 1-4, decide architecture, schemas, APIs, jobs, and integration strategy.
+   - Every technical choice must map back to explicit domain decisions from discovery.
+
+### 1) Expected discovery output (for each feature)
+
+Before coding, provide a concise discovery artifact (in issue/PR description or planning doc) containing:
+
+- Problem statement and success criteria
+- Ubiquitous language glossary
+- Use cases/user stories with actors
+- Main flow + critical edge cases
+- Bounded context map + context interactions
+- Invariants/business rules checklist
+- Open questions, assumptions, and risks
+
+### 2) Implementation quality gate
+
+- Do not start coding while critical discovery gaps remain unresolved.
+- If information is missing, ask clarifying questions and register assumptions explicitly.
+- During implementation, trace changes to use cases and invariants.
+- Add tests for critical invariants and edge cases, not only happy paths.
+
 ## Project guidelines
 
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues
