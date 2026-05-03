@@ -77,6 +77,25 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
     updated_entry
   end
 
+  defp live_shared_finance(conn, link_id, params \\ %{}) do
+    path =
+      case params do
+        %{} = map when map_size(map) > 0 ->
+          "/account-links/#{link_id}?" <> URI.encode_query(map)
+
+        _ ->
+          "/account-links/#{link_id}"
+      end
+
+    case live(conn, path) do
+      {:ok, view, html} ->
+        {:ok, view, html}
+
+      {:error, {:live_redirect, %{to: to}}} ->
+        live(conn, to)
+    end
+  end
+
   describe "access" do
     test "redirects unauthenticated users", %{conn: conn} do
       assert {:error, {:redirect, %{to: "/users/log-in"}}} =
@@ -100,24 +119,23 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
     end
 
     test "renders the shared entries list container", %{conn: conn, link: link} do
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
       assert has_element?(view, "#shared-entries-list")
     end
 
     test "renders the metrics panel", %{conn: conn, link: link} do
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
       assert has_element?(view, "#link-metrics-panel")
     end
 
     test "renders the recurring variable trend section", %{conn: conn, link: link} do
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
       assert has_element?(view, "#recurring-variable-trend")
     end
 
     test "renders shared finance charts", %{conn: conn, link: link} do
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
       assert has_element?(view, "#shared-balance-chart")
-      assert has_element?(view, "#shared-trend-chart")
     end
 
     test "shows shared entry in the stream after sharing", %{
@@ -126,7 +144,7 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       link: link
     } do
       entry = create_shared_entry(scope_a, link.id)
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
       assert has_element?(view, "#unshare-entry-#{entry.id}")
     end
 
@@ -136,7 +154,7 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       link: link
     } do
       entry = create_shared_entry(scope_a, link.id)
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
 
       assert has_element?(view, "#unshare-entry-#{entry.id}")
 
@@ -158,7 +176,7 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       link: link
     } do
       entry = create_shared_entry(scope_a, link.id)
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
 
       assert has_element?(view, "#unshare-entry-#{entry.id}")
 
@@ -186,7 +204,7 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       my_entry = create_shared_expense_entry(scope_a, link.id)
       other_entry = create_shared_expense_entry(scope_b, link.id)
 
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
 
       assert has_element?(view, "#edit-shared-entry-#{my_entry.id}")
       refute has_element?(view, "#edit-shared-entry-#{other_entry.id}")
@@ -203,7 +221,7 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
           "amount_cents" => 20_000
         })
 
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
 
       view
       |> element("#edit-shared-entry-#{entry.id}")
@@ -246,21 +264,24 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       assert updated.shared_manual_mine_cents == 9_000
     end
 
-    test "filters shared entries by selected period", %{conn: conn, scope_a: scope_a, link: link} do
+    test "filters shared entries by global period preset", %{
+      conn: conn,
+      scope_a: scope_a,
+      link: link
+    } do
       current_date = Date.utc_today()
-      old_date = Date.add(current_date, -150)
+      old_date = Date.add(current_date, -60)
 
       current_entry = create_shared_entry_on(scope_a, link.id, current_date, 12_000)
       old_entry = create_shared_entry_on(scope_a, link.id, old_date, 7_000)
 
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
 
       assert has_element?(view, "#unshare-entry-#{current_entry.id}")
       assert has_element?(view, "#unshare-entry-#{old_entry.id}")
-      assert has_element?(view, "#shared-period-filter-all.btn-primary")
 
       view
-      |> element("#shared-period-filter-current-month")
+      |> element("#global-period-preset-current-month")
       |> render_click()
 
       patched_path = assert_patch(view)
@@ -272,23 +293,29 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
         |> Map.get(:query, "")
         |> Plug.Conn.Query.decode()
 
-      assert params == %{"period" => "current_month"}
+      assert params["from"] =~ ~r/^\d{4}-\d{2}$/
+      assert params["to"] =~ ~r/^\d{4}-\d{2}$/
+      assert params["settlement_month"] =~ ~r/^\d{4}-\d{2}$/
 
-      assert has_element?(view, "#shared-period-filter-current-month.btn-primary")
       assert has_element?(view, "#unshare-entry-#{current_entry.id}")
       refute has_element?(view, "#unshare-entry-#{old_entry.id}")
     end
 
-    test "reads selected period from query params", %{conn: conn, scope_a: scope_a, link: link} do
+    test "migrates legacy period query params", %{conn: conn, scope_a: scope_a, link: link} do
       current_date = Date.utc_today()
       old_date = Date.add(current_date, -120)
 
       current_entry = create_shared_entry_on(scope_a, link.id, current_date, 12_000)
       old_entry = create_shared_entry_on(scope_a, link.id, old_date, 7_000)
 
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}?period=current_month")
+      {:error, {:live_redirect, %{to: patched_path}}} =
+        live(conn, ~p"/account-links/#{link.id}?period=current_month")
 
-      assert has_element?(view, "#shared-period-filter-current-month.btn-primary")
+      {:ok, view, _html} = live(conn, patched_path)
+      params = patched_path |> URI.parse() |> Map.get(:query, "") |> Plug.Conn.Query.decode()
+      assert Map.has_key?(params, "from")
+      assert Map.has_key?(params, "to")
+      assert Map.has_key?(params, "settlement_month")
       assert has_element?(view, "#unshare-entry-#{current_entry.id}")
       refute has_element?(view, "#unshare-entry-#{old_entry.id}")
     end
@@ -306,7 +333,7 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       scope_a: scope_a,
       link: link
     } do
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
 
       entry = create_shared_entry(scope_a, link.id)
 
@@ -327,7 +354,7 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       link: link
     } do
       entry = create_shared_entry(scope_a, link.id)
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
 
       assert has_element?(view, "#unshare-entry-#{entry.id}")
 
@@ -372,7 +399,7 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       assert debt_before.debtor_id == user_a.id
       assert debt_before.outstanding_amount_cents > 0
 
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
 
       assert has_element?(view, "#pay-shared-entry-debt-#{debt_before.id}")
 
@@ -405,7 +432,7 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
       link: link
     } do
       _entry = create_shared_entry(scope_a, link.id)
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
       html = render(view)
 
       assert html =~ "R$ 100,00"
@@ -455,7 +482,7 @@ defmodule OrganizerWeb.SharedFinanceLiveTest do
           "amount_cents" => 10_000
         })
 
-      {:ok, view, _html} = live(conn, ~p"/account-links/#{link.id}")
+      {:ok, view, _html} = live_shared_finance(conn, link.id)
 
       view
       |> form("#shared-payment-form", %{

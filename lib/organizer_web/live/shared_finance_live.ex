@@ -8,14 +8,19 @@ defmodule OrganizerWeb.SharedFinanceLive do
   alias Organizer.SharedFinance.{SettlementRecord, SplitCalculator}
   alias OrganizerWeb.{FlashFeedback, FunnelTelemetry}
 
-  @shared_period_filters ["current_month", "last_3_months", "all"]
+  @global_filter_presets %{
+    "default_window" => {-3, 3},
+    "current_month" => {0, 0},
+    "last_3_months" => {-2, 0},
+    "last_6_months" => {-5, 0}
+  }
+  @global_filter_max_months 12
   @shared_entries_page_size 10
   @shared_entry_debts_page_size 10
   @settlement_records_page_size 10
   @impl true
   def mount(%{"link_id" => link_id_param} = params, _session, socket) do
     scope = socket.assigns.current_scope
-    selected_period = normalize_shared_period_filter(params)
     shared_entries_page = 1
     shared_entry_debts_page = 1
     settlement_records_page = 1
@@ -33,49 +38,76 @@ defmodule OrganizerWeb.SharedFinanceLive do
         Phoenix.PubSub.subscribe(Organizer.PubSub, "account_link:#{link_id}")
       end
 
+      temporal_state = resolve_temporal_state(scope, link_id, params)
+      range_params = shared_period_params(temporal_state)
+
       {:ok, {views, shared_entries_meta}} =
         SharedFinance.list_shared_entries_with_meta(scope, link_id, %{
-          period: selected_period,
+          from: temporal_state.from_month,
+          to: temporal_state.to_month,
+          reference_date: temporal_state.to_month,
           page: shared_entries_page,
           page_size: @shared_entries_page_size,
           q: shared_entries_filter_q
         })
 
       {:ok, metrics} =
-        SharedFinance.get_link_metrics(scope, link_id, Date.utc_today(), %{
-          period: selected_period
-        })
+        SharedFinance.get_link_metrics(scope, link_id, temporal_state.to_month, range_params)
 
-      {:ok, trend} = SharedFinance.get_recurring_variable_trend(scope, link_id)
+      {:ok, trend} = SharedFinance.get_recurring_variable_trend(scope, link_id, range_params)
 
       {:ok, cycle} =
-        SharedFinance.get_or_create_settlement_cycle(scope, link_id, Date.utc_today())
+        SharedFinance.get_or_create_settlement_cycle(
+          scope,
+          link_id,
+          temporal_state.settlement_focus_month
+        )
 
       {:ok, {debts, shared_entry_debts_meta}} =
         SharedFinance.list_shared_entry_debts_with_meta(scope, link_id, %{
+          from: temporal_state.from_month,
+          to: temporal_state.to_month,
+          reference_date: temporal_state.to_month,
           page: shared_entry_debts_page,
           page_size: @shared_entry_debts_page_size,
           q: shared_entry_debts_filter_q
         })
 
       {:ok, {records, settlement_records_meta}} =
-        SharedFinance.list_settlement_records_with_meta(scope, cycle.id, %{
+        SharedFinance.list_settlement_records_for_link_with_meta(scope, link_id, %{
+          from: temporal_state.from_month,
+          to: temporal_state.to_month,
+          reference_date: temporal_state.to_month,
           page: settlement_records_page,
           page_size: @settlement_records_page_size,
           q: settlement_records_filter_q
         })
 
-      {:ok, monthly_debt_summaries} = SharedFinance.monthly_debt_summaries(scope, link_id)
+      {:ok, monthly_debt_summaries} =
+        SharedFinance.monthly_debt_summaries(scope, link_id, %{
+          from: temporal_state.from_month,
+          to: temporal_state.to_month,
+          reference_date: temporal_state.to_month
+        })
 
       socket =
         socket
         |> assign(:link, link)
         |> assign(:link_id, link_id)
-        |> assign(:selected_shared_period, selected_period)
+        |> assign(:global_filter_from_month, temporal_state.from_month)
+        |> assign(:global_filter_to_month, temporal_state.to_month)
+        |> assign(:settlement_focus_month, temporal_state.settlement_focus_month)
+        |> assign(
+          :settlement_focus_form,
+          settlement_focus_form(temporal_state.settlement_focus_month)
+        )
+        |> assign(
+          :global_filter_form,
+          global_filter_form(temporal_state.from_month, temporal_state.to_month)
+        )
         |> assign(:metrics, metrics)
         |> assign(:trend, trend)
         |> assign(:shared_balance_chart, shared_balance_chart_svg(metrics))
-        |> assign(:shared_trend_chart, shared_trend_chart_svg(trend))
         |> assign(:shared_entries_count, shared_entries_meta.total_count || length(views))
         |> assign(:shared_entries_meta, shared_entries_meta)
         |> assign(:shared_entries_has_more?, Map.get(shared_entries_meta, :has_next_page?, false))
@@ -148,21 +180,58 @@ defmodule OrganizerWeb.SharedFinanceLive do
   def handle_params(%{"link_id" => link_id_param} = params, _uri, socket) do
     case parse_int(link_id_param) do
       {:ok, link_id} ->
-        selected_period = normalize_shared_period_filter(params)
+        scope = socket.assigns.current_scope
+        temporal_state = resolve_temporal_state(scope, link_id, params)
 
-        socket =
-          socket
-          |> assign(:link_id, link_id)
-          |> assign(:selected_shared_period, selected_period)
-          |> assign(:shared_entries_page, 1)
-          |> assign(:shared_entry_debts_page, 1)
-          |> assign(:settlement_records_page, 1)
-          |> assign(:shared_entries_loading_more?, false)
-          |> assign(:shared_entry_debts_loading_more?, false)
-          |> assign(:settlement_records_loading_more?, false)
-          |> reload_shared_data()
+        if temporal_state.patch_required? do
+          patch_params =
+            socket
+            |> current_shared_finance_params()
+            |> Map.merge(temporal_state.patch_params)
 
-        {:noreply, socket}
+          {:noreply, push_patch(socket, to: ~p"/account-links/#{link_id}?#{patch_params}")}
+        else
+          _ =
+            SharedFinance.upsert_view_preference(scope, link_id, %{
+              from_year: temporal_state.from_month.year,
+              from_month: temporal_state.from_month.month,
+              to_year: temporal_state.to_month.year,
+              to_month: temporal_state.to_month.month,
+              settlement_focus_year: temporal_state.settlement_focus_month.year,
+              settlement_focus_month: temporal_state.settlement_focus_month.month
+            })
+
+          clamp_flash? = temporal_state.clamped_settlement_focus?
+
+          socket =
+            socket
+            |> maybe_info_feedback(
+              clamp_flash?,
+              "Competência ajustada ao período ativo",
+              "O fechamento mensal foi alinhado ao mês final do filtro"
+            )
+            |> assign(:link_id, link_id)
+            |> assign(:global_filter_from_month, temporal_state.from_month)
+            |> assign(:global_filter_to_month, temporal_state.to_month)
+            |> assign(:settlement_focus_month, temporal_state.settlement_focus_month)
+            |> assign(
+              :settlement_focus_form,
+              settlement_focus_form(temporal_state.settlement_focus_month)
+            )
+            |> assign(
+              :global_filter_form,
+              global_filter_form(temporal_state.from_month, temporal_state.to_month)
+            )
+            |> assign(:shared_entries_page, 1)
+            |> assign(:shared_entry_debts_page, 1)
+            |> assign(:settlement_records_page, 1)
+            |> assign(:shared_entries_loading_more?, false)
+            |> assign(:shared_entry_debts_loading_more?, false)
+            |> assign(:settlement_records_loading_more?, false)
+            |> reload_shared_data()
+
+          {:noreply, socket}
+        end
 
       :error ->
         {:noreply, socket}
@@ -205,11 +274,12 @@ defmodule OrganizerWeb.SharedFinanceLive do
   def handle_event("open_shared_entry_edit", %{"entry_id" => entry_id}, socket) do
     scope = socket.assigns.current_scope
     link_id = socket.assigns.link_id
-    selected_period = socket.assigns.selected_shared_period
+    from_month = socket.assigns.global_filter_from_month
+    to_month = socket.assigns.global_filter_to_month
 
     with {:ok, parsed_entry_id} <- parse_int(entry_id),
          {:ok, view} <-
-           shared_entry_view_for_edit(scope, link_id, selected_period, parsed_entry_id),
+           shared_entry_view_for_edit(scope, link_id, from_month, to_month, parsed_entry_id),
          true <- view.entry.user_id == scope.user.id do
       form_params = shared_entry_edit_form_params(view)
       preview = shared_entry_preview_from_view(view)
@@ -349,12 +419,82 @@ defmodule OrganizerWeb.SharedFinanceLive do
   end
 
   @impl true
-  def handle_event("set_shared_period", %{"period" => period}, socket)
-      when period in @shared_period_filters do
-    {:noreply,
-     push_patch(socket,
-       to: shared_finance_path(socket, %{"period" => period})
-     )}
+  def handle_event("apply_global_period_preset", %{"preset" => preset}, socket) do
+    case preset_to_month_range(preset) do
+      {:ok, from_month, to_month} ->
+        apply_global_period_filter(socket, from_month, to_month)
+
+      :error ->
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("change_global_period_filter", %{"period_filter" => period_filter}, socket) do
+    from_value = Map.get(period_filter, "from_month", "")
+    to_value = Map.get(period_filter, "to_month", "")
+
+    case parse_global_filter_range(from_value, to_value) do
+      {:ok, from_month, to_month} ->
+        apply_global_period_filter(socket, from_month, to_month)
+
+      {:error, :incomplete_range} ->
+        {:noreply,
+         assign(socket, :global_filter_form, to_form(period_filter, as: :period_filter))}
+
+      {:error, :missing} ->
+        {:noreply, socket}
+
+      {:error, :invalid_month_range} ->
+        {:noreply,
+         error_feedback(
+           socket,
+           "Intervalo inválido para filtro temporal",
+           "Selecione de 1 a #{@global_filter_max_months} meses com início menor ou igual ao fim"
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event(
+        "change_settlement_focus_month",
+        %{"settlement_filter" => %{"month" => month}},
+        socket
+      ) do
+    case parse_month_param(month) do
+      {:ok, focus_month} ->
+        clamped_month =
+          clamp_month_to_range(
+            focus_month,
+            socket.assigns.global_filter_from_month,
+            socket.assigns.global_filter_to_month
+          )
+
+        _ =
+          SharedFinance.upsert_view_preference(
+            socket.assigns.current_scope,
+            socket.assigns.link_id,
+            %{
+              settlement_focus_year: clamped_month.year,
+              settlement_focus_month: clamped_month.month,
+              from_year: socket.assigns.global_filter_from_month.year,
+              from_month: socket.assigns.global_filter_from_month.month,
+              to_year: socket.assigns.global_filter_to_month.year,
+              to_month: socket.assigns.global_filter_to_month.month
+            }
+          )
+
+        {:noreply,
+         push_patch(socket,
+           to:
+             shared_finance_path(socket, %{
+               "settlement_month" => format_month_param(clamped_month)
+             })
+         )}
+
+      :error ->
+        {:noreply, socket}
+    end
   end
 
   @impl true
@@ -804,76 +944,129 @@ defmodule OrganizerWeb.SharedFinanceLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
-      <section class="collab-shell responsive-shell mx-auto max-w-6xl space-y-6">
-        <header class="surface-card collab-hero rounded-3xl p-6 sm:p-8">
-          <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <section class="collab-shell responsive-shell mx-auto flex max-w-6xl flex-col gap-6">
+        <header class="surface-card collab-hero rounded-3xl p-4 sm:p-5">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
                 Finanças compartilhadas
               </p>
-              <h1 class="text-2xl font-black tracking-[-0.02em] text-base-content sm:text-3xl">
+              <h1 class="text-xl font-black tracking-[-0.02em] text-base-content sm:text-2xl">
                 Visão conjunta do compartilhamento
               </h1>
-              <p class="max-w-2xl text-sm leading-6 text-base-content/78">
-                Monitore total compartilhado, proporção entre contas e tendência recorrente sem sair do fluxo colaborativo.
-              </p>
             </div>
-            <.link navigate={~p"/account-links"} class="btn btn-outline btn-sm sm:btn-md">
+            <.link navigate={~p"/account-links"} class="btn btn-outline btn-sm">
               <.icon name="hero-arrow-left" class="size-4" /> Voltar para compartilhamentos
             </.link>
           </div>
         </header>
 
-        <section id="link-metrics-panel" class="surface-card rounded-3xl p-5 sm:p-6">
+        <section
+          id="global-shared-period-filter"
+          class="surface-card sticky top-3 z-20 rounded-3xl border border-base-content/10 bg-base-100/95 p-4 backdrop-blur"
+        >
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/72">
+                Filtro temporal global
+              </h2>
+              <p class="mt-1 text-xs text-base-content/62">
+                {format_reference_period_range(@global_filter_from_month, @global_filter_to_month)}
+              </p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button
+                id="global-period-preset-default-window"
+                type="button"
+                phx-click="apply_global_period_preset"
+                phx-value-preset="default_window"
+                class={
+                  period_preset_button_class(
+                    @global_filter_from_month,
+                    @global_filter_to_month,
+                    "default_window"
+                  )
+                }
+              >
+                -3/+3 (padrão)
+              </button>
+              <button
+                id="global-period-preset-current-month"
+                type="button"
+                phx-click="apply_global_period_preset"
+                phx-value-preset="current_month"
+                class={
+                  period_preset_button_class(
+                    @global_filter_from_month,
+                    @global_filter_to_month,
+                    "current_month"
+                  )
+                }
+              >
+                Mês atual
+              </button>
+              <button
+                id="global-period-preset-last-3-months"
+                type="button"
+                phx-click="apply_global_period_preset"
+                phx-value-preset="last_3_months"
+                class={
+                  period_preset_button_class(
+                    @global_filter_from_month,
+                    @global_filter_to_month,
+                    "last_3_months"
+                  )
+                }
+              >
+                Últimos 3
+              </button>
+              <button
+                id="global-period-preset-last-6-months"
+                type="button"
+                phx-click="apply_global_period_preset"
+                phx-value-preset="last_6_months"
+                class={
+                  period_preset_button_class(
+                    @global_filter_from_month,
+                    @global_filter_to_month,
+                    "last_6_months"
+                  )
+                }
+              >
+                Últimos 6
+              </button>
+            </div>
+          </div>
+
+          <.form
+            for={@global_filter_form}
+            id="global-period-custom-form"
+            phx-change="change_global_period_filter"
+            class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2"
+          >
+            <.input
+              field={@global_filter_form[:from_month]}
+              type="month"
+              label="De"
+              phx-debounce="350"
+            />
+            <.input
+              field={@global_filter_form[:to_month]}
+              type="month"
+              label="Até"
+              phx-debounce="350"
+            />
+          </.form>
+        </section>
+
+        <section id="link-metrics-panel" class="surface-card order-60 rounded-3xl p-5 sm:p-6">
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
               Resumo do período
             </h2>
             <span class="text-xs text-base-content/62">
-              {format_reference_period(@metrics, @selected_shared_period)}
+              {format_reference_period_range(@global_filter_from_month, @global_filter_to_month)}
             </span>
-          </div>
-
-          <div class="mt-4 flex flex-wrap gap-2">
-            <button
-              id="shared-period-filter-current-month"
-              type="button"
-              phx-click="set_shared_period"
-              phx-value-period="current_month"
-              class={[
-                "btn btn-xs",
-                @selected_shared_period == "current_month" && "btn-primary",
-                @selected_shared_period != "current_month" && "btn-soft"
-              ]}
-            >
-              Mês atual
-            </button>
-            <button
-              id="shared-period-filter-last-3-months"
-              type="button"
-              phx-click="set_shared_period"
-              phx-value-period="last_3_months"
-              class={[
-                "btn btn-xs",
-                @selected_shared_period == "last_3_months" && "btn-primary",
-                @selected_shared_period != "last_3_months" && "btn-soft"
-              ]}
-            >
-              Últimos 3 meses
-            </button>
-            <button
-              id="shared-period-filter-all"
-              type="button"
-              phx-click="set_shared_period"
-              phx-value-period="all"
-              class={[
-                "btn btn-xs",
-                @selected_shared_period == "all" && "btn-primary",
-                @selected_shared_period != "all" && "btn-soft"
-              ]}
-            >
-              Tudo
-            </button>
           </div>
 
           <div class="collab-stats-grid mt-4 grid gap-3 sm:grid-cols-3">
@@ -903,7 +1096,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
             </article>
           </div>
 
-          <div class="mt-4 grid gap-3 xl:grid-cols-2">
+          <div class="mt-4 grid gap-3">
             <article
               id="shared-balance-chart"
               class="micro-surface min-h-[15rem] overflow-x-auto rounded-2xl p-4"
@@ -918,28 +1111,10 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 {@shared_balance_chart}
               </div>
             </article>
-
-            <article
-              id="shared-trend-chart"
-              class="micro-surface min-h-[15rem] overflow-x-auto rounded-2xl p-4"
-            >
-              <div class="flex items-center justify-between gap-2">
-                <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/70">
-                  Tendência compartilhada
-                </h3>
-                <span class="text-[0.68rem] text-base-content/60">6 meses</span>
-              </div>
-              <div :if={@trend != []} class="contex-plot mt-2">
-                {@shared_trend_chart}
-              </div>
-              <p :if={@trend == []} class="mt-8 text-sm text-base-content/62">
-                Sem recorrentes variáveis compartilhados para gerar tendência.
-              </p>
-            </article>
           </div>
         </section>
 
-        <section class="surface-card rounded-3xl p-5 sm:p-6">
+        <section id="shared-entries-panel" class="surface-card order-30 rounded-3xl p-5 sm:p-6">
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
               Lançamentos compartilhados
@@ -1024,35 +1199,40 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </div>
         </section>
 
-        <section id="shared-debt-summary" class="surface-card rounded-3xl p-5 sm:p-6">
+        <section id="shared-debt-summary" class="surface-card order-10 rounded-3xl p-5 sm:p-6">
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
-              Dívidas por competência (mês atual + 3)
+              Dívidas por competência
             </h2>
+            <span class="text-xs text-base-content/62">
+              {format_reference_period_range(@global_filter_from_month, @global_filter_to_month)}
+            </span>
           </div>
 
-          <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <article
-              :for={summary <- @monthly_debt_summaries}
-              class="micro-surface rounded-2xl border border-base-content/10 p-4"
-            >
-              <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
-                {String.pad_leading(to_string(summary.reference_month), 2, "0")}/{summary.reference_year}
-              </p>
-              <p class="mt-2 text-xs text-base-content/70">
-                Total: {format_cents(summary.original_amount_cents)}
-              </p>
-              <p class="mt-1 text-sm font-semibold text-warning">
-                Em aberto: {format_cents(summary.outstanding_amount_cents)}
-              </p>
-              <p class="mt-2 text-[0.7rem] text-base-content/62">
-                Status: {monthly_status_label(summary.status)}
-              </p>
-            </article>
+          <div class="mt-4 overflow-x-auto">
+            <div class="grid min-w-[44rem] gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <article
+                :for={summary <- @monthly_debt_summaries}
+                class="micro-surface rounded-2xl border border-base-content/10 p-4"
+              >
+                <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
+                  {String.pad_leading(to_string(summary.reference_month), 2, "0")}/{summary.reference_year}
+                </p>
+                <p class="mt-2 text-xs text-base-content/70">
+                  Total: {format_cents(summary.original_amount_cents)}
+                </p>
+                <p class="mt-1 text-sm font-semibold text-warning">
+                  Em aberto: {format_cents(summary.outstanding_amount_cents)}
+                </p>
+                <p class="mt-2 text-[0.7rem] text-base-content/62">
+                  Status: {monthly_status_label(summary.status)}
+                </p>
+              </article>
+            </div>
           </div>
         </section>
 
-        <section id="shared-entry-debts-list" class="surface-card rounded-3xl p-5 sm:p-6">
+        <section id="shared-entry-debts-list" class="surface-card order-40 rounded-3xl p-5 sm:p-6">
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
               Dívidas por lançamento
@@ -1126,7 +1306,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </div>
         </section>
 
-        <section id="shared-payment-form-panel" class="surface-card rounded-3xl p-5 sm:p-6">
+        <section id="shared-payment-form-panel" class="surface-card order-20 rounded-3xl p-5 sm:p-6">
           <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
             Registrar pagamento
           </h2>
@@ -1209,7 +1389,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </.form>
         </section>
 
-        <section id="shared-payment-history" class="surface-card rounded-3xl p-5 sm:p-6">
+        <section id="shared-payment-history" class="surface-card order-70 rounded-3xl p-5 sm:p-6">
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
               Histórico de pagamentos e alocações
@@ -1305,13 +1485,27 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </div>
         </section>
 
-        <section id="shared-month-confirmation" class="surface-card rounded-3xl p-5 sm:p-6">
+        <section id="shared-month-confirmation" class="surface-card order-50 rounded-3xl p-5 sm:p-6">
           <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
             Fechamento mensal com confirmação bilateral
           </h2>
           <p class="mt-2 text-sm text-base-content/70">
             O mês só é fechado quando não há pendência e as duas contas confirmam o saldo final.
           </p>
+
+          <.form
+            for={@settlement_focus_form}
+            id="settlement-focus-form"
+            phx-change="change_settlement_focus_month"
+            class="mt-4 max-w-xs"
+          >
+            <.input
+              field={@settlement_focus_form[:month]}
+              type="select"
+              label="Competência para fechamento"
+              options={settlement_focus_options(@global_filter_from_month, @global_filter_to_month)}
+            />
+          </.form>
 
           <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
             <button
@@ -1399,7 +1593,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </section>
         </.app_modal>
 
-        <section id="recurring-variable-trend" class="surface-card rounded-3xl p-5 sm:p-6">
+        <section id="recurring-variable-trend" class="surface-card order-80 rounded-3xl p-5 sm:p-6">
           <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
             Tendência de recorrentes variáveis (6 meses)
           </h2>
@@ -1649,7 +1843,9 @@ defmodule OrganizerWeb.SharedFinanceLive do
   defp reload_shared_data(socket) do
     scope = socket.assigns.current_scope
     link_id = socket.assigns.link_id
-    selected_period = socket.assigns.selected_shared_period
+    from_month = socket.assigns.global_filter_from_month
+    to_month = socket.assigns.global_filter_to_month
+    settlement_focus_month = socket.assigns.settlement_focus_month
 
     shared_entries_page =
       Map.get(socket.assigns, :shared_entries_page, 1) |> parse_positive_page()
@@ -1663,42 +1859,52 @@ defmodule OrganizerWeb.SharedFinanceLive do
     shared_entries_filter_q = Map.get(socket.assigns, :shared_entries_filter_q, "")
     shared_entry_debts_filter_q = Map.get(socket.assigns, :shared_entry_debts_filter_q, "")
     settlement_records_filter_q = Map.get(socket.assigns, :settlement_records_filter_q, "")
+    range_params = %{from: from_month, to: to_month, reference_date: to_month}
 
     {:ok, {views, shared_entries_meta}} =
       SharedFinance.list_shared_entries_with_meta(scope, link_id, %{
-        period: selected_period,
+        from: from_month,
+        to: to_month,
+        reference_date: to_month,
         page: shared_entries_page,
         page_size: @shared_entries_page_size,
         q: shared_entries_filter_q
       })
 
-    {:ok, metrics} =
-      SharedFinance.get_link_metrics(scope, link_id, Date.utc_today(), %{period: selected_period})
+    {:ok, metrics} = SharedFinance.get_link_metrics(scope, link_id, to_month, range_params)
 
-    {:ok, trend} = SharedFinance.get_recurring_variable_trend(scope, link_id)
-    {:ok, cycle} = SharedFinance.get_or_create_settlement_cycle(scope, link_id, Date.utc_today())
+    {:ok, trend} = SharedFinance.get_recurring_variable_trend(scope, link_id, range_params)
+
+    {:ok, cycle} =
+      SharedFinance.get_or_create_settlement_cycle(scope, link_id, settlement_focus_month)
 
     {:ok, {debts, shared_entry_debts_meta}} =
       SharedFinance.list_shared_entry_debts_with_meta(scope, link_id, %{
+        from: from_month,
+        to: to_month,
+        reference_date: to_month,
         page: shared_entry_debts_page,
         page_size: @shared_entry_debts_page_size,
         q: shared_entry_debts_filter_q
       })
 
     {:ok, {records, settlement_records_meta}} =
-      SharedFinance.list_settlement_records_with_meta(scope, cycle.id, %{
+      SharedFinance.list_settlement_records_for_link_with_meta(scope, link_id, %{
+        from: from_month,
+        to: to_month,
+        reference_date: to_month,
         page: settlement_records_page,
         page_size: @settlement_records_page_size,
         q: settlement_records_filter_q
       })
 
-    {:ok, monthly_debt_summaries} = SharedFinance.monthly_debt_summaries(scope, link_id)
+    {:ok, monthly_debt_summaries} =
+      SharedFinance.monthly_debt_summaries(scope, link_id, range_params)
 
     socket
     |> assign(:metrics, metrics)
     |> assign(:trend, trend)
     |> assign(:shared_balance_chart, shared_balance_chart_svg(metrics))
-    |> assign(:shared_trend_chart, shared_trend_chart_svg(trend))
     |> assign(:shared_entries_count, shared_entries_meta.total_count || length(views))
     |> assign(:shared_entries_meta, shared_entries_meta)
     |> assign(:shared_entries_has_more?, Map.get(shared_entries_meta, :has_next_page?, false))
@@ -1728,6 +1934,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
       Map.get(shared_entry_debts_meta, :current_page, shared_entry_debts_page) + 1
     )
     |> assign(:settlement_cycle, cycle)
+    |> assign(:settlement_focus_form, settlement_focus_form(settlement_focus_month))
     |> assign(:settlement_records_count, settlement_records_meta.total_count || length(records))
     |> assign(:settlement_records_meta, settlement_records_meta)
     |> assign(
@@ -1752,11 +1959,14 @@ defmodule OrganizerWeb.SharedFinanceLive do
     reset? = Keyword.get(opts, :reset, true)
     scope = socket.assigns.current_scope
     link_id = socket.assigns.link_id
-    selected_period = socket.assigns.selected_shared_period
+    from_month = socket.assigns.global_filter_from_month
+    to_month = socket.assigns.global_filter_to_month
     filter_q = Map.get(socket.assigns, :shared_entries_filter_q, "")
 
     case SharedFinance.list_shared_entries_with_meta(scope, link_id, %{
-           period: selected_period,
+           from: from_month,
+           to: to_month,
+           reference_date: to_month,
            page: page,
            page_size: @shared_entries_page_size,
            q: filter_q
@@ -1795,9 +2005,14 @@ defmodule OrganizerWeb.SharedFinanceLive do
     reset? = Keyword.get(opts, :reset, true)
     scope = socket.assigns.current_scope
     link_id = socket.assigns.link_id
+    from_month = socket.assigns.global_filter_from_month
+    to_month = socket.assigns.global_filter_to_month
     filter_q = Map.get(socket.assigns, :shared_entry_debts_filter_q, "")
 
     case SharedFinance.list_shared_entry_debts_with_meta(scope, link_id, %{
+           from: from_month,
+           to: to_month,
+           reference_date: to_month,
            page: page,
            page_size: @shared_entry_debts_page_size,
            q: filter_q
@@ -1835,10 +2050,15 @@ defmodule OrganizerWeb.SharedFinanceLive do
   defp load_settlement_records(socket, page, opts) do
     reset? = Keyword.get(opts, :reset, true)
     scope = socket.assigns.current_scope
-    cycle = socket.assigns.settlement_cycle
+    link_id = socket.assigns.link_id
+    from_month = socket.assigns.global_filter_from_month
+    to_month = socket.assigns.global_filter_to_month
     filter_q = Map.get(socket.assigns, :settlement_records_filter_q, "")
 
-    case SharedFinance.list_settlement_records_with_meta(scope, cycle.id, %{
+    case SharedFinance.list_settlement_records_for_link_with_meta(scope, link_id, %{
+           from: from_month,
+           to: to_month,
+           reference_date: to_month,
            page: page,
            page_size: @settlement_records_page_size,
            q: filter_q
@@ -1942,8 +2162,13 @@ defmodule OrganizerWeb.SharedFinanceLive do
     end
   end
 
-  defp shared_entry_view_for_edit(scope, link_id, period, entry_id) do
-    with {:ok, views} <- SharedFinance.list_shared_entries(scope, link_id, %{period: period}),
+  defp shared_entry_view_for_edit(scope, link_id, from_month, to_month, entry_id) do
+    with {:ok, views} <-
+           SharedFinance.list_shared_entries(scope, link_id, %{
+             from: from_month,
+             to: to_month,
+             reference_date: to_month
+           }),
          %{} = view <- Enum.find(views, &(&1.entry.id == entry_id)) do
       {:ok, view}
     else
@@ -2498,14 +2723,9 @@ defmodule OrganizerWeb.SharedFinanceLive do
     |> String.reverse()
   end
 
-  defp format_reference_period(metrics, period) do
-    month = metrics.reference_month |> to_string() |> String.pad_leading(2, "0")
-    "#{shared_period_label(period)} • até #{month}/#{metrics.reference_year}"
+  defp format_reference_period_range(%Date{} = from_month, %Date{} = to_month) do
+    "#{format_month_param(from_month)} até #{format_month_param(to_month)}"
   end
-
-  defp shared_period_label("current_month"), do: "Mês atual"
-  defp shared_period_label("last_3_months"), do: "Últimos 3 meses"
-  defp shared_period_label(_), do: "Tudo"
 
   defp shared_balance_chart_svg(metrics) do
     data = [
@@ -2525,33 +2745,6 @@ defmodule OrganizerWeb.SharedFinanceLive do
     |> Plot.to_svg()
   end
 
-  defp shared_trend_chart_svg([]), do: nil
-
-  defp shared_trend_chart_svg(trend) do
-    data =
-      Enum.map(trend, fn mt ->
-        {"#{String.pad_leading(to_string(mt.month), 2, "0")}/#{mt.year}", mt.total_cents}
-      end)
-
-    dataset = Dataset.new(data, ["mês", "total"])
-
-    Plot.new(dataset, Contex.BarChart, 560, 260,
-      mapping: %{category_col: "mês", value_cols: ["total"]},
-      data_labels: false,
-      custom_value_formatter: &money_axis_formatter/1,
-      title: "Recorrentes variáveis compartilhados"
-    )
-    |> Plot.to_svg()
-  end
-
-  defp money_axis_formatter(value) when is_number(value) do
-    value
-    |> round()
-    |> format_cents()
-  end
-
-  defp money_axis_formatter(_), do: "R$ 0,00"
-
   defp shared_finance_path(socket, overrides) do
     params =
       socket
@@ -2562,7 +2755,11 @@ defmodule OrganizerWeb.SharedFinanceLive do
   end
 
   defp current_shared_finance_params(socket) do
-    %{"period" => socket.assigns.selected_shared_period}
+    %{
+      "from" => format_month_param(socket.assigns.global_filter_from_month),
+      "to" => format_month_param(socket.assigns.global_filter_to_month),
+      "settlement_month" => format_month_param(socket.assigns.settlement_focus_month)
+    }
     |> maybe_put_non_blank_param("shared_entries_q", socket.assigns.shared_entries_filter_q)
     |> maybe_put_non_blank_param(
       "shared_entry_debts_q",
@@ -2574,13 +2771,277 @@ defmodule OrganizerWeb.SharedFinanceLive do
     )
   end
 
-  @spec normalize_shared_period_filter(map()) :: String.t()
-  defp normalize_shared_period_filter(params) do
-    case Map.get(params, "period") do
-      "current_month" -> "current_month"
-      "last_3_months" -> "last_3_months"
-      _ -> "all"
+  defp shared_period_params(temporal_state) do
+    %{
+      from: temporal_state.from_month,
+      to: temporal_state.to_month,
+      reference_date: temporal_state.to_month
+    }
+  end
+
+  defp resolve_temporal_state(scope, link_id, params) do
+    {:ok, preference} = SharedFinance.get_view_preference(scope, link_id)
+
+    {from_month, to_month, patch_required?} =
+      case parse_global_filter_range(Map.get(params, "from"), Map.get(params, "to")) do
+        {:ok, from_month, to_month} ->
+          {from_month, to_month, false}
+
+        _ ->
+          case Map.get(params, "period") do
+            "current_month" ->
+              {:ok, from_month, to_month} = preset_to_month_range("current_month")
+              {from_month, to_month, true}
+
+            "last_3_months" ->
+              {:ok, from_month, to_month} = preset_to_month_range("last_3_months")
+              {from_month, to_month, true}
+
+            _ ->
+              case preference_month_range(preference) do
+                {:ok, from_month, to_month} ->
+                  {from_month, to_month, true}
+
+                :error ->
+                  {:ok, from_month, to_month} = preset_to_month_range("default_window")
+                  {from_month, to_month, true}
+              end
+          end
+      end
+
+    settlement_candidate =
+      case parse_month_param(Map.get(params, "settlement_month")) do
+        {:ok, month} ->
+          month
+
+        :error ->
+          preference_settlement_focus(preference) || to_month
+      end
+
+    settlement_focus_month = clamp_month_to_range(settlement_candidate, from_month, to_month)
+
+    patch_params = %{
+      "from" => format_month_param(from_month),
+      "to" => format_month_param(to_month),
+      "settlement_month" => format_month_param(settlement_focus_month)
+    }
+
+    clamped_settlement_focus? =
+      Date.compare(settlement_candidate, settlement_focus_month) != :eq
+
+    %{
+      from_month: from_month,
+      to_month: to_month,
+      settlement_focus_month: settlement_focus_month,
+      patch_required?:
+        patch_required? or Map.get(params, "period") in ["current_month", "last_3_months", "all"] or
+          Map.get(params, "from") != patch_params["from"] or
+          Map.get(params, "to") != patch_params["to"] or
+          Map.get(params, "settlement_month") != patch_params["settlement_month"],
+      patch_params: patch_params,
+      clamped_settlement_focus?: clamped_settlement_focus?
+    }
+  end
+
+  defp apply_global_period_filter(socket, from_month, to_month) do
+    settlement_focus_month =
+      clamp_month_to_range(socket.assigns.settlement_focus_month, from_month, to_month)
+
+    _ =
+      SharedFinance.upsert_view_preference(
+        socket.assigns.current_scope,
+        socket.assigns.link_id,
+        %{
+          from_year: from_month.year,
+          from_month: from_month.month,
+          to_year: to_month.year,
+          to_month: to_month.month,
+          settlement_focus_year: settlement_focus_month.year,
+          settlement_focus_month: settlement_focus_month.month
+        }
+      )
+
+    clamp_flash? =
+      Date.compare(settlement_focus_month, socket.assigns.settlement_focus_month) != :eq
+
+    {:noreply,
+     socket
+     |> maybe_info_feedback(
+       clamp_flash?,
+       "Competência ajustada ao período ativo",
+       "O fechamento mensal foi alinhado ao mês final do filtro"
+     )
+     |> assign(:global_filter_form, global_filter_form(from_month, to_month))
+     |> push_patch(
+       to:
+         shared_finance_path(socket, %{
+           "from" => format_month_param(from_month),
+           "to" => format_month_param(to_month),
+           "settlement_month" => format_month_param(settlement_focus_month)
+         })
+     )}
+  end
+
+  defp parse_global_filter_range(from_value, to_value) do
+    from_result = parse_month_param(from_value)
+    to_result = parse_month_param(to_value)
+
+    case {from_result, to_result} do
+      {{:ok, from_month}, {:ok, to_month}} ->
+        months_total = months_between_inclusive(from_month, to_month)
+
+        cond do
+          months_total < 1 -> {:error, :invalid_month_range}
+          months_total > @global_filter_max_months -> {:error, :invalid_month_range}
+          true -> {:ok, from_month, to_month}
+        end
+
+      {:error, :error} ->
+        {:error, :missing}
+
+      _ ->
+        {:error, :incomplete_range}
     end
+  end
+
+  defp parse_month_param(value) when is_binary(value) do
+    cleaned = String.trim(value)
+
+    case String.split(cleaned, "-", parts: 2) do
+      [year_text, month_text] ->
+        with {year, ""} <- Integer.parse(year_text),
+             {month, ""} <- Integer.parse(month_text),
+             true <- month >= 1 and month <= 12,
+             {:ok, date} <- Date.new(year, month, 1) do
+          {:ok, date}
+        else
+          _ -> :error
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  defp parse_month_param(_), do: :error
+
+  defp format_month_param(%Date{} = month) do
+    "#{month.year}-#{month.month |> Integer.to_string() |> String.pad_leading(2, "0")}"
+  end
+
+  defp global_filter_form(from_month, to_month) do
+    to_form(
+      %{
+        "from_month" => format_month_param(from_month),
+        "to_month" => format_month_param(to_month)
+      },
+      as: :period_filter
+    )
+  end
+
+  defp settlement_focus_form(month) do
+    to_form(%{"month" => format_month_param(month)}, as: :settlement_filter)
+  end
+
+  defp settlement_focus_options(from_month, to_month) do
+    from_month
+    |> enumerate_months(to_month)
+    |> Enum.map(fn month ->
+      month_label =
+        month.month
+        |> Integer.to_string()
+        |> String.pad_leading(2, "0")
+        |> Kernel.<>("/#{month.year}")
+
+      {month_label, format_month_param(month)}
+    end)
+  end
+
+  defp preference_month_range(nil), do: :error
+
+  defp preference_month_range(preference) do
+    with {:ok, from_month} <- build_month_date(preference.from_year, preference.from_month),
+         {:ok, to_month} <- build_month_date(preference.to_year, preference.to_month),
+         months_total <- months_between_inclusive(from_month, to_month),
+         true <- months_total >= 1 and months_total <= @global_filter_max_months do
+      {:ok, from_month, to_month}
+    else
+      _ -> :error
+    end
+  end
+
+  defp preference_settlement_focus(nil), do: nil
+
+  defp preference_settlement_focus(preference) do
+    case build_month_date(preference.settlement_focus_year, preference.settlement_focus_month) do
+      {:ok, month} -> month
+      _ -> nil
+    end
+  end
+
+  defp build_month_date(year, month) when is_integer(year) and is_integer(month) do
+    Date.new(year, month, 1)
+  end
+
+  defp build_month_date(_, _), do: :error
+
+  defp preset_to_month_range(preset) do
+    case Map.get(@global_filter_presets, preset) do
+      {from_offset, to_offset} ->
+        current_month = Date.beginning_of_month(Date.utc_today())
+        {:ok, shift_months(current_month, from_offset), shift_months(current_month, to_offset)}
+
+      nil ->
+        :error
+    end
+  end
+
+  defp period_preset_button_class(from_month, to_month, preset) do
+    class_active = "btn btn-xs btn-primary"
+    class_inactive = "btn btn-xs btn-soft"
+
+    case preset_to_month_range(preset) do
+      {:ok, preset_from, preset_to} ->
+        if Date.compare(from_month, preset_from) == :eq and
+             Date.compare(to_month, preset_to) == :eq do
+          class_active
+        else
+          class_inactive
+        end
+
+      :error ->
+        class_inactive
+    end
+  end
+
+  defp clamp_month_to_range(%Date{} = month, %Date{} = from_month, %Date{} = to_month) do
+    cond do
+      Date.compare(month, from_month) == :lt -> to_month
+      Date.compare(month, to_month) == :gt -> to_month
+      true -> month
+    end
+  end
+
+  defp months_between_inclusive(%Date{} = from_month, %Date{} = to_month) do
+    from_index = from_month.year * 12 + from_month.month
+    to_index = to_month.year * 12 + to_month.month
+    to_index - from_index + 1
+  end
+
+  defp enumerate_months(%Date{} = from_month, %Date{} = to_month) do
+    total = months_between_inclusive(from_month, to_month)
+
+    Enum.map(0..(total - 1), fn offset ->
+      shift_months(from_month, offset)
+    end)
+  end
+
+  defp shift_months(%Date{} = date, delta_months) when is_integer(delta_months) do
+    month_index = date.year * 12 + (date.month - 1) + delta_months
+    new_year = div(month_index, 12)
+    new_month = rem(month_index, 12) + 1
+
+    Date.new!(new_year, new_month, 1)
   end
 
   defp normalize_list_filter_q(value) when is_binary(value), do: String.trim(value)
@@ -2607,6 +3068,12 @@ defmodule OrganizerWeb.SharedFinanceLive do
   defp info_feedback(socket, happened, next_step) do
     put_flash(socket, :info, FlashFeedback.compose(happened, next_step))
   end
+
+  defp maybe_info_feedback(socket, true, happened, next_step) do
+    info_feedback(socket, happened, next_step)
+  end
+
+  defp maybe_info_feedback(socket, false, _happened, _next_step), do: socket
 
   defp error_feedback(socket, happened, next_step) do
     put_flash(socket, :error, FlashFeedback.compose(happened, next_step))

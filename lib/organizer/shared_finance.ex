@@ -21,8 +21,12 @@ defmodule Organizer.SharedFinance do
     SettlementRecord,
     SharedEntryDebt,
     SettlementRecordAllocation,
-    MonthlyDebtSummary
+    MonthlyDebtSummary,
+    MonthlyTotal,
+    ViewPreference
   }
+
+  @global_filter_max_months 12
 
   # ---------------------------------------------------------------------------
   # Convites e vínculos
@@ -158,6 +162,75 @@ defmodule Organizer.SharedFinance do
     case Repo.one(query) do
       nil -> {:error, :not_found}
       link -> {:ok, link}
+    end
+  end
+
+  @doc """
+  Returns the stored shared-finance view preference for a given user/link pair.
+  """
+  def get_view_preference(scope, link_id) do
+    with {:ok, _link} <- get_account_link(scope, link_id) do
+      preference =
+        Repo.get_by(ViewPreference, user_id: scope.user.id, account_link_id: link_id)
+
+      {:ok, preference}
+    end
+  end
+
+  @doc """
+  Upserts shared-finance view preference for a given user/link pair.
+  """
+  def upsert_view_preference(scope, link_id, attrs) when is_map(attrs) do
+    with {:ok, _link} <- get_account_link(scope, link_id) do
+      base =
+        Repo.get_by(ViewPreference, user_id: scope.user.id, account_link_id: link_id) ||
+          %ViewPreference{user_id: scope.user.id, account_link_id: link_id}
+
+      base
+      |> ViewPreference.changeset(attrs)
+      |> Ecto.Changeset.put_change(:user_id, scope.user.id)
+      |> Ecto.Changeset.put_change(:account_link_id, link_id)
+      |> Repo.insert_or_update()
+    end
+  end
+
+  @doc """
+  Normalizes an inclusive month range from params.
+
+  Supports new `from`/`to` params (`YYYY-MM`) and legacy `period` values.
+  Returns `{:ok, %{from: date | nil, to: date | nil, source: atom}}` or
+  `{:error, reason}`.
+  """
+  def normalize_month_range(params, reference_date \\ Date.utc_today()) when is_map(params) do
+    from_value = Map.get(params, :from) || Map.get(params, "from")
+    to_value = Map.get(params, :to) || Map.get(params, "to")
+
+    with {:ok, from_month} <- parse_month_value(from_value),
+         {:ok, to_month} <- parse_month_value(to_value) do
+      cond do
+        is_nil(from_month) and is_nil(to_month) ->
+          case normalize_shared_period(params) do
+            "current_month" ->
+              month = Date.beginning_of_month(reference_date)
+              {:ok, %{from: month, to: month, source: :legacy_period}}
+
+            "last_3_months" ->
+              to_month = Date.beginning_of_month(reference_date)
+              from_month = shift_months(to_month, -2)
+              {:ok, %{from: from_month, to: to_month, source: :legacy_period}}
+
+            _ ->
+              {:ok, %{from: nil, to: nil, source: :open_end}}
+          end
+
+        is_nil(from_month) or is_nil(to_month) ->
+          {:error, :incomplete_range}
+
+        true ->
+          with :ok <- validate_month_range(from_month, to_month) do
+            {:ok, %{from: from_month, to: to_month, source: :explicit_range}}
+          end
+      end
     end
   end
 
@@ -319,7 +392,7 @@ defmodule Organizer.SharedFinance do
 
     with {:ok, _link} <- get_account_link(scope, link_id),
          %FinanceEntry{} = entry <- shared_entry_owned_by_user(user_id, link_id, entry_id),
-         false <- shared_entry_has_allocations?(entry.id),
+         :ok <- ensure_no_allocations(entry.id),
          {:ok, updated_attrs} <- normalize_shared_entry_update_attrs(entry, attrs),
          {:ok, updated_entry} <- entry |> FinanceEntry.changeset(updated_attrs) |> Repo.update() do
       {:ok, link} = get_account_link(scope, link_id)
@@ -331,7 +404,7 @@ defmodule Organizer.SharedFinance do
       nil ->
         {:error, :not_found}
 
-      true ->
+      {:error, :shared_entry_has_allocations} ->
         {:error, {:validation, %{shared_entry: ["cannot be changed after payment allocation"]}}}
 
       {:error, _reason} = error ->
@@ -363,67 +436,73 @@ defmodule Organizer.SharedFinance do
         {:error, :not_found}
 
       {:ok, link} ->
-        period = normalize_shared_period(params)
-
         reference_date =
           normalize_reference_date(
             Map.get(params, :reference_date) || Map.get(params, "reference_date")
           )
 
-        persist_snapshots? = normalize_persist_snapshots_flag(params)
+        with {:ok, month_range} <- normalize_month_range(params, reference_date) do
+          persist_snapshots? = normalize_persist_snapshots_flag(params)
 
-        query =
-          from(fe in FinanceEntry, where: fe.shared_with_link_id == ^link_id)
-          |> maybe_filter_shared_entries_query(params)
-          |> apply_shared_period_filter_query(period, reference_date)
+          query =
+            from(fe in FinanceEntry, where: fe.shared_with_link_id == ^link_id)
+            |> maybe_filter_shared_entries_query(params)
+            |> apply_shared_month_range_filter_query(month_range, :occurred_on)
 
-        with {:ok, {entries, meta}} <-
-               Flop.validate_and_run(query, shared_flop_params(params),
-                 for: FinanceEntry,
-                 repo: Repo
-               ) do
-          user_id = scope.user.id
+          with {:ok, {entries, meta}} <-
+                 Flop.validate_and_run(query, shared_flop_params(params),
+                   for: FinanceEntry,
+                   repo: Repo
+                 ) do
+            user_id = scope.user.id
 
-          {views, _income_context_cache} =
-            Enum.map_reduce(entries, %{}, fn entry, income_context_cache ->
-              {entry_reference_date, income_context} =
-                income_context_for_entry(entry, link, income_context_cache)
+            {views, _income_context_cache} =
+              Enum.map_reduce(entries, %{}, fn entry, income_context_cache ->
+                {entry_reference_date, income_context} =
+                  income_context_for_entry(entry, link, income_context_cache)
 
-              updated_cache =
-                Map.put(
-                  income_context_cache,
-                  {entry_reference_date.year, entry_reference_date.month},
+                updated_cache =
+                  Map.put(
+                    income_context_cache,
+                    {entry_reference_date.year, entry_reference_date.month},
+                    income_context
+                  )
+
+                split = resolve_entry_split(entry, link, income_context)
+
+                maybe_persist_split_snapshot(
+                  persist_snapshots?,
+                  entry,
+                  link,
+                  entry_reference_date,
+                  split,
                   income_context
                 )
 
-              split = resolve_entry_split(entry, link, income_context)
+                scoped_split = scope_split_for_user(split, user_id, link)
 
-              maybe_persist_split_snapshot(
-                persist_snapshots?,
-                entry,
-                link,
-                entry_reference_date,
-                split,
-                income_context
-              )
+                view = %SharedEntryView{
+                  entry: entry,
+                  split_ratio_mine: scoped_split.ratio_mine,
+                  split_ratio_theirs: scoped_split.ratio_theirs,
+                  amount_mine_cents: scoped_split.amount_mine_cents,
+                  amount_theirs_cents: scoped_split.amount_theirs_cents
+                }
 
-              scoped_split = scope_split_for_user(split, user_id, link)
+                {view, updated_cache}
+              end)
 
-              view = %SharedEntryView{
-                entry: entry,
-                split_ratio_mine: scoped_split.ratio_mine,
-                split_ratio_theirs: scoped_split.ratio_theirs,
-                amount_mine_cents: scoped_split.amount_mine_cents,
-                amount_theirs_cents: scoped_split.amount_theirs_cents
-              }
-
-              {view, updated_cache}
-            end)
-
-          {:ok, {views, meta}}
+            {:ok, {views, meta}}
+          else
+            {:error, %Flop.Meta{} = meta} ->
+              {:error, {:validation, %{pagination: flop_error_messages(meta)}}}
+          end
         else
-          {:error, %Flop.Meta{} = meta} ->
-            {:error, {:validation, %{pagination: flop_error_messages(meta)}}}
+          {:error, :invalid_month_range} ->
+            {:error, {:validation, %{period: ["invalid month range"]}}}
+
+          {:error, :incomplete_range} ->
+            {:error, {:validation, %{period: ["from/to must both be set"]}}}
         end
     end
   end
@@ -466,13 +545,14 @@ defmodule Organizer.SharedFinance do
         {:error, :not_found}
 
       {:ok, link} ->
-        period = normalize_shared_period(params)
-
         {:ok, filtered_views} =
-          list_shared_entries(scope, link_id, %{
-            period: period,
-            reference_date: reference_month
-          })
+          list_shared_entries(
+            scope,
+            link_id,
+            params
+            |> Map.new()
+            |> Map.put_new(:reference_date, reference_month)
+          )
 
         income_a =
           SplitCalculator.calculate_reference_income_with_carryover(
@@ -514,15 +594,22 @@ defmodule Organizer.SharedFinance do
   Returns the monthly trend of recurring_variable shared entries for the last 6 months.
   Returns `{:ok, [%MonthlyTotal{}]}`.
   """
-  def get_recurring_variable_trend(scope, link_id) do
+  def get_recurring_variable_trend(scope, link_id, params \\ %{}) do
     case get_account_link(scope, link_id) do
       {:error, :not_found} ->
         {:error, :not_found}
 
       {:ok, _link} ->
-        {:ok, all_views} = list_shared_entries(scope, link_id)
-        trend = LinkMetricsCalculator.calculate_recurring_variable_trend(all_views, 6)
-        {:ok, trend}
+        reference_date =
+          normalize_reference_date(
+            Map.get(params, :reference_date) || Map.get(params, "reference_date")
+          )
+
+        with {:ok, month_range} <- normalize_month_range(params, reference_date),
+             {:ok, all_views} <- list_shared_entries(scope, link_id, params) do
+          trend = calculate_recurring_variable_trend_within_period(all_views, month_range)
+          {:ok, trend}
+        end
     end
   end
 
@@ -913,6 +1000,48 @@ defmodule Organizer.SharedFinance do
     end
   end
 
+  def list_settlement_records_for_link_with_meta(scope, link_id, params \\ %{}) do
+    case get_account_link(scope, link_id) do
+      {:error, :not_found} ->
+        {:error, :not_found}
+
+      {:ok, _link} ->
+        reference_date =
+          normalize_reference_date(
+            Map.get(params, :reference_date) || Map.get(params, "reference_date")
+          )
+
+        with {:ok, month_range} <- normalize_month_range(params, reference_date) do
+          query =
+            from(sr in SettlementRecord,
+              join: sc in SettlementCycle,
+              on: sc.id == sr.settlement_cycle_id,
+              where: sc.account_link_id == ^link_id,
+              preload: [:reversed_by, allocations: [shared_entry_debt: :finance_entry]]
+            )
+            |> apply_shared_month_range_filter_query(month_range, :transferred_at)
+            |> maybe_filter_settlement_records_query(params)
+
+          case Flop.validate_and_run(query, shared_flop_params(params),
+                 for: SettlementRecord,
+                 repo: Repo
+               ) do
+            {:ok, {records, meta}} ->
+              {:ok, {records, meta}}
+
+            {:error, %Flop.Meta{} = meta} ->
+              {:error, {:validation, %{pagination: flop_error_messages(meta)}}}
+          end
+        else
+          {:error, :invalid_month_range} ->
+            {:error, {:validation, %{period: ["invalid month range"]}}}
+
+          {:error, :incomplete_range} ->
+            {:error, {:validation, %{period: ["from/to must both be set"]}}}
+        end
+    end
+  end
+
   @doc """
   Lists all SettlementCycles for a given AccountLink, ordered by (reference_year DESC, reference_month DESC).
   """
@@ -938,44 +1067,60 @@ defmodule Organizer.SharedFinance do
   """
   def list_shared_entry_debts(scope, link_id, opts \\ %{}) do
     with {:ok, _link} <- get_account_link(scope, link_id) do
-      statuses =
-        opts
-        |> extract_statuses_option(SharedEntryDebt.statuses())
+      reference_date =
+        normalize_reference_date(
+          Map.get(opts, :reference_date) || Map.get(opts, "reference_date")
+        )
 
-      from(d in SharedEntryDebt,
-        where: d.account_link_id == ^link_id and d.status in ^statuses,
-        preload: [:finance_entry],
-        order_by: [asc: d.reference_year, asc: d.reference_month, asc: d.id]
-      )
-      |> Repo.all()
-      |> then(&{:ok, &1})
+      with {:ok, month_range} <- normalize_month_range(opts, reference_date) do
+        statuses =
+          opts
+          |> extract_statuses_option(SharedEntryDebt.statuses())
+
+        from(d in SharedEntryDebt,
+          where: d.account_link_id == ^link_id and d.status in ^statuses,
+          preload: [:finance_entry],
+          order_by: [asc: d.reference_year, asc: d.reference_month, asc: d.id]
+        )
+        |> apply_shared_debt_month_range_filter_query(month_range)
+        |> Repo.all()
+        |> then(&{:ok, &1})
+      end
     end
   end
 
   def list_shared_entry_debts_with_meta(scope, link_id, opts \\ %{}) do
     with {:ok, _link} <- get_account_link(scope, link_id) do
-      statuses =
-        opts
-        |> extract_statuses_option(SharedEntryDebt.statuses())
-
-      query =
-        from(d in SharedEntryDebt,
-          where: d.account_link_id == ^link_id and d.status in ^statuses,
-          join: fe in assoc(d, :finance_entry),
-          preload: [finance_entry: fe],
-          order_by: [asc: d.reference_year, asc: d.reference_month, asc: d.id]
+      reference_date =
+        normalize_reference_date(
+          Map.get(opts, :reference_date) || Map.get(opts, "reference_date")
         )
-        |> maybe_filter_shared_entry_debts_query(opts)
 
-      case Flop.validate_and_run(query, shared_flop_params(opts),
-             for: SharedEntryDebt,
-             repo: Repo
-           ) do
-        {:ok, {debts, meta}} ->
-          {:ok, {debts, meta}}
+      with {:ok, month_range} <- normalize_month_range(opts, reference_date) do
+        statuses =
+          opts
+          |> extract_statuses_option(SharedEntryDebt.statuses())
 
-        {:error, %Flop.Meta{} = meta} ->
-          {:error, {:validation, %{pagination: flop_error_messages(meta)}}}
+        query =
+          from(d in SharedEntryDebt,
+            where: d.account_link_id == ^link_id and d.status in ^statuses,
+            join: fe in assoc(d, :finance_entry),
+            preload: [finance_entry: fe],
+            order_by: [asc: d.reference_year, asc: d.reference_month, asc: d.id]
+          )
+          |> apply_shared_debt_month_range_filter_query(month_range)
+          |> maybe_filter_shared_entry_debts_query(opts)
+
+        case Flop.validate_and_run(query, shared_flop_params(opts),
+               for: SharedEntryDebt,
+               repo: Repo
+             ) do
+          {:ok, {debts, meta}} ->
+            {:ok, {debts, meta}}
+
+          {:error, %Flop.Meta{} = meta} ->
+            {:error, {:validation, %{pagination: flop_error_messages(meta)}}}
+        end
       end
     end
   end
@@ -1004,20 +1149,35 @@ defmodule Organizer.SharedFinance do
   """
   def monthly_debt_summaries(scope, link_id, opts \\ %{}) do
     with {:ok, _link} <- get_account_link(scope, link_id) do
-      months_ahead =
-        opts
-        |> Map.get(:months_ahead, Map.get(opts, "months_ahead", 3))
-        |> parse_positive_integer_or_default(3)
+      reference_date =
+        normalize_reference_date(
+          Map.get(opts, :reference_date) || Map.get(opts, "reference_date")
+        )
 
-      start = Date.beginning_of_month(Date.utc_today())
+      case normalize_month_range(opts, reference_date) do
+        {:ok, %{from: %Date{} = from_month, to: %Date{} = to_month}} ->
+          summaries =
+            enumerate_months(from_month, to_month)
+            |> Enum.map(&build_monthly_debt_summary(link_id, &1))
 
-      summaries =
-        Enum.map(0..months_ahead, fn offset ->
-          date = shift_months(start, offset)
-          build_monthly_debt_summary(link_id, date)
-        end)
+          {:ok, summaries}
 
-      {:ok, summaries}
+        _ ->
+          months_ahead =
+            opts
+            |> Map.get(:months_ahead, Map.get(opts, "months_ahead", 3))
+            |> parse_positive_integer_or_default(3)
+
+          start = Date.beginning_of_month(Date.utc_today())
+
+          summaries =
+            Enum.map(0..months_ahead, fn offset ->
+              date = shift_months(start, offset)
+              build_monthly_debt_summary(link_id, date)
+            end)
+
+          {:ok, summaries}
+      end
     end
   end
 
@@ -1142,6 +1302,14 @@ defmodule Organizer.SharedFinance do
         on: sr.id == a.settlement_record_id,
         where: d.finance_entry_id == ^entry_id and sr.status == :active
     )
+  end
+
+  defp ensure_no_allocations(entry_id) do
+    if shared_entry_has_allocations?(entry_id) do
+      {:error, :shared_entry_has_allocations}
+    else
+      :ok
+    end
   end
 
   defp debt_snapshot_for_entry(entry, link) do
@@ -1924,7 +2092,7 @@ defmodule Organizer.SharedFinance do
     end
   end
 
-  defp normalize_shared_period(params) when is_map(params) do
+  defp normalize_shared_period(params) do
     period = Map.get(params, :period) || Map.get(params, "period")
 
     case to_string(period) do
@@ -1934,8 +2102,6 @@ defmodule Organizer.SharedFinance do
       _ -> "all"
     end
   end
-
-  defp normalize_shared_period(_params), do: "all"
 
   defp normalize_persist_snapshots_flag(params) when is_map(params) do
     value = Map.get(params, :persist_snapshots, Map.get(params, "persist_snapshots", true))
@@ -1952,29 +2118,162 @@ defmodule Organizer.SharedFinance do
   defp normalize_reference_date(%Date{} = date), do: date
   defp normalize_reference_date(_), do: Date.utc_today()
 
-  defp apply_shared_period_filter_query(query, "all", reference_date) do
-    end_on = Date.end_of_month(reference_date)
-    from f in query, where: f.occurred_on <= ^end_on
+  defp apply_shared_month_range_filter_query(query, %{from: from_month, to: to_month}, date_field) do
+    query
+    |> maybe_apply_from_month_filter(from_month, date_field)
+    |> maybe_apply_to_month_filter(to_month, date_field)
   end
 
-  defp apply_shared_period_filter_query(query, period, reference_date) do
-    end_on = Date.end_of_month(reference_date)
+  defp maybe_apply_from_month_filter(query, nil, _field), do: query
 
-    start_on =
-      case period do
-        "current_month" ->
-          Date.beginning_of_month(reference_date)
+  defp maybe_apply_from_month_filter(query, %Date{} = from_month, :occurred_on) do
+    from f in query, where: f.occurred_on >= ^Date.beginning_of_month(from_month)
+  end
 
-        "last_3_months" ->
-          reference_date
-          |> shift_months(-2)
-          |> Date.beginning_of_month()
+  defp maybe_apply_from_month_filter(query, %Date{} = from_month, :transferred_at) do
+    from_dt = month_start_datetime_utc(from_month)
+    from sr in query, where: sr.transferred_at >= ^from_dt
+  end
 
-        _ ->
-          Date.beginning_of_month(reference_date)
+  defp maybe_apply_to_month_filter(query, nil, _field), do: query
+
+  defp maybe_apply_to_month_filter(query, %Date{} = to_month, :occurred_on) do
+    from f in query, where: f.occurred_on <= ^Date.end_of_month(to_month)
+  end
+
+  defp maybe_apply_to_month_filter(query, %Date{} = to_month, :transferred_at) do
+    to_dt = month_end_datetime_utc(to_month)
+    from sr in query, where: sr.transferred_at <= ^to_dt
+  end
+
+  defp apply_shared_debt_month_range_filter_query(
+         query,
+         %{from: from_month, to: to_month}
+       ) do
+    query
+    |> maybe_apply_debt_from_month_filter(from_month)
+    |> maybe_apply_debt_to_month_filter(to_month)
+  end
+
+  defp maybe_apply_debt_from_month_filter(query, nil), do: query
+
+  defp maybe_apply_debt_from_month_filter(query, %Date{} = from_month) do
+    from_index = month_index(from_month.year, from_month.month)
+
+    from d in query,
+      where: fragment("(? * 12 + (? - 1)) >= ?", d.reference_year, d.reference_month, ^from_index)
+  end
+
+  defp maybe_apply_debt_to_month_filter(query, nil), do: query
+
+  defp maybe_apply_debt_to_month_filter(query, %Date{} = to_month) do
+    to_index = month_index(to_month.year, to_month.month)
+
+    from d in query,
+      where: fragment("(? * 12 + (? - 1)) <= ?", d.reference_year, d.reference_month, ^to_index)
+  end
+
+  defp month_start_datetime_utc(%Date{} = date) do
+    DateTime.new!(Date.beginning_of_month(date), ~T[00:00:00], "Etc/UTC")
+  end
+
+  defp month_end_datetime_utc(%Date{} = date) do
+    DateTime.new!(Date.end_of_month(date), ~T[23:59:59], "Etc/UTC")
+  end
+
+  defp parse_month_value(nil), do: {:ok, nil}
+  defp parse_month_value(""), do: {:ok, nil}
+
+  defp parse_month_value(%Date{} = date) do
+    {:ok, Date.beginning_of_month(date)}
+  end
+
+  defp parse_month_value(value) when is_binary(value) do
+    cleaned = String.trim(value)
+
+    case String.split(cleaned, "-", parts: 2) do
+      [year_text, month_text] ->
+        with {year, ""} <- Integer.parse(year_text),
+             {month, ""} <- Integer.parse(month_text),
+             {:ok, date} <- Date.new(year, month, 1) do
+          {:ok, date}
+        else
+          _ -> {:error, :invalid_month_range}
+        end
+
+      _ ->
+        {:error, :invalid_month_range}
+    end
+  end
+
+  defp parse_month_value(_), do: {:error, :invalid_month_range}
+
+  defp validate_month_range(%Date{} = from_month, %Date{} = to_month) do
+    from_index = month_index(from_month.year, from_month.month)
+    to_index = month_index(to_month.year, to_month.month)
+    total_months = to_index - from_index + 1
+
+    cond do
+      total_months < 1 ->
+        {:error, :invalid_month_range}
+
+      total_months > @global_filter_max_months ->
+        {:error, :invalid_month_range}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp enumerate_months(%Date{} = from_month, %Date{} = to_month) do
+    from_index = month_index(from_month.year, from_month.month)
+    to_index = month_index(to_month.year, to_month.month)
+
+    Enum.map(from_index..to_index, fn index ->
+      year = div(index, 12)
+      month = rem(index, 12) + 1
+      Date.new!(year, month, 1)
+    end)
+  end
+
+  defp month_index(year, month), do: year * 12 + (month - 1)
+
+  defp calculate_recurring_variable_trend_within_period(
+         shared_entries,
+         %{from: from_month, to: to_month}
+       ) do
+    anchor_month =
+      case to_month do
+        %Date{} = month -> month
+        nil -> Date.beginning_of_month(Date.utc_today())
       end
 
-    from f in query, where: f.occurred_on >= ^start_on and f.occurred_on <= ^end_on
+    window_from = shift_months(anchor_month, -5)
+
+    bounded_from =
+      if is_nil(from_month), do: window_from, else: max_month(from_month, window_from)
+
+    window_start = Date.beginning_of_month(bounded_from)
+    window_end = Date.end_of_month(anchor_month)
+
+    shared_entries
+    |> Enum.filter(fn se ->
+      se.entry.expense_profile == :recurring_variable and
+        Date.compare(se.entry.occurred_on, window_start) != :lt and
+        Date.compare(se.entry.occurred_on, window_end) != :gt
+    end)
+    |> Enum.group_by(fn se ->
+      {se.entry.occurred_on.year, se.entry.occurred_on.month}
+    end)
+    |> Enum.map(fn {{year, month}, entries} ->
+      total = Enum.sum(Enum.map(entries, & &1.entry.amount_cents))
+      %MonthlyTotal{year: year, month: month, total_cents: total}
+    end)
+    |> Enum.sort_by(fn mt -> {mt.year, mt.month} end)
+  end
+
+  defp max_month(%Date{} = left, %Date{} = right) do
+    if Date.compare(left, right) == :lt, do: right, else: left
   end
 
   defp maybe_filter_account_links_query(query, params) do
@@ -2045,9 +2344,10 @@ defmodule Organizer.SharedFinance do
 
   defp extract_filter_q(_params), do: nil
 
-  defp extract_statuses_option(opts, default_statuses) when is_map(opts) do
-    opts
-    |> Map.get(:statuses, Map.get(opts, "statuses", default_statuses))
+  defp extract_statuses_option(opts, default_statuses) do
+    statuses = Map.get(opts, :statuses, Map.get(opts, "statuses", default_statuses))
+
+    statuses
     |> List.wrap()
     |> Enum.map(fn
       status when is_atom(status) -> status
@@ -2057,8 +2357,6 @@ defmodule Organizer.SharedFinance do
     |> Enum.reject(&is_nil/1)
     |> Enum.filter(&(&1 in SharedEntryDebt.statuses()))
   end
-
-  defp extract_statuses_option(_opts, default_statuses), do: default_statuses
 
   defp parse_status_atom(value) when is_binary(value) do
     value
