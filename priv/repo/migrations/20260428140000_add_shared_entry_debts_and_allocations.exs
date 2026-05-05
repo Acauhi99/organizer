@@ -7,7 +7,6 @@ defmodule Organizer.Repo.Migrations.AddSharedEntryDebtsAndAllocations do
   alias Organizer.Repo
   alias Organizer.SharedFinance.AccountLink
   alias Organizer.SharedFinance.SettlementCycle
-  alias Organizer.SharedFinance.SettlementRecord
   alias Organizer.SharedFinance.SplitCalculator
 
   defmodule SharedEntryDebtMigration do
@@ -41,6 +40,24 @@ defmodule Organizer.Repo.Migrations.AddSharedEntryDebtsAndAllocations do
       field(:settlement_record_id, :integer)
       field(:shared_entry_debt_id, :integer)
       field(:amount_cents, :integer)
+
+      Ecto.Schema.timestamps(type: :utc_datetime)
+    end
+  end
+
+  defmodule SettlementRecordMigration do
+    use Ecto.Schema
+
+    @primary_key {:id, :id, autogenerate: true}
+    @timestamps_opts [type: :utc_datetime]
+
+    schema "settlement_records" do
+      field(:settlement_cycle_id, :integer)
+      field(:payer_id, :integer)
+      field(:receiver_id, :integer)
+      field(:amount_cents, :integer)
+      field(:method, :string)
+      field(:transferred_at, :utc_datetime)
 
       Ecto.Schema.timestamps(type: :utc_datetime)
     end
@@ -149,7 +166,7 @@ defmodule Organizer.Repo.Migrations.AddSharedEntryDebtsAndAllocations do
 
     records =
       Repo.all(
-        from(sr in SettlementRecord,
+        from(sr in SettlementRecordMigration,
           order_by: [asc: sr.transferred_at, asc: sr.id]
         )
       )
