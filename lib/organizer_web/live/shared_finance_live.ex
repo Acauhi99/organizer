@@ -945,7 +945,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
       <section class="collab-shell responsive-shell mx-auto flex max-w-6xl flex-col gap-6">
-        <header class="surface-card collab-hero rounded-3xl p-4 sm:p-5">
+        <header class={collab_header_class("p-4 sm:p-5")}>
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
@@ -955,7 +955,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 Visão conjunta do compartilhamento
               </h1>
             </div>
-            <.link navigate={~p"/account-links"} class="btn btn-outline btn-sm">
+            <.link navigate={~p"/account-links"} class="inline-flex items-center gap-2 rounded-xl border border-cyan-300/35 bg-slate-900/85 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35">
               <.icon name="hero-arrow-left" class="size-4" /> Voltar para compartilhamentos
             </.link>
           </div>
@@ -963,7 +963,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
         <section
           id="global-shared-period-filter"
-          class="surface-card sticky top-3 z-20 rounded-3xl border border-base-content/10 bg-base-100/95 p-4 backdrop-blur"
+          class="neon-surface sticky top-3 z-20 rounded-3xl border border-cyan-400/25 bg-slate-950/88 p-4 shadow-[0_24px_70px_-38px_rgba(34,211,238,0.7)] backdrop-blur"
         >
           <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -1059,7 +1059,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </.form>
         </section>
 
-        <section id="link-metrics-panel" class="surface-card order-60 rounded-3xl p-5 sm:p-6">
+        <section id="link-metrics-panel" class={neon_surface_class("order-60 p-5 sm:p-6")}>
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
               Resumo do período
@@ -1070,7 +1070,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </div>
 
           <div class="collab-stats-grid mt-4 grid gap-3 sm:grid-cols-3">
-            <article class="collab-stat micro-surface rounded-2xl p-4 text-center">
+            <article class={collab_stat_card_class()}>
               <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
                 Total compartilhado
               </p>
@@ -1079,14 +1079,14 @@ defmodule OrganizerWeb.SharedFinanceLive do
               </p>
             </article>
 
-            <article class="collab-stat micro-surface rounded-2xl p-4 text-center">
+            <article class={collab_stat_card_class()}>
               <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">Você arcou</p>
               <p class="mt-1 break-words text-xl font-mono font-semibold text-info">
                 {format_cents(@metrics.paid_a_cents)}
               </p>
             </article>
 
-            <article class="collab-stat micro-surface rounded-2xl p-4 text-center">
+            <article class={collab_stat_card_class()}>
               <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
                 Outra conta arcou
               </p>
@@ -1097,10 +1097,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </div>
 
           <div class="mt-4 grid gap-3">
-            <article
-              id="shared-balance-chart"
-              class="micro-surface min-h-[15rem] overflow-x-auto rounded-2xl p-4"
-            >
+            <article id="shared-balance-chart" class={neon_card_class("min-h-[15rem] overflow-x-auto p-4")}>
               <div class="flex items-center justify-between gap-2">
                 <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/70">
                   Esperado vs realizado
@@ -1114,7 +1111,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </div>
         </section>
 
-        <section id="shared-entries-panel" class="surface-card order-30 rounded-3xl p-5 sm:p-6">
+        <section id="shared-entries-panel" class={neon_surface_class("order-30 p-5 sm:p-6")}>
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
               Lançamentos compartilhados
@@ -1139,22 +1136,18 @@ defmodule OrganizerWeb.SharedFinanceLive do
             data-has-more={to_string(@shared_entries_has_more?)}
             data-loading={to_string(@shared_entries_loading_more?)}
             data-next-page={@shared_entries_next_page}
-            class="operations-scroll-area operations-scroll-area--list mt-4 rounded-xl border border-base-content/12 bg-base-100/24 p-2.5"
+            class="operations-scroll-area operations-scroll-area--list mt-4 rounded-2xl border border-cyan-300/20 bg-slate-900/65 p-3 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.04)]"
           >
             <div id="shared-entries-list" phx-update="stream" class="space-y-2">
               <div
                 :if={@shared_entries_count == 0}
                 id="shared-entries-empty-state"
-                class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/72"
+                class="rounded-2xl border border-dashed border-cyan-300/30 bg-slate-900/55 px-4 py-6 text-sm text-slate-300"
               >
                 Ainda não há lançamentos compartilhados neste compartilhamento.
               </div>
 
-              <div
-                :for={{id, view} <- @streams.shared_entries}
-                id={id}
-                class="shared-entry-row micro-surface flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
+              <div :for={{id, view} <- @streams.shared_entries} id={id} class={shared_entry_row_class("gap-3")}>
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-sm font-medium text-base-content/92">
                     {view.entry.description || view.entry.category}
@@ -1175,7 +1168,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                     type="button"
                     phx-click="open_shared_entry_edit"
                     phx-value-entry_id={view.entry.id}
-                    class="btn btn-outline btn-xs shrink-0"
+                    class="inline-flex shrink-0 items-center rounded-lg border border-cyan-300/35 bg-slate-900/85 px-2.5 py-1 text-xs font-medium text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
                   >
                     Editar
                   </button>
@@ -1185,7 +1178,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                     type="button"
                     phx-click="prompt_unshare_entry"
                     phx-value-entry_id={view.entry.id}
-                    class="btn btn-outline btn-xs btn-error shrink-0"
+                    class="inline-flex shrink-0 items-center rounded-lg border border-rose-300/45 bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-100 transition hover:border-rose-200/70 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/35"
                   >
                     Remover
                   </button>
@@ -1199,7 +1192,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </div>
         </section>
 
-        <section id="shared-debt-summary" class="surface-card order-10 rounded-3xl p-5 sm:p-6">
+        <section id="shared-debt-summary" class={neon_surface_class("order-10 p-5 sm:p-6")}>
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
               Dívidas por competência
@@ -1211,10 +1204,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
           <div class="mt-4 overflow-x-auto">
             <div class="grid min-w-[44rem] gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <article
-                :for={summary <- @monthly_debt_summaries}
-                class="micro-surface rounded-2xl border border-base-content/10 p-4"
-              >
+              <article :for={summary <- @monthly_debt_summaries} class={neon_card_class("p-4")}>
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
                   {String.pad_leading(to_string(summary.reference_month), 2, "0")}/{summary.reference_year}
                 </p>
@@ -1232,7 +1222,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </div>
         </section>
 
-        <section id="shared-entry-debts-list" class="surface-card order-40 rounded-3xl p-5 sm:p-6">
+        <section id="shared-entry-debts-list" class={neon_surface_class("order-40 p-5 sm:p-6")}>
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
               Dívidas por lançamento
@@ -1257,21 +1247,17 @@ defmodule OrganizerWeb.SharedFinanceLive do
             data-has-more={to_string(@shared_entry_debts_has_more?)}
             data-loading={to_string(@shared_entry_debts_loading_more?)}
             data-next-page={@shared_entry_debts_next_page}
-            class="operations-scroll-area operations-scroll-area--list mt-4 rounded-xl border border-base-content/12 bg-base-100/24 p-2.5"
+            class="operations-scroll-area operations-scroll-area--list mt-4 rounded-2xl border border-cyan-300/20 bg-slate-900/65 p-3 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.04)]"
           >
             <div class="space-y-2">
               <div
                 :if={@shared_entry_debts_count == 0}
-                class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/72"
+                class="rounded-2xl border border-dashed border-cyan-300/30 bg-slate-900/55 px-4 py-6 text-sm text-slate-300"
               >
                 Nenhuma dívida em aberto ou quitada para este vínculo.
               </div>
 
-              <article
-                :for={debt <- @shared_entry_debts}
-                id={"shared-entry-debt-#{debt.id}"}
-                class="shared-entry-row micro-surface flex flex-col gap-2 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
+              <article :for={debt <- @shared_entry_debts} id={"shared-entry-debt-#{debt.id}"} class={shared_entry_row_class("gap-2")}>
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-sm font-semibold text-base-content/92">
                     {debt.finance_entry.description || debt.finance_entry.category}
@@ -1292,7 +1278,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                     type="button"
                     phx-click="prefill_payment_for_debt"
                     phx-value-debt_id={debt.id}
-                    class="btn btn-outline btn-xs"
+                    class="inline-flex items-center rounded-lg border border-cyan-300/35 bg-slate-900/85 px-2.5 py-1 text-xs font-medium text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
                   >
                     Pagar este lançamento
                   </button>
@@ -1306,7 +1292,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </div>
         </section>
 
-        <section id="shared-payment-form-panel" class="surface-card order-20 rounded-3xl p-5 sm:p-6">
+        <section id="shared-payment-form-panel" class={neon_surface_class("order-20 p-5 sm:p-6")}>
           <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
             Registrar pagamento
           </h2>
@@ -1335,7 +1321,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                   id="clear-payment-debt-target"
                   type="button"
                   phx-click="clear_payment_debt_target"
-                  class="btn btn-ghost btn-xs border border-base-content/22"
+                  class="inline-flex items-center rounded-lg border border-slate-400/30 bg-slate-900/70 px-2.5 py-1 text-xs font-medium text-slate-200 transition hover:border-cyan-300/45 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
                 >
                   Limpar seleção
                 </button>
@@ -1389,7 +1375,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </.form>
         </section>
 
-        <section id="shared-payment-history" class="surface-card order-70 rounded-3xl p-5 sm:p-6">
+        <section id="shared-payment-history" class={neon_surface_class("order-70 p-5 sm:p-6")}>
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
               Histórico de pagamentos e alocações
@@ -1414,22 +1400,18 @@ defmodule OrganizerWeb.SharedFinanceLive do
             data-has-more={to_string(@settlement_records_has_more?)}
             data-loading={to_string(@settlement_records_loading_more?)}
             data-next-page={@settlement_records_next_page}
-            class="operations-scroll-area operations-scroll-area--list mt-4 rounded-xl border border-base-content/12 bg-base-100/24 p-2.5"
+            class="operations-scroll-area operations-scroll-area--list mt-4 rounded-2xl border border-cyan-300/20 bg-slate-900/65 p-3 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.04)]"
           >
             <div id="shared-settlement-records" phx-update="stream" class="space-y-2">
               <div
                 :if={@settlement_records_count == 0}
                 id="shared-settlement-records-empty"
-                class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/72"
+                class="rounded-2xl border border-dashed border-cyan-300/30 bg-slate-900/55 px-4 py-6 text-sm text-slate-300"
               >
                 Nenhum pagamento registrado neste vínculo.
               </div>
 
-              <article
-                :for={{id, record} <- @streams.settlement_records}
-                id={id}
-                class="micro-surface rounded-2xl p-4"
-              >
+              <article :for={{id, record} <- @streams.settlement_records} id={id} class={neon_card_class("p-4")}>
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <p class={[
                     "text-sm font-semibold font-mono",
@@ -1471,7 +1453,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                     type="button"
                     phx-click="prompt_reverse_settlement_record"
                     phx-value-id={record.id}
-                    class="btn btn-outline btn-xs btn-warning"
+                    class="inline-flex items-center rounded-lg border border-amber-300/45 bg-amber-400/12 px-2.5 py-1 text-xs font-medium text-amber-100 transition hover:border-amber-200/70 hover:bg-amber-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/35"
                   >
                     Estornar pagamento
                   </button>
@@ -1485,7 +1467,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </div>
         </section>
 
-        <section id="shared-month-confirmation" class="surface-card order-50 rounded-3xl p-5 sm:p-6">
+        <section id="shared-month-confirmation" class={neon_surface_class("order-50 p-5 sm:p-6")}>
           <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
             Fechamento mensal com confirmação bilateral
           </h2>
@@ -1512,7 +1494,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
               id="shared-confirm-settlement-btn"
               type="button"
               phx-click="confirm_settlement"
-              class="btn btn-primary"
+              class="inline-flex items-center justify-center rounded-xl border border-cyan-300/70 bg-cyan-400/90 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_16px_36px_-20px_rgba(34,211,238,0.8)] transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
             >
               Confirmar fechamento mensal
             </button>
@@ -1582,18 +1564,18 @@ defmodule OrganizerWeb.SharedFinanceLive do
               <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  class="btn btn-ghost btn-sm"
+                  class="inline-flex items-center justify-center rounded-xl border border-slate-400/30 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-cyan-300/45 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
                   phx-click="cancel_reverse_settlement_record"
                 >
                   Cancelar
                 </button>
-                <button type="submit" class="btn btn-warning btn-sm">Confirmar estorno</button>
+                <button type="submit" class="inline-flex items-center justify-center rounded-xl border border-amber-300/60 bg-amber-400/85 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-[0_12px_24px_-14px_rgba(251,191,36,0.8)] transition hover:bg-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/60">Confirmar estorno</button>
               </div>
             </.form>
           </section>
         </.app_modal>
 
-        <section id="recurring-variable-trend" class="surface-card order-80 rounded-3xl p-5 sm:p-6">
+        <section id="recurring-variable-trend" class={neon_surface_class("order-80 p-5 sm:p-6")}>
           <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
             Tendência de recorrentes variáveis (6 meses)
           </h2>
@@ -1603,7 +1585,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
           <% else %>
             <ul class="mt-3 space-y-2">
               <%= for mt <- @trend do %>
-                <li class="trend-list-item micro-surface flex items-center justify-between rounded-xl p-3">
+                <li class={trend_list_item_class()}>
                   <span class="text-sm font-mono text-base-content/72">{mt.month}/{mt.year}</span>
                   <span class="text-sm font-semibold font-mono text-base-content/92">
                     {format_cents(mt.total_cents)}
@@ -1674,7 +1656,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
             id="shared-entry-edit-close-btn"
             type="button"
             phx-click="cancel_shared_entry_edit"
-            class="btn btn-ghost btn-sm border border-base-content/25 bg-base-100 shadow-sm"
+            class="inline-flex items-center justify-center rounded-xl border border-slate-400/30 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-cyan-300/45 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
           >
             <.icon name="hero-x-mark" class="size-4" />
           </button>
@@ -1687,12 +1669,12 @@ defmodule OrganizerWeb.SharedFinanceLive do
           phx-submit="save_shared_entry_edit"
           class="mt-5 space-y-4"
         >
-          <div class="grid gap-3 rounded-2xl border border-base-content/12 bg-base-100 p-3 sm:grid-cols-2 sm:p-4">
+          <div class="grid gap-3 rounded-2xl border border-cyan-300/20 bg-slate-900/78 p-3 sm:grid-cols-2 sm:p-4">
             <.input
               field={@form[:description]}
               type="text"
               label="Descrição"
-              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+              class="w-full rounded-xl border border-cyan-300/25 bg-slate-900/90 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.05)] transition focus:border-cyan-300/70 focus:outline-none focus:ring-2 focus:ring-cyan-300/25"
               placeholder="Ex: Aluguel, mercado, conta de luz..."
             />
             <.input
@@ -1700,7 +1682,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
               type="text"
               label="Categoria"
               required
-              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+              class="w-full rounded-xl border border-cyan-300/25 bg-slate-900/90 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.05)] transition focus:border-cyan-300/70 focus:outline-none focus:ring-2 focus:ring-cyan-300/25"
             />
             <.input
               field={@form[:amount_cents]}
@@ -1708,7 +1690,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
               label="Valor total"
               inputmode="decimal"
               required
-              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+              class="w-full rounded-xl border border-cyan-300/25 bg-slate-900/90 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.05)] transition focus:border-cyan-300/70 focus:outline-none focus:ring-2 focus:ring-cyan-300/25"
               placeholder="Ex: 350,55"
             />
             <.input
@@ -1720,11 +1702,11 @@ defmodule OrganizerWeb.SharedFinanceLive do
               pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
               placeholder="dd/mm/aaaa"
               required
-              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+              class="w-full rounded-xl border border-cyan-300/25 bg-slate-900/90 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.05)] transition focus:border-cyan-300/70 focus:outline-none focus:ring-2 focus:ring-cyan-300/25"
             />
           </div>
 
-          <section class="rounded-2xl border border-base-content/14 bg-base-100 p-4 shadow-sm">
+          <section class="rounded-2xl border border-cyan-300/20 bg-slate-900/78 p-4 shadow-[0_12px_32px_-22px_rgba(34,211,238,0.55)]">
             <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
               Tipo de divisão
             </h3>
@@ -1733,7 +1715,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
               type="select"
               options={@split_type_options}
               label="Como dividir entre as contas?"
-              class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+              class="w-full rounded-xl border border-cyan-300/25 bg-slate-900/90 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.05)] transition focus:border-cyan-300/70 focus:outline-none focus:ring-2 focus:ring-cyan-300/25"
             />
 
             <div :if={@split_type == "percentage"} class="grid gap-3 sm:grid-cols-2">
@@ -1743,7 +1725,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 label="Sua porcentagem (%)"
                 inputmode="decimal"
                 placeholder="Ex: 56,7"
-                class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+                class="w-full rounded-xl border border-cyan-300/25 bg-slate-900/90 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.05)] transition focus:border-cyan-300/70 focus:outline-none focus:ring-2 focus:ring-cyan-300/25"
               />
               <.input
                 field={@form[:split_mine_amount]}
@@ -1752,7 +1734,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 inputmode="decimal"
                 placeholder="Calculado automaticamente"
                 readonly
-                class="w-full rounded-xl border border-base-content/18 bg-base-200/70 px-3 py-2 text-sm text-base-content/86"
+                class="w-full rounded-xl border border-cyan-300/15 bg-slate-900/70 px-3 py-2 text-sm text-slate-300/90"
               />
             </div>
 
@@ -1763,7 +1745,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 label="Seu valor fixo (R$)"
                 inputmode="decimal"
                 placeholder="Ex: 120,00"
-                class="w-full rounded-xl border border-base-content/24 bg-base-100 px-3 py-2 text-sm text-base-content shadow-sm transition focus:border-info/72 focus:ring-2 focus:ring-info/22"
+                class="w-full rounded-xl border border-cyan-300/25 bg-slate-900/90 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.05)] transition focus:border-cyan-300/70 focus:outline-none focus:ring-2 focus:ring-cyan-300/25"
               />
               <.input
                 field={@form[:split_mine_percentage]}
@@ -1772,7 +1754,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 inputmode="decimal"
                 placeholder="Calculada automaticamente"
                 readonly
-                class="w-full rounded-xl border border-base-content/18 bg-base-200/70 px-3 py-2 text-sm text-base-content/86"
+                class="w-full rounded-xl border border-cyan-300/15 bg-slate-900/70 px-3 py-2 text-sm text-slate-300/90"
               />
             </div>
 
@@ -1791,7 +1773,7 @@ defmodule OrganizerWeb.SharedFinanceLive do
 
           <section
             id="shared-entry-edit-preview"
-            class="rounded-2xl border border-base-content/14 bg-base-100 p-4 shadow-sm"
+            class="rounded-2xl border border-cyan-300/20 bg-slate-900/78 p-4 shadow-[0_12px_32px_-22px_rgba(34,211,238,0.55)]"
           >
             <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
               Prévia da divisão entre as duas contas
@@ -1822,15 +1804,15 @@ defmodule OrganizerWeb.SharedFinanceLive do
             </div>
           </section>
 
-          <div class="flex flex-col-reverse gap-2 border-t border-base-content/12 pt-3 sm:flex-row sm:justify-end">
+          <div class="flex flex-col-reverse gap-2 border-t border-cyan-300/20 pt-3 sm:flex-row sm:justify-end">
             <button
               type="button"
               phx-click="cancel_shared_entry_edit"
-              class="btn btn-ghost btn-sm border border-base-content/20"
+              class="inline-flex items-center justify-center rounded-xl border border-slate-400/30 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-cyan-300/45 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
             >
               Cancelar
             </button>
-            <button type="submit" class="btn btn-primary btn-sm shadow-md shadow-primary/30">
+            <button type="submit" class="inline-flex items-center justify-center rounded-xl border border-cyan-300/70 bg-cyan-400/90 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-[0_16px_36px_-20px_rgba(34,211,238,0.8)] transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60">
               Salvar alterações
             </button>
           </div>
@@ -1838,6 +1820,51 @@ defmodule OrganizerWeb.SharedFinanceLive do
       </section>
     </.app_modal>
     """
+  end
+
+  defp collab_header_class(extra) do
+    join_classes([
+      "neon-surface collab-hero rounded-3xl border border-cyan-400/20 bg-slate-950/72 shadow-[0_24px_70px_-38px_rgba(34,211,238,0.7)] backdrop-blur-sm",
+      extra
+    ])
+  end
+
+  defp neon_surface_class(extra) do
+    join_classes([
+      "neon-surface rounded-3xl border border-cyan-400/20 bg-slate-950/72 shadow-[0_24px_70px_-38px_rgba(34,211,238,0.7)] backdrop-blur-sm",
+      extra
+    ])
+  end
+
+  defp neon_card_class(extra) do
+    join_classes([
+      "neon-card rounded-2xl border border-cyan-300/15 bg-slate-900/72 shadow-[0_18px_45px_-34px_rgba(16,185,129,0.65)]",
+      extra
+    ])
+  end
+
+  defp collab_stat_card_class do
+    join_classes(["collab-stat text-center", neon_card_class("p-4")])
+  end
+
+  defp shared_entry_row_class(extra) do
+    join_classes([
+      "shared-entry-row flex flex-col rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between",
+      neon_card_class(nil),
+      extra
+    ])
+  end
+
+  defp trend_list_item_class do
+    join_classes(["trend-list-item flex items-center justify-between rounded-xl p-3", neon_card_class(nil)])
+  end
+
+  defp join_classes(classes) do
+    classes
+    |> List.flatten()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(" ")
   end
 
   defp reload_shared_data(socket) do
@@ -2632,9 +2659,9 @@ defmodule OrganizerWeb.SharedFinanceLive do
   defp format_method(method) when is_atom(method), do: SettlementRecord.method_label(method)
   defp format_method(_), do: "—"
 
-  defp settlement_record_amount_class(:active), do: "text-base-content"
-  defp settlement_record_amount_class(:reversed), do: "text-warning line-through"
-  defp settlement_record_amount_class(_status), do: "text-base-content"
+  defp settlement_record_amount_class(:active), do: "text-cyan-100"
+  defp settlement_record_amount_class(:reversed), do: "text-amber-200 line-through"
+  defp settlement_record_amount_class(_status), do: "text-slate-100"
 
   defp format_reversed_metadata(record) do
     reversed_at = format_date(record.reversed_at)
@@ -2677,16 +2704,16 @@ defmodule OrganizerWeb.SharedFinanceLive do
   defp debt_status_label(_), do: "Indefinido"
 
   defp debt_status_badge_class(:open),
-    do: "badge badge-sm border-warning/40 bg-warning/15 text-warning-content"
+    do: "inline-flex items-center rounded-full border border-amber-300/50 bg-amber-300/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-amber-100"
 
   defp debt_status_badge_class(:partial),
-    do: "badge badge-sm border-info/45 bg-info/15 text-info-content"
+    do: "inline-flex items-center rounded-full border border-cyan-300/45 bg-cyan-400/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-cyan-100"
 
   defp debt_status_badge_class(:settled),
-    do: "badge badge-sm border-success/45 bg-success/15 text-success-content"
+    do: "inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-emerald-100"
 
   defp debt_status_badge_class(_),
-    do: "badge badge-sm border-base-content/30 bg-base-200 text-base-content/80"
+    do: "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
 
   defp format_pct(ratio) when is_number(ratio) do
     "#{format_decimal_ptbr(ratio * 100, 1)}%"
@@ -2997,8 +3024,11 @@ defmodule OrganizerWeb.SharedFinanceLive do
   end
 
   defp period_preset_button_class(from_month, to_month, preset) do
-    class_active = "btn btn-xs btn-primary"
-    class_inactive = "btn btn-xs btn-soft"
+    class_active =
+      "inline-flex items-center rounded-xl border border-cyan-300/75 bg-cyan-400/90 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-[0_14px_30px_-16px_rgba(34,211,238,0.75)] transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
+
+    class_inactive =
+      "inline-flex items-center rounded-xl border border-cyan-300/35 bg-slate-900/85 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
 
     case preset_to_month_range(preset) do
       {:ok, preset_from, preset_to} ->

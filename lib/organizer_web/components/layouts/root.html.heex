@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="organizer_softlight">
+<html lang="pt-BR" data-theme="organizer_neon_grid">
   <% current_scope = assigns[:current_scope] %>
   <head>
     <meta charset="utf-8" />
@@ -26,20 +26,23 @@
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
   </head>
-  <body class="min-h-screen text-base-content">
+  <body class="min-h-screen bg-base-100 text-base-content antialiased selection:bg-cyan-300/30 selection:text-cyan-50">
     <a href="#main-content" class="skip-link">Pular para o conteudo principal</a>
 
     <input id="mobile-sidebar-toggle" type="checkbox" class="sidebar-toggle-input" />
     <input id="desktop-sidebar-toggle" type="checkbox" class="sidebar-toggle-input" />
 
-    <div class="app-layout">
+    <div class="app-layout text-base-content">
       <aside
         aria-label="Navegação principal"
-        class={["app-sidebar", !current_scope && "app-sidebar-guest"]}
+        class={[
+          "app-sidebar border-cyan-300/20 supports-[backdrop-filter]:backdrop-blur-xl",
+          !current_scope && "app-sidebar-guest"
+        ]}
       >
         <div class="app-sidebar-inner">
           <header class="app-sidebar-head">
-            <.link href={~p"/"} class="app-brand-link">
+            <.link href={~p"/"} class="app-brand-link motion-neon-lift">
               <img
                 src={~p"/images/organizer-logo.png"}
                 alt="Organizer"
@@ -63,32 +66,32 @@
             <ul>
               <%= if current_scope do %>
                 <li>
-                  <.link href={~p"/finances"} class="app-sidebar-link">
+                  <.link href={~p"/finances"} class="app-sidebar-link motion-neon-lift">
                     <.icon name="hero-banknotes" class="size-5" />
                     <span class="app-sidebar-label">Finanças</span>
                   </.link>
                 </li>
                 <li>
-                  <.link href={~p"/account-links"} class="app-sidebar-link">
+                  <.link href={~p"/account-links"} class="app-sidebar-link motion-neon-lift">
                     <.icon name="hero-link" class="size-5" />
                     <span class="app-sidebar-label">Compartilhamentos</span>
                   </.link>
                 </li>
                 <li>
-                  <.link href={~p"/users/settings"} class="app-sidebar-link">
+                  <.link href={~p"/users/settings"} class="app-sidebar-link motion-neon-lift">
                     <.icon name="hero-cog-6-tooth" class="size-5" />
                     <span class="app-sidebar-label">Configurações</span>
                   </.link>
                 </li>
               <% else %>
                 <li>
-                  <.link href={~p"/users/register"} class="app-sidebar-link">
+                  <.link href={~p"/users/register"} class="app-sidebar-link motion-neon-lift">
                     <.icon name="hero-user-plus" class="size-5" />
                     <span class="app-sidebar-label">Criar conta</span>
                   </.link>
                 </li>
                 <li>
-                  <.link href={~p"/users/log-in"} class="app-sidebar-link">
+                  <.link href={~p"/users/log-in"} class="app-sidebar-link motion-neon-lift">
                     <.icon name="hero-arrow-right-on-rectangle" class="size-5" />
                     <span class="app-sidebar-label">Entrar</span>
                   </.link>
@@ -100,7 +103,7 @@
               <.link
                 href={~p"/users/log-out"}
                 method="delete"
-                class="app-sidebar-link app-sidebar-link-danger"
+                class="app-sidebar-link app-sidebar-link-danger motion-neon-lift"
               >
                 <.icon name="hero-arrow-right-on-rectangle" class="size-5" />
                 <span class="app-sidebar-label">Sair</span>
@@ -111,8 +114,12 @@
       </aside>
 
       <div class="app-layout-main">
-        <header class="app-mobile-bar lg:hidden">
-          <label for="mobile-sidebar-toggle" class="app-mobile-menu-btn" aria-label="Abrir menu">
+        <header class="app-mobile-bar motion-neon-enter lg:hidden">
+          <label
+            for="mobile-sidebar-toggle"
+            class="app-mobile-menu-btn motion-neon-lift"
+            aria-label="Abrir menu"
+          >
             <.icon name="hero-bars-3" class="size-5" />
             <span>Serviços</span>
           </label>

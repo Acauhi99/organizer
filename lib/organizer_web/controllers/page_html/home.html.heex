@@ -1,147 +1,160 @@
 <Layouts.app flash={@flash} current_scope={assigns[:current_scope]} wide={true}>
-  <section id="public-home" class="public-home mx-auto max-w-7xl space-y-8">
-    <header class="brand-hero-card public-home-hero rounded-[2rem] p-6 sm:p-8 lg:p-10">
-      <div class="grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-start lg:gap-8">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/64">
-            Organizer
-          </p>
-          <h1 class="mt-3 max-w-4xl text-4xl font-black leading-tight text-base-content sm:text-5xl">
-            Um cockpit para finanças e decisões compartilhadas.
-          </h1>
-          <p class="mt-5 max-w-2xl text-base leading-7 text-base-content/78">
-            Registre gastos sem atrito e feche acertos entre contas com contexto.
-          </p>
+  <section id="public-home" class="relative isolate overflow-hidden">
+    <div class="pointer-events-none absolute inset-0 -z-10">
+      <div class="absolute -left-20 top-16 h-72 w-72 rounded-full bg-cyan-300/20 blur-3xl"></div>
+      <div class="absolute -right-20 top-40 h-80 w-80 rounded-full bg-lime-300/15 blur-3xl"></div>
+      <div class="absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-sky-400/15 blur-3xl"></div>
+      <div class="absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[size:52px_52px]"></div>
+      <div class="absolute inset-0 bg-gradient-to-b from-slate-950/70 via-slate-950/50 to-slate-950"></div>
+    </div>
 
-          <div class="mt-7 flex flex-wrap gap-3">
-            <.link href={~p"/users/register"} class="btn btn-primary">Criar conta</.link>
-            <.link href={~p"/users/log-in"} class="btn btn-outline">Entrar</.link>
+    <div class="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-14">
+      <header class="relative overflow-hidden rounded-3xl border border-cyan-200/20 bg-slate-950/70 p-6 shadow-[0_0_0_1px_rgba(34,211,238,0.14),0_26px_60px_-34px_rgba(6,182,212,0.55)] backdrop-blur-xl sm:p-8 lg:p-10">
+        <div class="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-400/12 via-transparent to-lime-300/12"></div>
+        <div class="relative grid gap-8 lg:grid-cols-[1.18fr_0.82fr] lg:items-start">
+          <div>
+            <p class="inline-flex items-center rounded-full border border-cyan-200/30 bg-cyan-300/10 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-cyan-100">
+              Neon Grid Edition
+            </p>
+            <h1 class="mt-4 max-w-3xl text-4xl font-black leading-tight tracking-tight text-slate-50 sm:text-5xl lg:text-6xl">
+              Finanças pessoais e compartilhadas sem ruído.
+            </h1>
+            <p class="mt-5 max-w-2xl text-base leading-7 text-slate-200/85 sm:text-lg">
+              Capture gastos, acompanhe saldo e resolva acertos em experiência única com leitura forte, navegação rápida e decisão clara.
+            </p>
+
+            <div class="mt-8 flex flex-wrap items-center gap-3" id="home-cta-group">
+              <.link
+                href={~p"/users/register"}
+                class="inline-flex items-center justify-center rounded-2xl border border-cyan-100/70 bg-gradient-to-br from-cyan-200 via-cyan-100 to-lime-200 px-5 py-3 text-sm font-extrabold text-slate-950 transition duration-200 hover:-translate-y-0.5 hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                id="home-register-link"
+              >
+                Criar conta
+              </.link>
+              <.link
+                href={~p"/users/log-in"}
+                class="inline-flex items-center justify-center rounded-2xl border border-cyan-100/35 bg-slate-900/85 px-5 py-3 text-sm font-bold text-cyan-100 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-100/70 hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                id="home-login-link"
+              >
+                Entrar
+              </.link>
+            </div>
+
+            <div class="mt-8 grid gap-3 sm:grid-cols-3" id="home-highlights">
+              <article class="rounded-2xl border border-cyan-200/20 bg-slate-900/80 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-200/55">
+                <p class="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-cyan-100/70">Visibilidade</p>
+                <p class="mt-2 text-sm font-semibold text-slate-100">Saldo e tendências em leitura imediata</p>
+              </article>
+              <article class="rounded-2xl border border-lime-200/20 bg-slate-900/80 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-lime-200/55">
+                <p class="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-lime-100/70">Colaboração</p>
+                <p class="mt-2 text-sm font-semibold text-slate-100">Convites e acertos no mesmo fluxo</p>
+              </article>
+              <article class="rounded-2xl border border-sky-200/20 bg-slate-900/80 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-sky-200/55">
+                <p class="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-sky-100/70">Foco</p>
+                <p class="mt-2 text-sm font-semibold text-slate-100">Interface limpa para agir rápido</p>
+              </article>
+            </div>
           </div>
 
-          <div class="mt-8 grid gap-3 sm:grid-cols-2">
-            <article class="micro-surface public-kpi rounded-2xl p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">
-                Fluxo integrado
-              </p>
-              <p class="mt-2 text-sm leading-6 text-base-content/78">
-                Finanças e compartilhamento no mesmo painel de decisão.
-              </p>
-            </article>
+          <aside class="rounded-3xl border border-cyan-200/20 bg-slate-950/75 p-5 backdrop-blur sm:p-6" id="home-preview-panel">
+            <p class="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-cyan-100/70">Preview de jornada</p>
+            <h2 class="mt-2 text-2xl font-black tracking-tight text-slate-50">Comece em minutos</h2>
 
-            <article class="micro-surface public-kpi rounded-2xl p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">
-                Clareza diária
-              </p>
-              <p class="mt-2 text-sm leading-6 text-base-content/78">
-                Visual limpo para acompanhar tendência, saldo e prioridades.
-              </p>
-            </article>
+            <div class="mt-4 space-y-3">
+              <div class="rounded-xl border border-slate-400/30 bg-slate-900/85 px-3 py-2.5 text-sm text-slate-200/85">
+                Cadastro e login com experiência consistente
+              </div>
+              <div class="rounded-xl border border-slate-400/30 bg-slate-900/85 px-3 py-2.5 text-sm text-slate-200/85">
+                Convite pendente retomado após autenticação
+              </div>
+              <div class="rounded-xl border border-slate-400/30 bg-slate-900/85 px-3 py-2.5 text-sm text-slate-200/85">
+                Área logada com visão pessoal + compartilhada
+              </div>
+            </div>
 
-            <article class="micro-surface public-kpi rounded-2xl p-4 sm:col-span-2">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/65">
-                Conexão segura
-              </p>
-              <p class="mt-2 text-sm leading-6 text-base-content/78">
-                Convites para compartilhar dados e registrar acertos sem fricção.
-              </p>
-            </article>
-          </div>
+            <div class="mt-5 grid grid-cols-2 gap-3" id="home-preview-actions">
+              <.link
+                href={~p"/users/register"}
+                class="inline-flex items-center justify-center rounded-xl border border-cyan-200/55 bg-cyan-300/15 px-3 py-2 text-xs font-bold uppercase tracking-[0.08em] text-cyan-100 transition duration-200 hover:border-cyan-100 hover:bg-cyan-300/25"
+              >
+                Registrar
+              </.link>
+              <.link
+                href={~p"/users/log-in"}
+                class="inline-flex items-center justify-center rounded-xl border border-lime-200/55 bg-lime-300/15 px-3 py-2 text-xs font-bold uppercase tracking-[0.08em] text-lime-100 transition duration-200 hover:border-lime-100 hover:bg-lime-300/25"
+              >
+                Login
+              </.link>
+            </div>
+          </aside>
         </div>
+      </header>
 
-        <div class="public-home-aside grid content-start gap-3">
-          <figure class="public-reference-frame rounded-[1.7rem] p-3">
-            <img
-              src={~p"/images/organizer-logo.png"}
-              alt="Logo do Organizer"
-              class="public-reference-image rounded-[1.2rem]"
-              loading="lazy"
-              decoding="async"
-            />
-          </figure>
-
-          <div class="grid gap-3 lg:grid-cols-2">
-            <article class="micro-surface h-full rounded-2xl p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
-                Identidade visual
-              </p>
-              <p class="mt-2 text-sm leading-6 text-base-content/78">
-                O símbolo Organizer agora guia toda a navegação e reforça o foco entre organização e colaboração.
-              </p>
-            </article>
-
-            <article class="micro-surface h-full rounded-2xl p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
-                Entrada simplificada
-              </p>
-              <p class="mt-2 text-sm leading-6 text-base-content/78">
-                Cadastro e login com a mesma identidade visual para dar continuidade ao fluxo de uso.
-              </p>
-            </article>
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <section class="public-feature-grid grid gap-4 md:grid-cols-3">
-      <article class="surface-card rounded-2xl p-5">
-        <.icon name="hero-banknotes" class="size-6 text-primary" />
-        <h2 class="mt-4 text-base font-bold text-base-content">Finanças pessoais</h2>
-        <p class="mt-2 text-sm leading-6 text-base-content/74">
-          Registre renda e gastos, filtre por período e acompanhe categorias que mais pesam.
-        </p>
-      </article>
-
-      <article class="surface-card rounded-2xl p-5">
-        <.icon name="hero-chart-bar" class="size-6 text-primary" />
-        <h2 class="mt-4 text-base font-bold text-base-content">Visão analítica</h2>
-        <p class="mt-2 text-sm leading-6 text-base-content/74">
-          Métricas e tendências para entender saldo, categorias e comportamento ao longo do tempo.
-        </p>
-      </article>
-
-      <article class="surface-card rounded-2xl p-5">
-        <.icon name="hero-link" class="size-6 text-primary" />
-        <h2 class="mt-4 text-base font-bold text-base-content">Contas vinculadas</h2>
-        <p class="mt-2 text-sm leading-6 text-base-content/74">
-          Compartilhe despesas e veja esperado vs realizado no compartilhamento.
-        </p>
-      </article>
-    </section>
-
-    <section class="surface-card rounded-3xl p-6 sm:p-8">
-      <div class="grid gap-6 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/64">
-            Fluxo de uso
+      <section class="grid gap-4 md:grid-cols-3" id="home-feature-grid">
+        <article class="rounded-2xl border border-cyan-200/20 bg-slate-950/70 p-5 shadow-[0_18px_30px_-24px_rgba(6,182,212,0.65)] backdrop-blur">
+          <.icon name="hero-banknotes" class="size-6 text-cyan-200" />
+          <h2 class="mt-4 text-base font-extrabold text-slate-50">Registro financeiro sem fricção</h2>
+          <p class="mt-2 text-sm leading-6 text-slate-200/80">
+            Entradas e saídas com foco em velocidade e leitura, com contexto para priorizar decisões.
           </p>
-          <h2 class="mt-2 text-2xl font-black text-base-content">
-            Menos fricção para registrar. Mais clareza para decidir.
-          </h2>
+        </article>
+
+        <article class="rounded-2xl border border-lime-200/20 bg-slate-950/70 p-5 shadow-[0_18px_30px_-24px_rgba(132,204,22,0.65)] backdrop-blur">
+          <.icon name="hero-chart-bar" class="size-6 text-lime-200" />
+          <h2 class="mt-4 text-base font-extrabold text-slate-50">Métricas de tendência e saldo</h2>
+          <p class="mt-2 text-sm leading-6 text-slate-200/80">
+            Visual analítico para acompanhar comportamento financeiro sem perder legibilidade.
+          </p>
+        </article>
+
+        <article class="rounded-2xl border border-sky-200/20 bg-slate-950/70 p-5 shadow-[0_18px_30px_-24px_rgba(56,189,248,0.65)] backdrop-blur">
+          <.icon name="hero-link" class="size-6 text-sky-200" />
+          <h2 class="mt-4 text-base font-extrabold text-slate-50">Compartilhamento guiado por convite</h2>
+          <p class="mt-2 text-sm leading-6 text-slate-200/80">
+            Conecte contas, compare esperado vs realizado e conclua acertos com menos atrito.
+          </p>
+        </article>
+      </section>
+
+      <section class="rounded-3xl border border-cyan-200/20 bg-slate-950/70 p-6 backdrop-blur sm:p-8" id="home-flow">
+        <div class="grid gap-6 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
+          <div>
+            <p class="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-cyan-100/70">Fluxo principal</p>
+            <h2 class="mt-2 text-2xl font-black tracking-tight text-slate-50 sm:text-3xl">
+              Capture, organize, decida.
+            </h2>
+            <p class="mt-3 text-sm leading-6 text-slate-200/80 sm:text-base">
+              Jornada pensada para uso solo ou colaborativo, mantendo contexto entre entrada pública e área autenticada.
+            </p>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-3">
+            <article class="rounded-2xl border border-cyan-200/25 bg-cyan-300/5 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-200/60">
+              <span class="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-cyan-100/45 bg-cyan-300/20 px-2 text-xs font-black text-cyan-50">
+                01
+              </span>
+              <p class="mt-3 text-sm font-bold text-slate-50">Capture</p>
+              <p class="mt-1 text-xs leading-5 text-slate-200/75">Registre movimentações com clareza.</p>
+            </article>
+
+            <article class="rounded-2xl border border-lime-200/25 bg-lime-300/5 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-lime-200/60">
+              <span class="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-lime-100/45 bg-lime-300/20 px-2 text-xs font-black text-lime-50">
+                02
+              </span>
+              <p class="mt-3 text-sm font-bold text-slate-50">Organize</p>
+              <p class="mt-1 text-xs leading-5 text-slate-200/75">Separe pessoal e compartilhado sem confusão.</p>
+            </article>
+
+            <article class="rounded-2xl border border-sky-200/25 bg-sky-300/5 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-sky-200/60">
+              <span class="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-sky-100/45 bg-sky-300/20 px-2 text-xs font-black text-sky-50">
+                03
+              </span>
+              <p class="mt-3 text-sm font-bold text-slate-50">Decida</p>
+              <p class="mt-1 text-xs leading-5 text-slate-200/75">Analise saldo e finalize acertos com segurança.</p>
+            </article>
+          </div>
         </div>
-        <div class="grid gap-3 sm:grid-cols-3">
-          <article class="micro-surface rounded-2xl p-4">
-            <span class="public-step-chip">01</span>
-            <p class="mt-2 text-sm font-semibold text-base-content">Capture</p>
-            <p class="mt-1 text-xs leading-5 text-base-content/68">
-              Formulários rápidos para entradas e saídas.
-            </p>
-          </article>
-          <article class="micro-surface rounded-2xl p-4">
-            <span class="public-step-chip">02</span>
-            <p class="mt-2 text-sm font-semibold text-base-content">Organize</p>
-            <p class="mt-1 text-xs leading-5 text-base-content/68">
-              Separe finanças pessoais e compartilhamentos.
-            </p>
-          </article>
-          <article class="micro-surface rounded-2xl p-4">
-            <span class="public-step-chip">03</span>
-            <p class="mt-2 text-sm font-semibold text-base-content">Decida</p>
-            <p class="mt-1 text-xs leading-5 text-base-content/68">
-              Leia saldo, tendência e acertos.
-            </p>
-          </article>
-        </div>
-      </div>
-    </section>
+      </section>
+    </div>
   </section>
 </Layouts.app>

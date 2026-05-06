@@ -1590,13 +1590,22 @@ defmodule OrganizerWeb.DashboardLive do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
       <nav aria-label="Atalhos de navegação">
-        <a href="#quick-finance-hero" class="skip-link">
+        <a
+          href="#quick-finance-hero"
+          class="sr-only rounded-lg border border-cyan-300/45 bg-slate-900 px-3 py-2 text-xs font-semibold text-cyan-100 focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-[120]"
+        >
           Ir para finanças
         </a>
-        <a href="#finance-operations-panel" class="skip-link">
+        <a
+          href="#finance-operations-panel"
+          class="sr-only rounded-lg border border-cyan-300/45 bg-slate-900 px-3 py-2 text-xs font-semibold text-cyan-100 focus:not-sr-only focus:absolute focus:left-3 focus:top-14 focus:z-[120]"
+        >
           Ir para operação financeira
         </a>
-        <a href="#finance-metrics-panel" class="skip-link">
+        <a
+          href="#finance-metrics-panel"
+          class="sr-only rounded-lg border border-cyan-300/45 bg-slate-900 px-3 py-2 text-xs font-semibold text-cyan-100 focus:not-sr-only focus:absolute focus:left-3 focus:top-24 focus:z-[120]"
+        >
           Ir para métricas financeiras
         </a>
       </nav>
@@ -1610,7 +1619,7 @@ defmodule OrganizerWeb.DashboardLive do
 
       <div
         id="module-keyboard-shortcuts"
-        class="dashboard-shell flex flex-col gap-4 lg:gap-6"
+        class="dashboard-shell mx-auto flex w-full max-w-[88rem] flex-col gap-5 px-3 pb-10 sm:px-5 lg:gap-7 lg:px-8"
         phx-window-keydown="global_shortcut"
       >
         <.module_hero
@@ -1678,20 +1687,23 @@ defmodule OrganizerWeb.DashboardLive do
 
   defp module_hero(assigns) do
     ~H"""
-    <header id={@id} class="surface-card rounded-2xl p-5 sm:p-6">
+    <header
+      id={@id}
+      class="neon-surface rounded-3xl border border-cyan-400/20 bg-slate-950/72 p-6 shadow-[0_24px_70px_-38px_rgba(34,211,238,0.7)] backdrop-blur-sm sm:p-7"
+    >
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="max-w-3xl">
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-100/80">
             {@eyebrow}
           </p>
-          <h1 class="mt-2 text-2xl font-black text-base-content sm:text-3xl">
+          <h1 class="mt-2 text-2xl font-black text-slate-50 sm:text-3xl">
             {@title}
           </h1>
-          <p class="mt-2 text-sm leading-6 text-base-content/76">
+          <p class="mt-2 text-sm leading-6 text-slate-300">
             {@description}
           </p>
         </div>
-        <div class="flex size-12 items-center justify-center rounded-2xl border border-primary/56 bg-primary/22 text-primary">
+        <div class="flex size-12 items-center justify-center rounded-2xl border border-cyan-300/55 bg-cyan-400/14 text-cyan-100">
           <.icon name={@icon} class="size-6" />
         </div>
       </div>

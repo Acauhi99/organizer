@@ -13,7 +13,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
     ~H"""
     <section
       id="quick-finance-hero"
-      class="surface-card rounded-2xl p-5 scroll-mt-20"
+      class={neon_surface_class("p-5 scroll-mt-20")}
       data-onboarding-target="quick-finance"
       phx-hook="FinanceFormEnhancements"
     >
@@ -179,7 +179,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
         <section
           :if={@quick_finance_kind == "expense"}
           id="quick-finance-share-controls"
-          class="rounded-xl border border-base-content/14 bg-base-100/45 p-3"
+          class={neon_card_class("rounded-xl p-3")}
         >
           <div class="mb-3 space-y-1">
             <h3 class="text-sm font-semibold text-base-content">Compartilhamento (opcional)</h3>
@@ -199,7 +199,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
           <div
             :if={share_enabled?(@quick_finance_form)}
             id="quick-finance-share-options"
-            class="mt-3 space-y-3 rounded-xl border border-base-content/12 bg-base-100/65 p-3"
+            class={neon_card_class("mt-3 space-y-3 rounded-xl p-3")}
           >
             <.input
               field={@quick_finance_form[:shared_with_link_id]}
@@ -225,7 +225,7 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
             <div
               :if={manual_share_mode?(@quick_finance_form)}
               id="quick-finance-manual-split"
-              class="grid gap-2 rounded-xl border border-info/20 bg-info/5 p-3 sm:grid-cols-2"
+              class={neon_info_card_class("grid gap-2 rounded-xl p-3 sm:grid-cols-2")}
             >
               <.input
                 field={@quick_finance_form[:shared_manual_mine_amount]}
@@ -277,10 +277,43 @@ defmodule OrganizerWeb.Components.QuickFinanceHero do
 
   defp preset_class(active?) do
     [
-      "btn btn-sm transition",
-      active? && "btn-primary",
-      not active? && "btn-soft"
+      "inline-flex items-center rounded-lg border px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2",
+      if(active?,
+        do:
+          "border-cyan-300/75 bg-cyan-400/90 text-slate-950 shadow-[0_14px_30px_-16px_rgba(34,211,238,0.75)] hover:bg-cyan-300 focus-visible:ring-cyan-200/60",
+        else:
+          "border-cyan-300/35 bg-slate-900/85 text-cyan-100 hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:ring-cyan-300/35"
+      )
     ]
+  end
+
+  defp neon_surface_class(extra) do
+    join_classes([
+      "neon-surface rounded-3xl border border-cyan-400/20 bg-slate-950/72 shadow-[0_24px_70px_-38px_rgba(34,211,238,0.7)] backdrop-blur-sm",
+      extra
+    ])
+  end
+
+  defp neon_card_class(extra) do
+    join_classes([
+      "neon-card rounded-2xl border border-cyan-300/15 bg-slate-900/72 shadow-[0_18px_45px_-34px_rgba(16,185,129,0.65)]",
+      extra
+    ])
+  end
+
+  defp neon_info_card_class(extra) do
+    join_classes([
+      "border border-cyan-300/25 bg-cyan-400/10 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.12)]",
+      extra
+    ])
+  end
+
+  defp join_classes(classes) do
+    classes
+    |> List.flatten()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reject(&(&1 == false))
+    |> Enum.join(" ")
   end
 
   defp share_enabled?(quick_finance_form) do

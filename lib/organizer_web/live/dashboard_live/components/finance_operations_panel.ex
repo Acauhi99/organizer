@@ -31,7 +31,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
     ~H"""
     <section
       id="finance-operations-panel"
-      class="operations-shell surface-card rounded-2xl p-4 scroll-mt-20"
+      class={neon_surface_class("operations-shell p-4 scroll-mt-20")}
       phx-hook="FinanceFormEnhancements"
     >
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -48,7 +48,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
       <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         <article
           id="finance-ops-card-total"
-          class="micro-surface rounded-lg p-3"
+          class={neon_card_class("rounded-lg p-3")}
           aria-label={"Lançamentos no filtro em #{finance_period_context_label(@finance_filters)}"}
         >
           <div class="flex items-center justify-between">
@@ -62,7 +62,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
 
         <article
           id="finance-ops-card-kinds"
-          class="micro-surface rounded-lg p-3"
+          class={neon_card_class("rounded-lg p-3")}
           aria-label="Receitas e despesas no filtro"
         >
           <div class="flex items-center justify-between">
@@ -80,7 +80,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
 
         <article
           id="finance-ops-card-balance"
-          class="micro-surface rounded-lg p-3"
+          class={neon_card_class("rounded-lg p-3")}
           aria-label={"Saldo financeiro em #{finance_period_context_label(@finance_filters)}"}
         >
           <div class="flex items-center justify-between">
@@ -113,7 +113,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             id="finance-filter-period-mode"
             name="filters[period_mode]"
             aria-label="Modo de período"
-            class="select select-bordered select-sm"
+            class={field_control_class()}
           >
             <option value="rolling" selected={@finance_filters.period_mode == "rolling"}>
               Janela móvel (dias)
@@ -137,7 +137,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             id="finance-filter-days"
             name="filters[days]"
             aria-label="Janela em dias"
-            class="select select-bordered select-sm"
+            class={field_control_class()}
           >
             <option value="7" selected={@finance_filters.days == "7"}>Últimos 7 dias</option>
             <option value="30" selected={@finance_filters.days == "30"}>Últimos 30 dias</option>
@@ -149,7 +149,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             id="finance-filter-kind"
             name="filters[kind]"
             aria-label="Tipo de lançamento"
-            class="select select-bordered select-sm"
+            class={field_control_class()}
           >
             <option value="all" selected={@finance_filters.kind == "all"}>Todos tipos</option>
             <option value="income" selected={@finance_filters.kind == "income"}>Receita</option>
@@ -160,7 +160,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             id="finance-filter-payment-method"
             name="filters[payment_method]"
             aria-label="Método de pagamento"
-            class="select select-bordered select-sm"
+            class={field_control_class()}
           >
             <option value="all" selected={@finance_filters.payment_method == "all"}>
               Todos métodos
@@ -180,7 +180,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             value={@finance_filters.category}
             aria-label="Filtrar por categoria"
             placeholder="Categoria..."
-            class="input input-bordered input-sm"
+            class={field_control_class()}
             maxlength="50"
             list="finance-filter-categories"
           />
@@ -192,7 +192,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             value={@finance_filters.q}
             aria-label="Buscar por descrição"
             placeholder="Buscar descrição..."
-            class="input input-bordered input-sm"
+            class={field_control_class()}
             maxlength="100"
           />
 
@@ -209,7 +209,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             value={money_filter_input_value(@finance_filters.min_amount_cents)}
             aria-label="Valor mínimo"
             placeholder="Valor mín..."
-            class="input input-bordered input-sm"
+            class={field_control_class()}
             inputmode="numeric"
             data-money-mask="true"
             data-money-hidden-target="finance-filter-min-amount-cents"
@@ -228,7 +228,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             value={money_filter_input_value(@finance_filters.max_amount_cents)}
             aria-label="Valor máximo"
             placeholder="Valor máx..."
-            class="input input-bordered input-sm"
+            class={field_control_class()}
             inputmode="numeric"
             data-money-mask="true"
             data-money-hidden-target="finance-filter-max-amount-cents"
@@ -237,7 +237,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
 
         <details
           id="finance-filters-advanced"
-          class="rounded-xl border border-base-content/12 bg-base-100/24 p-3"
+          class="rounded-xl border border-cyan-300/20 bg-slate-900/65 p-3"
           open={advanced_filters_active?(@finance_filters)}
         >
           <summary
@@ -268,7 +268,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
               value={@finance_filters.occurred_on}
               aria-label="Data específica"
               placeholder="Data exata: dd/mm/aaaa"
-              class="input input-bordered input-sm"
+              class={field_control_class()}
               inputmode="numeric"
               maxlength="10"
               pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
@@ -283,7 +283,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
               value={@finance_filters.month}
               aria-label="Mês de referência"
               placeholder="Mês: mm/aaaa"
-              class="input input-bordered input-sm"
+              class={field_control_class()}
               inputmode="numeric"
               maxlength="7"
               pattern="^[0-9]{2}/[0-9]{4}$"
@@ -298,7 +298,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
               value={@finance_filters.occurred_from}
               aria-label="Data inicial do intervalo"
               placeholder="De: dd/mm/aaaa"
-              class="input input-bordered input-sm"
+              class={field_control_class()}
               inputmode="numeric"
               maxlength="10"
               pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
@@ -313,7 +313,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
               value={@finance_filters.occurred_to}
               aria-label="Data final do intervalo"
               placeholder="Até: dd/mm/aaaa"
-              class="input input-bordered input-sm"
+              class={field_control_class()}
               inputmode="numeric"
               maxlength="10"
               pattern="^[0-9]{2}/[0-9]{2}/[0-9]{4}$"
@@ -325,7 +325,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
               id="finance-filter-weekday"
               name="filters[weekday]"
               aria-label="Dia da semana"
-              class="select select-bordered select-sm"
+              class={field_control_class()}
             >
               <option value="all" selected={@finance_filters.weekday == "all"}>Todos os dias</option>
               <option value="1" selected={@finance_filters.weekday == "1"}>Segunda</option>
@@ -341,7 +341,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
               id="finance-filter-sort-by"
               name="filters[sort_by]"
               aria-label="Ordenar lançamentos"
-              class="select select-bordered select-sm"
+              class={field_control_class()}
             >
               <option value="date_desc" selected={@finance_filters.sort_by == "date_desc"}>
                 Data mais recente
@@ -364,7 +364,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
               id="finance-filter-expense-profile"
               name="filters[expense_profile]"
               aria-label="Perfil de despesa"
-              class="select select-bordered select-sm"
+              class={field_control_class()}
             >
               <option value="all" selected={@finance_filters.expense_profile == "all"}>
                 Todos perfis
@@ -411,13 +411,13 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
         data-has-more={to_string(@finance_has_more?)}
         data-loading={to_string(@finance_loading_more?)}
         data-next-page={@finance_next_page}
-        class="operations-scroll-area operations-scroll-area--list mt-2 rounded-xl border border-base-content/12 bg-base-100/28 p-2.5"
+        class="operations-scroll-area operations-scroll-area--list mt-3 rounded-2xl border border-cyan-300/20 bg-slate-900/65 p-3 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.04)]"
       >
         <div id="finances" phx-update="stream" class="space-y-2">
           <div id="finances-empty-wrapper" class="hidden only:block">
             <div
               id="empty-state-finances"
-              class="rounded-xl border border-dashed border-base-content/25 px-4 py-6 text-center"
+              class="rounded-xl border border-dashed border-cyan-300/30 px-4 py-6 text-center"
             >
               <p class="text-sm font-semibold text-base-content/85">Nenhum lançamento financeiro</p>
               <p class="mt-1 text-xs leading-5 text-base-content/65">
@@ -429,7 +429,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
           <article
             :for={{id, entry} <- @streams.finances}
             id={id}
-            class={["micro-surface rounded-xl border p-2.5", finance_row_border_class(entry.kind)]}
+            class={finance_row_card_class(entry.kind)}
           >
             <div class="flex flex-col gap-2">
               <div class="flex items-start justify-between gap-3">
@@ -477,7 +477,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
                   </span>
                   <span
                     :if={fixed_until_cancelled?(entry)}
-                    class="badge badge-sm border-info/62 bg-info/24 text-info font-semibold"
+                    class="inline-flex items-center rounded-full border border-cyan-300/45 bg-cyan-400/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-cyan-100"
                   >
                     Ativa até cancelar
                   </span>
@@ -489,7 +489,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
                     type="button"
                     phx-click="start_edit_finance"
                     phx-value-id={entry.id}
-                    class="ds-inline-btn rounded-md px-2 py-1 text-xs"
+                    class={edit_action_btn_class()}
                   >
                     Editar
                   </button>
@@ -498,7 +498,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
                     type="button"
                     phx-click="prompt_delete_finance"
                     phx-value-id={entry.id}
-                    class="ds-inline-btn ds-inline-btn-danger rounded-md px-2 py-1 text-xs"
+                    class={delete_action_btn_class()}
                   >
                     Excluir
                   </button>
@@ -570,7 +570,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             id="finance-edit-close-btn"
             type="button"
             phx-click="cancel_edit_finance"
-            class="btn btn-ghost btn-sm border border-base-content/16"
+            class={modal_cancel_btn_class()}
           >
             <.icon name="hero-x-mark" class="size-4" />
           </button>
@@ -595,7 +595,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
         <form
           id={"finance-edit-form-#{@entry.id}"}
           phx-submit="save_finance"
-          class="mt-4 space-y-3 rounded-xl border border-base-content/14 bg-base-100/65 p-3.5 sm:p-4"
+          class="mt-4 space-y-3 bg-slate-900/75 p-3.5 sm:p-4"
         >
           <input type="hidden" name="_id" value={@entry.id} />
           <div class="grid gap-2 sm:grid-cols-2">
@@ -609,7 +609,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
               <select
                 id={"finance-kind-#{@entry.id}"}
                 name="finance[kind]"
-                class="select select-bordered w-full"
+                class={field_control_class()}
               >
                 <option value="income" selected={@entry.kind == :income}>Receita</option>
                 <option value="expense" selected={@entry.kind == :expense}>Despesa</option>
@@ -625,7 +625,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
               <select
                 id={"finance-expense-profile-#{@entry.id}"}
                 name="finance[expense_profile]"
-                class="select select-bordered w-full"
+                class={field_control_class()}
               >
                 <option
                   :for={{label, value} <- finance_edit_profile_options(@entry.kind)}
@@ -646,7 +646,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
               <select
                 id={"finance-payment-method-#{@entry.id}"}
                 name="finance[payment_method]"
-                class="select select-bordered w-full"
+                class={field_control_class()}
               >
                 <option value="" selected={is_nil(@entry.payment_method)}>Não se aplica</option>
                 <option value="debit" selected={@entry.payment_method == :debit}>Débito</option>
@@ -667,7 +667,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
                 inputmode="decimal"
                 required
                 value={money_input_value(@entry.amount_cents)}
-                class="input input-bordered w-full"
+                class={field_control_class()}
                 placeholder="Ex: 330,00"
                 data-money-mask="true"
               />
@@ -685,7 +685,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             type="text"
             required
             value={@entry.category}
-            class="input input-bordered w-full"
+            class={field_control_class()}
             list={finance_entry_category_datalist_id(@entry.id, @entry.kind)}
           />
           <label class="text-xs font-medium text-base-content/70" for={"finance-date-#{@entry.id}"}>
@@ -696,7 +696,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             name="finance[occurred_on]"
             type="text"
             value={date_input_value(@entry.occurred_on)}
-            class="input input-bordered w-full"
+            class={field_control_class()}
             placeholder="dd/mm/aaaa"
             inputmode="numeric"
             maxlength="10"
@@ -714,7 +714,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             name="finance[description]"
             type="text"
             value={@entry.description || ""}
-            class="input input-bordered w-full"
+            class={field_control_class()}
           />
           <div :if={@entry.kind == :expense}>
             <div class="grid gap-2 sm:grid-cols-2">
@@ -733,7 +733,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
                   max="120"
                   step="1"
                   value={@entry.installment_number || 1}
-                  class="input input-bordered w-full"
+                  class={field_control_class()}
                 />
               </div>
               <div>
@@ -751,7 +751,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
                   max="120"
                   step="1"
                   value={@entry.installments_count || 1}
-                  class="input input-bordered w-full"
+                  class={field_control_class()}
                 />
               </div>
             </div>
@@ -768,10 +768,10 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
             </option>
           </datalist>
           <div class="mt-1 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_edit_finance">
+            <button type="button" class={modal_cancel_btn_class()} phx-click="cancel_edit_finance">
               Cancelar
             </button>
-            <button type="submit" class="btn btn-primary btn-sm">Salvar lançamento</button>
+            <button type="submit" class={modal_submit_btn_class()}>Salvar lançamento</button>
           </div>
         </form>
       </section>
@@ -786,20 +786,27 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
 
   defp finance_row_border_class(:income), do: "border-success/25"
   defp finance_row_border_class(:expense), do: "border-error/25"
-  defp finance_row_border_class(_), do: "border-base-content/15"
+  defp finance_row_border_class(_), do: "border-cyan-300/20"
+
+  defp finance_row_card_class(kind) do
+    join_classes([
+      neon_card_class("rounded-xl border p-2.5"),
+      finance_row_border_class(kind)
+    ])
+  end
 
   defp finance_amount_class(:income), do: "text-sm font-semibold font-mono text-success"
   defp finance_amount_class(:expense), do: "text-sm font-semibold font-mono text-error"
   defp finance_amount_class(_), do: "text-sm font-semibold font-mono text-base-content"
 
   defp finance_kind_badge_class(:income),
-    do: "badge badge-sm border-success/60 bg-success/26 text-success font-semibold"
+    do: "inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-400/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-emerald-100"
 
   defp finance_kind_badge_class(:expense),
-    do: "badge badge-sm border-error/62 bg-error/22 text-error font-semibold"
+    do: "inline-flex items-center rounded-full border border-rose-300/55 bg-rose-500/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-rose-100"
 
   defp finance_kind_badge_class(_),
-    do: "badge badge-sm border-base-content/34 bg-base-100 text-base-content/92 font-semibold"
+    do: "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
 
   defp finance_kind_label(:income), do: "Receita"
   defp finance_kind_label(:expense), do: "Despesa"
@@ -835,19 +842,19 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   defp finance_profile_label(_), do: "Perfil"
 
   defp finance_profile_badge_class(:fixed),
-    do: "badge badge-sm border-info/60 bg-info/24 text-info font-semibold"
+    do: "inline-flex items-center rounded-full border border-cyan-300/45 bg-cyan-400/12 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-cyan-100"
 
   defp finance_profile_badge_class(:variable),
-    do: "badge badge-sm border-warning/66 bg-warning/30 text-warning-content font-semibold"
+    do: "inline-flex items-center rounded-full border border-amber-300/50 bg-amber-300/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-amber-100"
 
   defp finance_profile_badge_class(:recurring_fixed),
-    do: "badge badge-sm border-primary/62 bg-primary/24 text-primary font-semibold"
+    do: "inline-flex items-center rounded-full border border-violet-300/55 bg-violet-400/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-violet-100"
 
   defp finance_profile_badge_class(:recurring_variable),
-    do: "badge badge-sm border-accent/64 bg-accent/28 text-accent-content font-semibold"
+    do: "inline-flex items-center rounded-full border border-lime-300/55 bg-lime-300/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-lime-100"
 
   defp finance_profile_badge_class(_),
-    do: "badge badge-sm border-base-content/34 bg-base-100 text-base-content/92 font-semibold"
+    do: "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
 
   defp finance_payment_label(:debit), do: "Débito"
   defp finance_payment_label(:credit), do: "Crédito"
@@ -858,16 +865,16 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   defp finance_payment_label(_), do: "Pagamento"
 
   defp finance_payment_badge_class(:debit),
-    do: "badge badge-sm border-success/60 bg-success/26 text-success font-semibold"
+    do: "inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-400/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-emerald-100"
 
   defp finance_payment_badge_class(:credit),
-    do: "badge badge-sm border-error/62 bg-error/22 text-error font-semibold"
+    do: "inline-flex items-center rounded-full border border-rose-300/55 bg-rose-500/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-rose-100"
 
   defp finance_payment_badge_class(_),
-    do: "badge badge-sm border-base-content/34 bg-base-100 text-base-content/92 font-semibold"
+    do: "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
 
   defp finance_installments_badge_class,
-    do: "badge badge-sm border-secondary/62 bg-secondary/22 text-secondary font-semibold"
+    do: "inline-flex items-center rounded-full border border-fuchsia-300/50 bg-fuchsia-500/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-fuchsia-100"
 
   defp show_installments_badge?(entry) do
     entry.kind == :expense and entry.payment_method == :credit and
@@ -887,6 +894,40 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
 
   defp fixed_until_cancelled?(entry) do
     entry.kind == :expense and entry.expense_profile in [:fixed, :recurring_fixed]
+  end
+
+  defp neon_surface_class(extra) do
+    join_classes([
+      "neon-surface rounded-3xl border border-cyan-400/20 bg-slate-950/72 shadow-[0_24px_70px_-38px_rgba(34,211,238,0.7)] backdrop-blur-sm",
+      extra
+    ])
+  end
+
+  defp neon_card_class(extra) do
+    join_classes([
+      "neon-card rounded-2xl border border-cyan-300/15 bg-slate-900/72 shadow-[0_18px_45px_-34px_rgba(16,185,129,0.65)]",
+      extra
+    ])
+  end
+
+  defp field_control_class do
+    "w-full rounded-xl border border-cyan-300/20 bg-slate-900/85 px-2.5 py-2 text-sm text-base-content placeholder:text-base-content/45 transition focus:border-cyan-200/60 focus:outline-none focus:ring-2 focus:ring-cyan-300/25"
+  end
+
+  defp edit_action_btn_class do
+    "rounded-lg border border-cyan-300/30 bg-slate-900/90 px-2.5 py-1.5 text-xs font-medium text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
+  end
+
+  defp delete_action_btn_class do
+    "rounded-lg border border-rose-300/40 bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-100 transition hover:border-rose-200/70 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/35"
+  end
+
+  defp modal_cancel_btn_class do
+    "inline-flex items-center justify-center rounded-xl border border-slate-400/30 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-cyan-300/45 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
+  end
+
+  defp modal_submit_btn_class do
+    "inline-flex items-center justify-center rounded-xl border border-cyan-300/70 bg-cyan-400/90 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-[0_14px_30px_-16px_rgba(34,211,238,0.75)] transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
   end
 
   defp money_input_value(cents) when is_integer(cents) and cents >= 0 do
@@ -1170,4 +1211,12 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   end
 
   defp normalize_category_suggestions(_suggestions), do: %{income: [], expense: [], all: []}
+
+  defp join_classes(classes) do
+    classes
+    |> List.flatten()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(" ")
+  end
 end

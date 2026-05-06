@@ -19,7 +19,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
 
   def planning_operations_panel(assigns) do
     ~H"""
-    <section id="planning-operations-panel" class="surface-card rounded-2xl p-4 scroll-mt-20">
+    <section id="planning-operations-panel" class={neon_surface_class("p-4 scroll-mt-20")}>
       <div class="max-w-3xl">
         <h2 class="text-2xl font-black tracking-[-0.02em] text-base-content">
           Custos fixos e datas importantes
@@ -32,7 +32,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
       <div class="mt-4 grid gap-4 xl:grid-cols-2">
         <article
           id="fixed-costs-form-card"
-          class="micro-surface rounded-xl border border-base-content/14 p-4"
+          class={neon_card_class("p-4")}
         >
           <h3 class="text-sm font-semibold uppercase tracking-[0.12em] text-base-content/70">
             Novo custo fixo
@@ -92,7 +92,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
 
         <article
           id="important-dates-form-card"
-          class="micro-surface rounded-xl border border-base-content/14 p-4"
+          class={neon_card_class("p-4")}
         >
           <h3 class="text-sm font-semibold uppercase tracking-[0.12em] text-base-content/70">
             Nova data importante
@@ -143,7 +143,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
       <div class="mt-4 grid gap-4 xl:grid-cols-2">
         <article
           id="fixed-costs-list-card"
-          class="micro-surface rounded-xl border border-base-content/14 p-4"
+          class={neon_card_class("p-4")}
         >
           <div class="flex items-center justify-between gap-2">
             <h3 class="text-sm font-semibold uppercase tracking-[0.12em] text-base-content/70">
@@ -156,7 +156,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
             <li
               :if={Enum.empty?(@fixed_costs)}
               id="fixed-costs-empty"
-              class="rounded-xl border border-dashed border-base-content/25 px-4 py-6 text-sm text-base-content/72"
+              class="rounded-xl border border-dashed border-cyan-300/30 px-4 py-6 text-sm text-base-content/72"
             >
               Nenhum custo fixo cadastrado.
             </li>
@@ -164,7 +164,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
             <li
               :for={cost <- @fixed_costs}
               id={"fixed-cost-#{cost.id}"}
-              class="rounded-xl border border-base-content/14 bg-base-100/70 p-3"
+              class="rounded-xl border border-cyan-300/20 bg-slate-900/75 p-3"
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
@@ -188,7 +188,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
                   type="button"
                   phx-click="start_edit_fixed_cost"
                   phx-value-id={cost.id}
-                  class="ds-inline-btn rounded-md px-2 py-1 text-xs"
+                  class={edit_action_btn_class()}
                 >
                   Editar
                 </button>
@@ -197,7 +197,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
                   type="button"
                   phx-click="prompt_delete_fixed_cost"
                   phx-value-id={cost.id}
-                  class="ds-inline-btn ds-inline-btn-danger rounded-md px-2 py-1 text-xs"
+                  class={delete_action_btn_class()}
                 >
                   Excluir
                 </button>
@@ -208,7 +208,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
 
         <article
           id="important-dates-list-card"
-          class="micro-surface rounded-xl border border-base-content/14 p-4"
+          class={neon_card_class("p-4")}
         >
           <div class="flex items-center justify-between gap-2">
             <h3 class="text-sm font-semibold uppercase tracking-[0.12em] text-base-content/70">
@@ -221,7 +221,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
             <li
               :if={Enum.empty?(@important_dates)}
               id="important-dates-empty"
-              class="rounded-xl border border-dashed border-base-content/25 px-4 py-6 text-sm text-base-content/72"
+              class="rounded-xl border border-dashed border-cyan-300/30 px-4 py-6 text-sm text-base-content/72"
             >
               Nenhuma data importante cadastrada.
             </li>
@@ -229,7 +229,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
             <li
               :for={important_date <- @important_dates}
               id={"important-date-#{important_date.id}"}
-              class="rounded-xl border border-base-content/14 bg-base-100/70 p-3"
+              class="rounded-xl border border-cyan-300/20 bg-slate-900/75 p-3"
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
@@ -256,7 +256,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
                   type="button"
                   phx-click="start_edit_important_date"
                   phx-value-id={important_date.id}
-                  class="ds-inline-btn rounded-md px-2 py-1 text-xs"
+                  class={edit_action_btn_class()}
                 >
                   Editar
                 </button>
@@ -265,7 +265,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
                   type="button"
                   phx-click="prompt_delete_important_date"
                   phx-value-id={important_date.id}
-                  class="ds-inline-btn ds-inline-btn-danger rounded-md px-2 py-1 text-xs"
+                  class={delete_action_btn_class()}
                 >
                   Excluir
                 </button>
@@ -290,7 +290,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
             <button
               type="button"
               phx-click="cancel_edit_fixed_cost"
-              class="btn btn-ghost btn-sm border border-base-content/16"
+              class={modal_cancel_btn_class()}
             >
               <.icon name="hero-x-mark" class="size-4" />
             </button>
@@ -348,10 +348,10 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
             />
 
             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_edit_fixed_cost">
+              <button type="button" class={modal_cancel_btn_class()} phx-click="cancel_edit_fixed_cost">
                 Cancelar
               </button>
-              <button type="submit" class="btn btn-primary btn-sm">Salvar custo fixo</button>
+              <button type="submit" class={modal_submit_btn_class()}>Salvar custo fixo</button>
             </div>
           </.form>
         </section>
@@ -374,7 +374,7 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
             <button
               type="button"
               phx-click="cancel_edit_important_date"
-              class="btn btn-ghost btn-sm border border-base-content/16"
+              class={modal_cancel_btn_class()}
             >
               <.icon name="hero-x-mark" class="size-4" />
             </button>
@@ -421,12 +421,12 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                class="btn btn-ghost btn-sm"
+                class={modal_cancel_btn_class()}
                 phx-click="cancel_edit_important_date"
               >
                 Cancelar
               </button>
-              <button type="submit" class="btn btn-primary btn-sm">Salvar data</button>
+              <button type="submit" class={modal_submit_btn_class()}>Salvar data</button>
             </div>
           </.form>
         </section>
@@ -472,13 +472,13 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
   end
 
   defp fixed_cost_status_badge_class(true),
-    do: "badge badge-sm border-success/62 bg-success/24 text-success font-semibold"
+    do: "inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-emerald-100"
 
   defp fixed_cost_status_badge_class(false),
-    do: "badge badge-sm border-warning/62 bg-warning/24 text-warning-content font-semibold"
+    do: "inline-flex items-center rounded-full border border-amber-300/50 bg-amber-300/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-amber-100"
 
   defp fixed_cost_status_badge_class(_),
-    do: "badge badge-sm border-base-content/34 bg-base-100 text-base-content/90 font-semibold"
+    do: "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
 
   defp important_date_category_options do
     [
@@ -522,5 +522,43 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
     |> Enum.map(&Enum.join/1)
     |> Enum.join(".")
     |> String.reverse()
+  end
+
+  defp neon_surface_class(extra) do
+    join_classes([
+      "neon-surface rounded-3xl border border-cyan-400/20 bg-slate-950/72 shadow-[0_24px_70px_-38px_rgba(34,211,238,0.7)] backdrop-blur-sm",
+      extra
+    ])
+  end
+
+  defp neon_card_class(extra) do
+    join_classes([
+      "neon-card rounded-2xl border border-cyan-300/15 bg-slate-900/72 shadow-[0_18px_45px_-34px_rgba(16,185,129,0.65)]",
+      extra
+    ])
+  end
+
+  defp edit_action_btn_class do
+    "rounded-lg border border-cyan-300/30 bg-slate-900/90 px-2.5 py-1.5 text-xs font-medium text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
+  end
+
+  defp delete_action_btn_class do
+    "rounded-lg border border-rose-300/40 bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-100 transition hover:border-rose-200/70 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/35"
+  end
+
+  defp modal_cancel_btn_class do
+    "inline-flex items-center justify-center rounded-xl border border-slate-400/30 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-cyan-300/45 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
+  end
+
+  defp modal_submit_btn_class do
+    "inline-flex items-center justify-center rounded-xl border border-cyan-300/70 bg-cyan-400/90 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-[0_14px_30px_-16px_rgba(34,211,238,0.75)] transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
+  end
+
+  defp join_classes(classes) do
+    classes
+    |> List.flatten()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(" ")
   end
 end

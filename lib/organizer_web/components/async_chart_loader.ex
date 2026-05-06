@@ -8,11 +8,14 @@ defmodule OrganizerWeb.Components.AsyncChartLoader do
 
   def async_chart_loader(assigns) do
     ~H"""
-    <div id={@chart_id} class="relative min-h-[15rem]">
-      <div :if={@loading} class="grid gap-3 p-4">
-        <div class="relative overflow-hidden h-12 rounded-lg bg-base-content/12 skeleton-bar"></div>
-        <div class="relative overflow-hidden h-12 rounded-lg bg-base-content/12 skeleton-bar"></div>
-        <div class="relative overflow-hidden h-12 rounded-lg bg-base-content/12 skeleton-bar"></div>
+    <div
+      id={@chart_id}
+      class="relative min-h-[15rem] rounded-2xl border border-cyan-300/18 bg-slate-900/66 p-3 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.05)]"
+    >
+      <div :if={@loading} class="grid gap-2.5">
+        <div class="relative h-12 overflow-hidden rounded-lg border border-cyan-300/14 bg-slate-900/78 skeleton-bar"></div>
+        <div class="relative h-12 overflow-hidden rounded-lg border border-cyan-300/14 bg-slate-900/78 skeleton-bar"></div>
+        <div class="relative h-12 overflow-hidden rounded-lg border border-cyan-300/14 bg-slate-900/78 skeleton-bar"></div>
       </div>
 
       <div :if={!@loading && @chart_svg} class="contex-plot">
@@ -21,9 +24,9 @@ defmodule OrganizerWeb.Components.AsyncChartLoader do
 
       <div
         :if={!@loading && !@chart_svg}
-        class="flex items-center justify-center min-h-[15rem] border border-dashed border-base-content/25 rounded-xl bg-base-100/70"
+        class="flex min-h-[15rem] items-center justify-center rounded-xl border border-dashed border-cyan-300/30 bg-slate-900/76"
       >
-        <p class="text-xs text-base-content/65">
+        <p class="text-xs text-base-content/68">
           Dados insuficientes para gerar gráfico.
         </p>
       </div>

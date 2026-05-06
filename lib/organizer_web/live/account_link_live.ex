@@ -235,7 +235,7 @@ defmodule OrganizerWeb.AccountLinkLive do
       <%= case @live_action do %>
         <% :index -> %>
           <section class="collab-shell responsive-shell mx-auto max-w-5xl space-y-6">
-            <header class="surface-card collab-hero rounded-3xl p-6 sm:p-8">
+            <header class={collab_header_class("p-6 sm:p-8")}>
               <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div class="space-y-2">
                   <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
@@ -251,7 +251,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                 <.link
                   navigate={~p"/account-links/invite"}
                   id="new-invite-btn"
-                  class="btn btn-primary btn-sm sm:btn-md"
+                  class="inline-flex items-center gap-2 rounded-xl border border-cyan-300/70 bg-cyan-400/90 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_16px_36px_-20px_rgba(34,211,238,0.8)] transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
                 >
                   <.icon name="hero-paper-airplane" class="size-4" /> Novo convite
                 </.link>
@@ -259,7 +259,7 @@ defmodule OrganizerWeb.AccountLinkLive do
             </header>
 
             <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <article class="micro-surface rounded-2xl p-4">
+              <article class={neon_card_class("p-4")}>
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
                   Lançamentos compartilhados
                 </p>
@@ -268,7 +268,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                 </p>
               </article>
 
-              <article class="micro-surface rounded-2xl p-4">
+              <article class={neon_card_class("p-4")}>
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
                   Compartilhamentos ativos
                 </p>
@@ -277,7 +277,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                 </p>
               </article>
 
-              <article class="micro-surface rounded-2xl p-4">
+              <article class={neon_card_class("p-4")}>
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
                   Dívidas em aberto
                 </p>
@@ -286,7 +286,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                 </p>
               </article>
 
-              <article class="micro-surface rounded-2xl p-4">
+              <article class={neon_card_class("p-4")}>
                 <p class="text-xs uppercase tracking-[0.12em] text-base-content/62">
                   Saldo pendente
                 </p>
@@ -296,7 +296,7 @@ defmodule OrganizerWeb.AccountLinkLive do
               </article>
             </section>
 
-            <section class="surface-card rounded-3xl p-5 sm:p-6">
+            <section class={neon_surface_class("p-5 sm:p-6")}>
               <div class="flex items-center justify-between">
                 <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/70">
                   Lista de compartilhamentos
@@ -323,13 +323,13 @@ defmodule OrganizerWeb.AccountLinkLive do
                 data-has-more={to_string(@account_links_has_more?)}
                 data-loading={to_string(@account_links_loading_more?)}
                 data-next-page={@account_links_next_page}
-                class="operations-scroll-area operations-scroll-area--list mt-4 rounded-xl border border-base-content/12 bg-base-100/24 p-2.5"
+                class="operations-scroll-area operations-scroll-area--list mt-4 rounded-2xl border border-cyan-300/20 bg-slate-900/65 p-3 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.04)]"
               >
                 <ul id="account-links-list" class="space-y-3">
                   <%= if Enum.empty?(@account_links) do %>
                     <li
                       id="account-link-empty"
-                      class="ds-empty-state rounded-2xl border border-dashed px-4 py-6 text-sm text-base-content/75"
+                      class="rounded-2xl border border-dashed border-cyan-300/30 bg-slate-900/55 px-4 py-6 text-sm text-slate-300"
                     >
                       Nenhum compartilhamento ativo. Gere um convite para começar a compartilhar.
                     </li>
@@ -338,7 +338,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                   <%= for link <- @account_links do %>
                     <li
                       id={"account-link-#{link.id}"}
-                      class="shared-entry-row micro-surface flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
+                      class={shared_entry_row_class("gap-3")}
                     >
                       <div class="min-w-0">
                         <p class="truncate text-sm font-semibold text-base-content/92">
@@ -350,7 +350,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                       </div>
 
                       <div class="flex flex-wrap gap-2">
-                        <.link navigate={~p"/account-links/#{link.id}"} class="btn btn-soft btn-xs">
+                        <.link navigate={~p"/account-links/#{link.id}"} class="inline-flex items-center rounded-lg border border-cyan-300/35 bg-slate-900/85 px-2.5 py-1 text-xs font-medium text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35">
                           Gerenciar
                         </.link>
                         <button
@@ -358,7 +358,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                           type="button"
                           phx-click="prompt_deactivate_link"
                           phx-value-id={link.id}
-                          class="btn btn-outline btn-xs btn-error"
+                          class="inline-flex items-center rounded-lg border border-rose-300/45 bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-100 transition hover:border-rose-200/70 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/35"
                         >
                           Desativar
                         </button>
@@ -395,7 +395,7 @@ defmodule OrganizerWeb.AccountLinkLive do
           </section>
         <% :new_invite -> %>
           <section class="collab-shell responsive-shell mx-auto max-w-5xl space-y-6">
-            <header class="surface-card collab-hero rounded-3xl p-6 sm:p-8">
+            <header class={collab_header_class("p-6 sm:p-8")}>
               <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/62">
                 Convite por link
               </p>
@@ -408,7 +408,7 @@ defmodule OrganizerWeb.AccountLinkLive do
             </header>
 
             <div class="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-              <section class="surface-card rounded-3xl p-6">
+              <section class={neon_surface_class("p-6")}>
                 <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/68">
                   Gerar convite
                 </h2>
@@ -419,7 +419,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                   id="create-invite-btn"
                   type="button"
                   phx-click="create_invite"
-                  class="btn btn-primary mt-4 w-full sm:w-auto"
+                  class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-300/70 bg-cyan-400/90 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_16px_36px_-20px_rgba(34,211,238,0.8)] transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60 sm:w-auto"
                 >
                   <.icon name="hero-paper-airplane" class="size-4" /> Gerar link de convite
                 </button>
@@ -430,7 +430,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                   </p>
                   <div
                     id="invite-url"
-                    class="micro-surface rounded-xl border border-base-content/15 p-3 break-all text-sm font-mono text-base-content/90"
+                    class={neon_card_class("rounded-xl border-cyan-300/25 p-3 break-all text-sm font-mono text-base-content/90")}
                   >
                     {@invite_url}
                   </div>
@@ -439,7 +439,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                       id="copy-invite-url-btn"
                       type="button"
                       phx-click="copy_invite_url"
-                      class="btn btn-soft btn-xs sm:btn-sm"
+                      class="inline-flex items-center rounded-lg border border-cyan-300/35 bg-slate-900/85 px-2.5 py-1 text-xs font-medium text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35 sm:px-3 sm:py-1.5"
                     >
                       <.icon name="hero-clipboard-document" class="size-4" /> Copiar link
                     </button>
@@ -450,7 +450,7 @@ defmodule OrganizerWeb.AccountLinkLive do
                 </div>
               </section>
 
-              <section class="surface-card rounded-3xl p-6">
+              <section class={neon_surface_class("p-6")}>
                 <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-base-content/68">
                   Aceitar convite
                 </h2>
@@ -738,5 +738,42 @@ defmodule OrganizerWeb.AccountLinkLive do
 
   defp track_funnel(action, outcome, metadata \\ %{}) do
     FunnelTelemetry.track_step(:account_links, action, outcome, metadata)
+  end
+
+  defp collab_header_class(extra) do
+    join_classes([
+      "neon-surface collab-hero rounded-3xl border border-cyan-400/20 bg-slate-950/72 shadow-[0_24px_70px_-38px_rgba(34,211,238,0.7)] backdrop-blur-sm",
+      extra
+    ])
+  end
+
+  defp neon_surface_class(extra) do
+    join_classes([
+      "neon-surface rounded-3xl border border-cyan-400/20 bg-slate-950/72 shadow-[0_24px_70px_-38px_rgba(34,211,238,0.7)] backdrop-blur-sm",
+      extra
+    ])
+  end
+
+  defp neon_card_class(extra) do
+    join_classes([
+      "neon-card rounded-2xl border border-cyan-300/15 bg-slate-900/72 shadow-[0_18px_45px_-34px_rgba(16,185,129,0.65)]",
+      extra
+    ])
+  end
+
+  defp shared_entry_row_class(extra) do
+    join_classes([
+      "shared-entry-row flex flex-col rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between",
+      neon_card_class(nil),
+      extra
+    ])
+  end
+
+  defp join_classes(classes) do
+    classes
+    |> List.flatten()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(" ")
   end
 end

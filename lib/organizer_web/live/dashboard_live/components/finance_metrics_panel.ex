@@ -12,7 +12,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
 
   def finance_metrics_panel(assigns) do
     ~H"""
-    <section id="finance-metrics-panel" class="surface-card rounded-2xl p-4 scroll-mt-20">
+    <section id="finance-metrics-panel" class={neon_surface_class("p-4 scroll-mt-20")}>
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="max-w-3xl">
           <h2 class="text-2xl font-black tracking-[-0.02em] text-base-content">
@@ -39,9 +39,11 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
               phx-click="set_finance_metrics_days"
               phx-value-days={days}
               class={[
-                "btn btn-xs ds-pill-btn",
-                @finance_metrics_filters.days == days && "btn-primary",
-                @finance_metrics_filters.days != days && "btn-soft"
+                "inline-flex items-center rounded-xl border px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2",
+                @finance_metrics_filters.days == days &&
+                  "border-cyan-300/75 bg-cyan-400/90 text-slate-950 shadow-[0_14px_30px_-16px_rgba(34,211,238,0.75)] hover:bg-cyan-300 focus-visible:ring-cyan-200/60",
+                @finance_metrics_filters.days != days &&
+                  "border-cyan-300/35 bg-slate-900/85 text-cyan-100 hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:ring-cyan-300/35"
               ]}
             >
               {finance_metrics_days_label(days)}
@@ -51,7 +53,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
       </div>
 
       <div class="mt-4 grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
-        <article class="micro-surface rounded-xl p-3">
+        <article class={neon_card_class("rounded-xl p-3")}>
           <p class="text-xs uppercase tracking-wide text-base-content/65">Saldo no período</p>
           <p class={[
             "mt-1 text-lg font-semibold",
@@ -66,7 +68,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
           </p>
         </article>
 
-        <article class="micro-surface rounded-xl p-3">
+        <article class={neon_card_class("rounded-xl p-3")}>
           <p class="text-xs uppercase tracking-wide text-base-content/65">Ticket médio despesa</p>
           <p class="mt-1 text-lg font-semibold text-base-content">
             {format_money(highlight_value(@finance_highlights, :avg_expense_ticket_cents))}
@@ -76,7 +78,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
           </p>
         </article>
 
-        <article class="micro-surface rounded-xl p-3">
+        <article class={neon_card_class("rounded-xl p-3")}>
           <p class="text-xs uppercase tracking-wide text-base-content/65">Categoria dominante</p>
           <p class="mt-1 truncate text-sm font-semibold text-base-content">
             {dominant_category_label(@finance_highlights)}
@@ -86,7 +88,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
           </p>
         </article>
 
-        <article class="micro-surface rounded-xl p-3">
+        <article class={neon_card_class("rounded-xl p-3")}>
           <p class="text-xs uppercase tracking-wide text-base-content/65">Lançamentos no período</p>
           <p class="mt-1 text-lg font-semibold text-base-content">
             {highlight_value(@finance_highlights, :finance_entries_window)}
@@ -98,7 +100,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
       </div>
 
       <div class="mt-4 grid gap-3 xl:grid-cols-2">
-        <article class="micro-surface min-h-[15rem] overflow-x-auto rounded-xl p-3 sm:min-h-[18rem]">
+        <article class={neon_card_class("min-h-[15rem] overflow-x-auto rounded-xl p-3 sm:min-h-[18rem]")}>
           <div class="flex items-center justify-between gap-2">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
               Receitas x despesas no tempo
@@ -122,7 +124,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
           </p>
         </article>
 
-        <article class="micro-surface min-h-[14rem] overflow-hidden rounded-xl p-3 sm:min-h-[16rem]">
+        <article class={neon_card_class("min-h-[14rem] overflow-hidden rounded-xl p-3 sm:min-h-[16rem]")}>
           <div class="flex items-center justify-between gap-2">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
               Composição por natureza
@@ -149,7 +151,7 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
         </article>
       </div>
 
-      <article class="micro-surface mt-3 min-h-[13rem] overflow-hidden rounded-xl p-3 sm:min-h-[15rem]">
+      <article class={neon_card_class("mt-3 min-h-[13rem] overflow-hidden rounded-xl p-3 sm:min-h-[15rem]")}>
         <div class="flex items-center justify-between gap-2">
           <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
             Top despesas por categoria
@@ -200,4 +202,26 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
   defp finance_metrics_days_label(days), do: days <> "d"
 
   defp finance_metrics_day_range_options, do: ["7", "30", "90", "365"]
+
+  defp neon_surface_class(extra) do
+    join_classes([
+      "neon-surface rounded-3xl border border-cyan-400/20 bg-slate-950/72 shadow-[0_24px_70px_-38px_rgba(34,211,238,0.7)] backdrop-blur-sm",
+      extra
+    ])
+  end
+
+  defp neon_card_class(extra) do
+    join_classes([
+      "neon-card rounded-2xl border border-cyan-300/15 bg-slate-900/72 shadow-[0_18px_45px_-34px_rgba(16,185,129,0.65)]",
+      extra
+    ])
+  end
+
+  defp join_classes(classes) do
+    classes
+    |> List.flatten()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(" ")
+  end
 end

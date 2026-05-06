@@ -1,57 +1,38 @@
 <Layouts.app flash={assigns[:flash] || %{}} current_scope={assigns[:current_scope]} wide={true}>
-  <section id="error-500-page" class="mx-auto w-full max-w-7xl">
-    <article class="surface-card relative isolate overflow-hidden rounded-[2rem] border-error/25 bg-[linear-gradient(150deg,#fbf7f7_0%,#f6efef_54%,#f8f6ee_100%)] p-6 shadow-[0_20px_48px_rgba(74,56,56,0.14)] motion-safe:animate-[fade-slide-in_280ms_ease-out] sm:p-8 lg:p-10">
-      <div class="pointer-events-none absolute -left-[12%] -top-[28%] h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,rgba(224,102,102,0.15)_0%,transparent_68%)] sm:h-[30rem] sm:w-[30rem]">
-      </div>
+  <section id="error-500-page" class="relative isolate mx-auto w-full max-w-7xl overflow-hidden rounded-3xl border border-rose-300/30 bg-slate-950/84 p-6 shadow-[0_28px_80px_-42px_rgba(244,63,94,0.7)] sm:p-8 lg:p-10">
+    <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_12%_16%,rgba(244,63,94,0.22),transparent_45%),radial-gradient(circle_at_88%_78%,rgba(251,113,133,0.14),transparent_40%)]"></div>
 
-      <div class="relative grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-        <div>
-          <p class="hero-eyebrow text-xs font-semibold uppercase tracking-[0.2em]">HTTP 500</p>
-          <h1 class="mt-3 max-w-3xl text-4xl font-black leading-tight text-base-content sm:text-5xl">
-            Instabilidade temporária no servidor.
-          </h1>
-          <p class="mt-4 max-w-2xl text-sm leading-7 text-base-content/80 sm:text-base">
-            Já identificamos a falha dessa requisição. Tente novamente em alguns segundos para continuar sua operação.
-          </p>
+    <div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
+      <div>
+        <p class="inline-flex rounded-full border border-rose-300/50 bg-rose-300/14 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-rose-100">HTTP 500</p>
+        <h1 class="mt-4 max-w-3xl text-4xl font-black leading-tight text-slate-50 sm:text-5xl">Instabilidade temporária no servidor.</h1>
+        <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">Já identificamos a falha desta requisição. Tente novamente em alguns segundos.</p>
 
-          <div class="mt-8 flex flex-wrap gap-3">
-            <.link id="error-500-retry-link" href={~p"/"} class="btn btn-primary">
-              Tentar novamente
-            </.link>
-            <.link id="error-500-login-link" href={~p"/users/log-in"} class="btn btn-outline">
-              Reautenticar sessão
-            </.link>
-          </div>
-
-          <div class="mt-8 grid gap-3 sm:grid-cols-2">
-            <article class="micro-surface rounded-2xl p-4 transition duration-200 ease-out hover:-translate-y-0.5 hover:border-error/35 hover:shadow-[0_12px_26px_rgba(98,72,72,0.14)]">
-              <.icon name="hero-shield-check" class="size-5 text-primary" />
-              <p class="mt-2 text-sm font-semibold text-base-content">Dados preservados</p>
-              <p class="mt-1 text-xs leading-5 text-base-content/72">
-                Sua sessão continua protegida durante a recuperação do serviço.
-              </p>
-            </article>
-            <article class="micro-surface rounded-2xl p-4 transition duration-200 ease-out hover:-translate-y-0.5 hover:border-error/35 hover:shadow-[0_12px_26px_rgba(98,72,72,0.14)]">
-              <.icon name="hero-clock" class="size-5 text-primary" />
-              <p class="mt-2 text-sm font-semibold text-base-content">Nova tentativa</p>
-              <p class="mt-1 text-xs leading-5 text-base-content/72">
-                Em geral a resposta volta rapidamente após alguns segundos.
-              </p>
-            </article>
-          </div>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <.link id="error-500-retry-link" href={~p"/"} class="inline-flex items-center justify-center rounded-2xl border border-rose-100/70 bg-gradient-to-br from-rose-200 via-orange-100 to-amber-200 px-5 py-3 text-sm font-extrabold text-slate-950 transition duration-200 hover:-translate-y-0.5 hover:brightness-105">Tentar novamente</.link>
+          <.link id="error-500-login-link" href={~p"/users/log-in"} class="inline-flex items-center justify-center rounded-2xl border border-rose-100/35 bg-slate-900/85 px-5 py-3 text-sm font-bold text-rose-100 transition duration-200 hover:-translate-y-0.5 hover:border-rose-100/70">Reautenticar</.link>
         </div>
 
-        <aside class="grid content-start">
-          <div class="rounded-[1.45rem] border border-error/30 bg-base-100/92 p-5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_18px_34px_rgba(98,72,72,0.16)] backdrop-blur-sm motion-safe:animate-[pulse_3.2s_ease-in-out_infinite] sm:w-[22rem] sm:justify-self-end">
-            <span class="block text-[clamp(3rem,9vw,6rem)] font-black leading-none tracking-[-0.04em] text-base-content/92">
-              500
-            </span>
-            <p class="mt-2 text-xs font-bold uppercase tracking-[0.18em] text-base-content/65">
-              server error
-            </p>
-          </div>
-        </aside>
+        <div class="mt-8 grid gap-3 sm:grid-cols-2">
+          <article class="rounded-2xl border border-rose-300/25 bg-slate-900/82 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-rose-200/55">
+            <.icon name="hero-shield-check" class="size-5 text-rose-200" />
+            <p class="mt-2 text-sm font-semibold text-slate-100">Dados preservados</p>
+            <p class="mt-1 text-xs leading-5 text-slate-300/85">Sua sessão continua protegida durante recuperação do serviço.</p>
+          </article>
+          <article class="rounded-2xl border border-orange-300/25 bg-slate-900/82 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-orange-200/55">
+            <.icon name="hero-clock" class="size-5 text-orange-200" />
+            <p class="mt-2 text-sm font-semibold text-slate-100">Nova tentativa</p>
+            <p class="mt-1 text-xs leading-5 text-slate-300/85">Em geral a resposta volta em instantes.</p>
+          </article>
+        </div>
       </div>
-    </article>
+
+      <aside class="grid content-start">
+        <div class="rounded-[1.45rem] border border-rose-300/35 bg-slate-900/80 p-5 text-center shadow-[0_18px_40px_-20px_rgba(244,63,94,0.45)] backdrop-blur sm:w-[22rem] sm:justify-self-end">
+          <span class="block text-[clamp(3rem,9vw,6rem)] font-black leading-none tracking-[-0.04em] text-rose-100">500</span>
+          <p class="mt-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-300">server error</p>
+        </div>
+      </aside>
+    </div>
   </section>
 </Layouts.app>

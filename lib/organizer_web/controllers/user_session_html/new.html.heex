@@ -1,111 +1,103 @@
 <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
-  <section class="public-auth-shell responsive-shell mx-auto max-w-6xl py-4 sm:py-8">
+  <section class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
     <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-      <article class="brand-hero-card public-auth-hero rounded-[2rem] p-6 sm:p-8">
-        <figure class="public-reference-mini rounded-2xl p-2 sm:max-w-xs">
+      <article class="relative overflow-hidden rounded-3xl border border-cyan-300/30 bg-slate-950/90 p-6 text-slate-100 shadow-[0_28px_90px_-40px_rgba(34,211,238,0.65)] sm:p-8">
+        <div
+          aria-hidden="true"
+          class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.25),transparent_45%),radial-gradient(circle_at_85%_75%,rgba(163,230,53,0.2),transparent_40%)]"
+        >
+        </div>
+        <div
+          aria-hidden="true"
+          class="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(56,189,248,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(56,189,248,0.16)_1px,transparent_1px)] [background-size:22px_22px]"
+        >
+        </div>
+
+        <div class="relative z-10">
           <img
             src={~p"/images/organizer-logo.png"}
             alt="Logo Organizer"
-            class="public-reference-mini-image rounded-xl"
+            class="h-11 w-auto rounded-xl border border-cyan-300/35 bg-slate-900/85 p-2"
             loading="lazy"
             decoding="async"
           />
-        </figure>
 
-        <p class="hero-eyebrow mt-5 text-xs font-semibold uppercase tracking-[0.18em]">
-          {if @invite_pending?, do: "Convite pendente", else: "Acesso direto"}
-        </p>
-        <h2 class="mt-3 text-3xl font-black leading-tight sm:text-4xl">
-          {if @invite_pending?,
-            do: "Entre para concluir o compartilhamento",
-            else: "Entre e continue de onde parou"}
-        </h2>
+          <p
+            class={[
+              "mt-6 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.2em]",
+              if(@invite_pending?,
+                do: "border-lime-300/70 bg-lime-300/15 text-lime-100",
+                else: "border-cyan-300/45 bg-cyan-300/12 text-cyan-100"
+              )
+            ]}
+          >
+            <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+            {if @invite_pending?, do: "Convite pendente", else: "Entrada segura"}
+          </p>
 
-        <p class="hero-copy mt-4 max-w-xl text-sm leading-relaxed sm:text-base">
-          <%= cond do %>
-            <% @invite_pending? -> %>
-              Você abriu um convite de conexão entre contas. Faça login para confirmar o compartilhamento e liberar a área de finanças compartilhadas.
-            <% @current_scope -> %>
-              Reautentique para continuar com segurança em ações sensíveis da sua conta.
-            <% true -> %>
-              Entre para continuar na área logada com formulários rápidos e compartilhamentos por convite.
-          <% end %>
-        </p>
+          <h1 class="mt-4 text-3xl font-black leading-tight text-slate-50 sm:text-4xl">
+            {if @invite_pending?, do: "Entre para concluir compartilhamento", else: "Entre e continue de onde parou"}
+          </h1>
 
-        <div :if={@invite_pending?} class="micro-surface hero-copy mt-6 rounded-2xl p-4 text-sm">
-          Depois do login, você será redirecionado automaticamente para confirmar este convite.
-        </div>
+          <p class="mt-4 max-w-2xl text-sm leading-relaxed text-slate-300 sm:text-base">
+            <%= cond do %>
+              <% @invite_pending? -> %>
+                Você abriu um convite ativo. Faça login para concluir vínculo entre contas e liberar área compartilhada automaticamente.
+              <% @current_scope -> %>
+                Reautentique para continuar ações sensíveis da sua conta com segurança.
+              <% true -> %>
+                Acesse painel financeiro com fluxo rápido, histórico claro e colaboração por convite.
+            <% end %>
+          </p>
 
-        <div :if={!@current_scope} class="micro-surface hero-copy mt-6 rounded-2xl p-4 text-sm">
-          Novo por aqui? <.link
-            navigate={~p"/users/register"}
-            class="font-semibold text-info underline-offset-2 hover:underline"
-            phx-no-format
-          >Crie sua conta</.link>.
-        </div>
-
-        <div class="mt-6 grid gap-3 sm:grid-cols-2">
-          <div class="micro-surface public-point rounded-2xl p-3">
-            <div class="flex items-start gap-2">
-              <span class="public-icon-wrap mt-0.5">
-                <.icon name="hero-chart-bar" class="size-4" />
-              </span>
-              <div>
-                <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-                  Finanças rápidas
-                </p>
-                <p class="hero-meta-copy mt-1 text-xs">
-                  Registre lançamentos com classificação e compartilhamento opcional.
-                </p>
-              </div>
-            </div>
+          <div
+            :if={@invite_pending?}
+            class="mt-6 rounded-2xl border border-lime-300/65 bg-lime-300/12 p-4 text-sm font-medium leading-relaxed text-lime-100 shadow-[0_0_0_1px_rgba(163,230,53,0.22)]"
+          >
+            Caminho prioritário: login -> confirmação do convite -> abertura imediata da área compartilhada.
           </div>
 
-          <div class="micro-surface public-point rounded-2xl p-3">
-            <div class="flex items-start gap-2">
-              <span class="public-icon-wrap mt-0.5">
-                <.icon name="hero-shield-check" class="size-4" />
-              </span>
-              <div>
-                <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-                  Compartilhamento por link
-                </p>
-                <p class="hero-meta-copy mt-1 text-xs">
-                  Aceite convites e compartilhe dados com segurança.
-                </p>
-              </div>
+          <div class="mt-7 grid gap-3 sm:grid-cols-2">
+            <div class="rounded-2xl border border-cyan-300/30 bg-slate-900/75 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">Fluxo direto</p>
+              <p class="mt-2 text-xs leading-relaxed text-slate-300">
+                Registrar lançamentos, categorizar despesas, acompanhar evolução sem etapas longas.
+              </p>
+            </div>
+            <div class="rounded-2xl border border-cyan-300/30 bg-slate-900/75 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">Colaboração viva</p>
+              <p class="mt-2 text-xs leading-relaxed text-slate-300">
+                Aceite convites com um clique e compartilhe dados com controles claros.
+              </p>
             </div>
           </div>
         </div>
       </article>
 
-      <article class="surface-card public-form-card rounded-[2rem] p-6 sm:p-8">
-        <div class="space-y-1 text-center">
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">
-            Acesso da conta
-          </p>
-          <h1 class="text-2xl font-black text-base-content">Entrar</h1>
+      <article class="rounded-3xl border border-cyan-300/30 bg-slate-950/88 p-6 text-slate-100 shadow-[0_26px_70px_-38px_rgba(56,189,248,0.55)] sm:p-8">
+        <div class="space-y-2 text-center">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Acesso da conta</p>
+          <h2 class="text-3xl font-black text-slate-50">Entrar</h2>
         </div>
-
-        <div class="public-divider mt-5"></div>
 
         <.link
           href={~p"/users/auth/google"}
           id="login_with_google"
-          class="btn btn-soft mt-4 flex w-full items-center justify-center gap-2 transition-transform duration-200 hover:-translate-y-0.5"
+          class="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-300/45 bg-cyan-300/12 px-4 py-3 text-sm font-semibold text-cyan-100 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-200 hover:bg-cyan-200/18 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/80"
         >
-          <.icon name="hero-globe-alt" class="size-5" /> Continuar com Google
+          <.icon name="hero-globe-alt" class="size-5" />
+          Continuar com Google
         </.link>
 
-        <p class="mt-3 text-center text-xs uppercase tracking-[0.16em] text-base-content/45">
-          ou
+        <p class="mt-4 text-center text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
+          ou com e-mail
         </p>
 
         <.form
           for={@form}
           id="login_form_password"
           action={~p"/users/log-in"}
-          class="mt-4 space-y-3"
+          class="mt-5 space-y-3"
         >
           <.input
             readonly={!!@current_scope}
@@ -125,13 +117,33 @@
             spellcheck="false"
             required
           />
-          <.button variant="primary" class="w-full" name={@form[:remember_me].name} value="true">
-            Entrar e manter sessão <span aria-hidden="true">→</span>
-          </.button>
-          <.button variant="soft" class="w-full mt-2">
-            Entrar só desta vez
-          </.button>
+
+          <div class="pt-2 space-y-2">
+            <.button
+              variant="primary"
+              class="w-full"
+              name={@form[:remember_me].name}
+              value="true"
+            >
+              Entrar e manter sessão
+            </.button>
+            <.button
+              variant="soft"
+              class="w-full"
+              name={@form[:remember_me].name}
+              value="false"
+            >
+              Entrar só desta vez
+            </.button>
+          </div>
         </.form>
+
+        <p :if={!@current_scope} class="mt-5 text-center text-sm text-slate-300">
+          Novo por aqui?
+          <.link navigate={~p"/users/register"} class="font-semibold text-cyan-200 hover:text-cyan-100 hover:underline">
+            Criar conta
+          </.link>
+        </p>
       </article>
     </div>
   </section>

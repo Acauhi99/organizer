@@ -39,9 +39,12 @@ defmodule OrganizerWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <main id="main-content" class="app-shell-main px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+    <main
+      id="main-content"
+      class="app-shell-main motion-neon-enter px-4 py-8 text-base-content sm:px-6 sm:py-12 lg:px-8"
+    >
       <div class={[
-        "app-shell-content mx-auto space-y-4",
+        "app-shell-content mx-auto space-y-4 leading-relaxed",
         @wide && "max-w-7xl 2xl:max-w-[100rem]",
         !@wide && "max-w-2xl 2xl:max-w-4xl"
       ]}>

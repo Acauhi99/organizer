@@ -1,120 +1,93 @@
 <Layouts.app flash={@flash} current_scope={@current_scope} wide={true}>
-  <section class="public-auth-shell responsive-shell mx-auto max-w-6xl py-4 sm:py-8">
-    <div class="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-      <article class="brand-hero-card public-auth-hero rounded-[2rem] p-6 sm:p-8">
-        <figure class="public-reference-mini rounded-2xl p-2 sm:max-w-xs">
+  <section class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+    <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <article class="relative overflow-hidden rounded-3xl border border-cyan-300/30 bg-slate-950/90 p-6 text-slate-100 shadow-[0_28px_90px_-40px_rgba(34,211,238,0.65)] sm:p-8">
+        <div
+          aria-hidden="true"
+          class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_24%,rgba(34,211,238,0.24),transparent_45%),radial-gradient(circle_at_82%_70%,rgba(163,230,53,0.2),transparent_42%)]"
+        >
+        </div>
+        <div
+          aria-hidden="true"
+          class="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(56,189,248,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(56,189,248,0.16)_1px,transparent_1px)] [background-size:22px_22px]"
+        >
+        </div>
+
+        <div class="relative z-10">
           <img
             src={~p"/images/organizer-logo.png"}
             alt="Logo Organizer"
-            class="public-reference-mini-image rounded-xl"
+            class="h-11 w-auto rounded-xl border border-cyan-300/35 bg-slate-900/85 p-2"
             loading="lazy"
             decoding="async"
           />
-        </figure>
 
-        <p class="hero-eyebrow mt-5 text-xs font-semibold uppercase tracking-[0.2em]">
-          {if @invite_pending?, do: "Convite pendente", else: "Comece em minutos"}
-        </p>
-        <h2 class="mt-3 text-3xl font-black leading-tight sm:text-4xl">
-          {if @invite_pending?,
-            do: "Crie sua conta para aceitar o convite",
-            else: "Crie sua conta e comece agora"}
-        </h2>
+          <p
+            class={[
+              "mt-6 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.2em]",
+              if(@invite_pending?,
+                do: "border-lime-300/70 bg-lime-300/15 text-lime-100",
+                else: "border-cyan-300/45 bg-cyan-300/12 text-cyan-100"
+              )
+            ]}
+          >
+            <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+            {if @invite_pending?, do: "Convite aguardando você", else: "Onboarding rápido"}
+          </p>
 
-        <p class="hero-copy mt-4 max-w-xl text-sm leading-relaxed sm:text-base">
-          <%= if @invite_pending? do %>
-            Depois do cadastro, vamos concluir automaticamente o compartilhamento entre as contas para liberar o espaço colaborativo de finanças.
-          <% else %>
-            Configure seu acesso e comece com formulários rápidos e compartilhamento financeiro por convite.
-          <% end %>
-        </p>
+          <h1 class="mt-4 text-3xl font-black leading-tight text-slate-50 sm:text-4xl">
+            {if @invite_pending?, do: "Crie conta para aceitar convite", else: "Crie conta e comece agora"}
+          </h1>
 
-        <div
-          :if={@invite_pending?}
-          class="micro-surface mt-6 rounded-2xl p-4 text-sm text-base-content/80"
-        >
-          Você está a um passo de entrar em um compartilhamento ativo com outra pessoa.
-        </div>
+          <p class="mt-4 max-w-2xl text-sm leading-relaxed text-slate-300 sm:text-base">
+            <%= if @invite_pending? do %>
+              Cadastro concluído -> vínculo confirmado -> entrada imediata no espaço de finanças compartilhadas.
+            <% else %>
+              Em poucos passos você ativa painel financeiro com experiência clara, rápida e colaborativa.
+            <% end %>
+          </p>
 
-        <div class="mt-6 flex flex-wrap gap-2">
-          <span class="micro-surface rounded-full px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-base-content/78">
-            Sem setup complexo
-          </span>
-          <span class="micro-surface rounded-full px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-base-content/78">
-            Acesso imediato
-          </span>
-        </div>
-
-        <div class="mt-8 grid gap-3 sm:grid-cols-3">
-          <div class="micro-surface public-point rounded-2xl p-3">
-            <div class="flex items-start gap-2">
-              <span class="public-icon-wrap mt-0.5">
-                <.icon name="hero-check-circle" class="size-4" />
-              </span>
-              <div>
-                <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-                  Captura rápida
-                </p>
-                <p class="hero-meta-copy mt-1 text-xs">
-                  Registre finanças sem atravessar fluxos longos.
-                </p>
-              </div>
-            </div>
+          <div
+            :if={@invite_pending?}
+            class="mt-6 rounded-2xl border border-lime-300/65 bg-lime-300/12 p-4 text-sm font-medium leading-relaxed text-lime-100 shadow-[0_0_0_1px_rgba(163,230,53,0.22)]"
+          >
+            Prioridade alta: terminar cadastro agora para não perder contexto do convite aberto.
           </div>
 
-          <div class="micro-surface public-point rounded-2xl p-3">
-            <div class="flex items-start gap-2">
-              <span class="public-icon-wrap mt-0.5">
-                <.icon name="hero-chart-bar-square" class="size-4" />
-              </span>
-              <div>
-                <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-                  Compartilhamento por link
-                </p>
-                <p class="hero-meta-copy mt-1 text-xs">
-                  Conecte outra conta e compartilhe lançamentos com controle.
-                </p>
-              </div>
+          <div class="mt-7 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-2xl border border-cyan-300/30 bg-slate-900/75 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">Setup curto</p>
+              <p class="mt-2 text-xs leading-relaxed text-slate-300">
+                E-mail, senha, confirmação. Fluxo limpo sem distrações.
+              </p>
             </div>
-          </div>
-
-          <div class="micro-surface public-point rounded-2xl p-3">
-            <div class="flex items-start gap-2">
-              <span class="public-icon-wrap mt-0.5">
-                <.icon name="hero-banknotes" class="size-4" />
-              </span>
-              <div>
-                <p class="hero-meta-title text-xs font-semibold uppercase tracking-wide">
-                  Operação integrada
-                </p>
-                <p class="hero-meta-copy mt-1 text-xs">
-                  Operação financeira e métricas claras no mesmo lugar desde o primeiro login.
-                </p>
-              </div>
+            <div class="rounded-2xl border border-cyan-300/30 bg-slate-900/75 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">Segurança clara</p>
+              <p class="mt-2 text-xs leading-relaxed text-slate-300">
+                Credenciais protegidas com leitura confortável no dark mode.
+              </p>
+            </div>
+            <div class="rounded-2xl border border-cyan-300/30 bg-slate-900/75 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">Colaboração pronta</p>
+              <p class="mt-2 text-xs leading-relaxed text-slate-300">
+                Convites e compartilhamento preparados desde primeiro acesso.
+              </p>
             </div>
           </div>
         </div>
       </article>
 
-      <article class="surface-card public-form-card rounded-[2rem] p-6 sm:p-8">
+      <article class="rounded-3xl border border-cyan-300/30 bg-slate-950/88 p-6 text-slate-100 shadow-[0_26px_70px_-38px_rgba(56,189,248,0.55)] sm:p-8">
         <div class="space-y-2 text-center">
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/60">
-            Novo acesso
-          </p>
-          <h1 class="text-2xl font-black text-base-content">Criar conta</h1>
-          <p class="text-sm text-base-content/75">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Novo acesso</p>
+          <h2 class="text-3xl font-black text-slate-50">Criar conta</h2>
+          <p class="text-sm text-slate-300">
             Já possui conta?
-            <.link
-              navigate={~p"/users/log-in"}
-              class="font-semibold text-info hover:text-info/80 hover:underline"
-            >
-              Entrar
+            <.link navigate={~p"/users/log-in"} class="font-semibold text-cyan-200 hover:text-cyan-100 hover:underline">
+              Entrar agora
             </.link>
-            agora.
           </p>
         </div>
-
-        <div class="public-divider mt-5"></div>
 
         <.form
           for={@form}
