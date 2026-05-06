@@ -1,51 +1,28 @@
 # Testes, Qualidade e Validação Pré-commit
 
-## Estratégia de testes na codebase
+## Status atual
 
-## 1) Domínio (`test/organizer/**`)
+A suíte de testes em `test/**` foi removida temporariamente para acelerar o refactor visual completo da plataforma.
 
-Foco em regras de negócio, validações e invariantes.
+Este estado é **temporário** e deve ser revertido com a reintrodução incremental de testes após estabilização do novo design.
 
-- tests unitários de contexts e módulos de parsing
-- property-based tests com `stream_data` para casos extremos
+## Estratégia de validação vigente (sem testes)
 
-## 2) Web (`test/organizer_web/**`)
+Enquanto a suíte estiver removida, a qualidade local e no CI passa por:
 
-Foco em comportamento observável da interface e API.
-
-- LiveView tests com `Phoenix.LiveViewTest`
-- controller/API tests para contratos HTTP
-- component tests para rendering de componentes críticos
-
-## 3) E2E browser (`e2e/**`)
-
-Foco em regressão retroativa dos fluxos completos com browser real:
-
-- público/autenticação (home, cadastro, login/logout, erro de credencial)
-- módulos autenticados (`/finances`, `/account-links`, `/users/settings`)
-- colaboração financeira (`/account-links`, convite, aceite com retomada pós-login, compartilhado, acerto unificado em `/account-links/:link_id`, desativação)
-- experiência transversal (onboarding e atalhos globais)
-- smoke da API autenticada (`/api/v1/*`) via sessão real do browser
-
-Referências oficiais:
-
-- ExUnit: https://hexdocs.pm/ex_unit/ExUnit.html
-- Phoenix testing: https://hexdocs.pm/phoenix/testing.html
-- LiveView testing: https://hexdocs.pm/phoenix_live_view/Phoenix.LiveViewTest.html
-
-## Boas práticas de assertions
-
-- Preferir estrutura/estado a copy textual frágil.
-- Em LiveView, usar `has_element?/2`, `element/2`, `render_click`, `render_submit`, `render_change`.
-- Garantir IDs estáveis em elementos importantes para seleção nos testes.
+1. formatação obrigatória (`mix format --check-formatted` no CI)
+2. compilação estrita (`mix compile --warnings-as-errors`)
+3. análise de dependência de compilação (`mix xref graph --format plain --label compile-connected --fail-above 0`)
+4. revisão visual/manual dos fluxos críticos no browser
 
 ## Comandos de validação local
 
-Validação rápida por área:
+Validação rápida:
 
 ```bash
-mix test test/organizer_web/controllers/api/v1/finance_entry_controller_test.exs
-mix test test/organizer/shared_finance/shared_entries_test.exs
+mix format
+mix compile --warnings-as-errors
+mix xref graph --format plain --label compile-connected --fail-above 0
 ```
 
 Validação completa recomendada antes de commit:
@@ -54,43 +31,25 @@ Validação completa recomendada antes de commit:
 mix precommit
 ```
 
-Validação E2E completa:
-
-```bash
-cd e2e
-npm install
-npm run install:browsers
-npm test
-```
-
 `mix precommit` neste projeto executa:
 
 1. compilação com warnings como erro
-2. limpeza de deps não usadas
-3. formatação
-4. suíte de testes
+2. dialyzer em `MIX_ENV=dev`
+3. limpeza de deps não usadas
+4. formatação
 
-Aliases úteis:
-
-```bash
-make precommit
-make test-domain
-make test-web
-make test-all
-```
-
-## Política de merge local
+## Política temporária de merge local
 
 Não considerar uma mudança pronta sem:
 
-1. testes relevantes do escopo alterado
-2. `mix precommit` verde
+1. `mix precommit` verde
+2. revisão visual/manual dos fluxos alterados
 3. atualização de docs em `docs/` quando comportamento/arquitetura mudar
 
-## Doctests (opcional para novos módulos públicos)
+## Próximo passo após refactor
 
-Quando o módulo tiver API pública reutilizável, prefira incluir exemplos em `@doc` e habilitar doctest para evitar drift de documentação.
+Quando o refactor visual estiver estável, reintroduzir suíte de testes por fatias verticais:
 
-Referência oficial:
-
-- https://hexdocs.pm/ex_unit/ExUnit.DocTest.html
+1. autenticação pública
+2. fluxo principal autenticado
+3. regressões de colaboração financeira

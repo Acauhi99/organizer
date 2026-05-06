@@ -1,44 +1,29 @@
 # Documentação do Organizer
 
-Este diretório concentra toda a documentação de engenharia e produto.
+Fonte única de verdade de produto, arquitetura e padrões de desenvolvimento.
 
-## 1. Visão do sistema
+## 1. Sistema
 
 - [Arquitetura](architecture.md)
 - [Features](features.md)
 - [Roadmap](roadmap.md)
+- [Design System](design-system.md)
 
-## 2. Desenvolvimento (foco IA)
+## 2. Desenvolvimento
 
-- [Guia de execução para agentes](development/ai-playbook.md)
-- [Boas práticas Elixir funcional](development/elixir-functional.md)
-- [Boas práticas Phoenix LiveView](development/phoenix-liveview.md)
-- [JavaScript funcional no contexto LiveView](development/javascript-liveview.md)
-- [Integração correta entre contexts, LiveViews, componentes e hooks](development/integration-patterns.md)
-- [Testes, qualidade e validação pré-commit](development/testing-and-quality.md)
+- [AI Playbook](development/ai-playbook.md)
+- [Elixir funcional](development/elixir-functional.md)
+- [Phoenix LiveView](development/phoenix-liveview.md)
+- [JavaScript funcional + LiveView](development/javascript-liveview.md)
+- [Padrões de integração entre camadas](development/integration-patterns.md)
+- [Validação e qualidade (estado atual)](development/testing-and-quality.md)
 
-## 3. Produto e UX
+## 3. Produto
 
-- [Guia do dashboard para usuários](product/dashboard-user-guide.md)
-- [Design system](design-system.md)
+- [Guia do dashboard](product/dashboard-user-guide.md)
 
-## Referências oficiais usadas
+## Observações atuais
 
-Os guias desta pasta foram construídos com base na documentação oficial do Elixir e Phoenix:
-
-- Elixir: https://hexdocs.pm/elixir/introduction.html
-- Elixir (pattern matching): https://hexdocs.pm/elixir/pattern-matching.html
-- Elixir (modules/functions): https://hexdocs.pm/elixir/modules-and-functions.html
-- Elixir anti-patterns: https://hexdocs.pm/elixir/main/code-anti-patterns.html
-- Elixir design anti-patterns: https://hexdocs.pm/elixir/main/design-anti-patterns.html
-- ExUnit: https://hexdocs.pm/ex_unit/ExUnit.html
-- ExUnit.DocTest: https://hexdocs.pm/ex_unit/ExUnit.DocTest.html
-- GenServer: https://hexdocs.pm/elixir/GenServer.html
-- Phoenix overview: https://hexdocs.pm/phoenix/overview.html
-- Phoenix routing: https://hexdocs.pm/phoenix/routing.html
-- Phoenix testing: https://hexdocs.pm/phoenix/testing.html
-- LiveView welcome: https://hexdocs.pm/phoenix_live_view/welcome.html
-- LiveView bindings: https://hexdocs.pm/phoenix_live_view/bindings.html
-- LiveView JS interop: https://hexdocs.pm/phoenix_live_view/js-interop.html
-- LiveView JS commands: https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.JS.html
-- LiveView testing API: https://hexdocs.pm/phoenix_live_view/Phoenix.LiveViewTest.html
+- Tema visual padrão: **Neon Grid** (dark mode por padrão).
+- UI guideline: **Tailwind-first**; CSS residual só para tokens globais e animações.
+- Suíte `test/**` removida temporariamente durante refactor visual; ver estratégia em `development/testing-and-quality.md`.

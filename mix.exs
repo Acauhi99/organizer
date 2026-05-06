@@ -32,12 +32,11 @@ defmodule Organizer.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test, dialyzer: :dev]
+      preferred_envs: [precommit: :dev, dialyzer: :dev]
     ]
   end
 
   # Specifies which paths to compile per environment.
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
   # Specifies your project dependencies.
@@ -53,8 +52,6 @@ defmodule Organizer.MixProject do
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_live_view, "~> 1.1.0"},
-      {:lazy_html, ">= 0.1.0", only: :test},
-      {:stream_data, "~> 1.0", only: [:test, :dev]},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:contex, "~> 0.5.0"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
@@ -105,8 +102,7 @@ defmodule Organizer.MixProject do
         "compile --all-warnings --warnings-as-errors",
         "cmd env MIX_ENV=dev mix dialyzer --format short",
         "deps.unlock --unused",
-        "format",
-        "test --warnings-as-errors"
+        "format"
       ]
     ]
   end

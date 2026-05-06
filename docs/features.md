@@ -2,50 +2,44 @@
 
 ## Área pública (não logada)
 
-- Landing page em `/` com posicionamento do produto e acesso para cadastro/login.
+- Landing `/` com identidade Neon Grid e CTAs claros para cadastro/login.
 - Cadastro em `/users/register`.
 - Login em `/users/log-in`.
 - Aceite de convite por token em `/account-links/accept/:token`:
-  - Usuário autenticado: convite é processado na hora.
-  - Usuário não autenticado: redireciona para login e retoma o fluxo.
+  - autenticado: processa na hora
+  - não autenticado: redireciona para login e retoma fluxo
 
 ## Área autenticada (LiveView)
 
 ### Finanças (`/finances`)
 
-- Lançamento rápido de receita/despesa com presets.
+- Lançamento rápido de receita/despesa com presets
 - Compartilhamento opcional de despesa com vínculo ativo:
-  - modo por proporção de renda
-  - modo manual (minha parte / outra parte)
-- Métricas financeiras com filtros de período e gráficos:
+  - por proporção de renda
+  - manual (minha parte / outra parte)
+- Métricas financeiras:
   - receitas x despesas no tempo
   - composição por natureza
   - top categorias de despesa
-- Operação diária financeira:
-  - filtros avançados (janela móvel, data, mês, intervalo, dia da semana, ordenação e faixa de valor)
-  - edição e exclusão inline de lançamentos
+- Operação diária:
+  - filtros avançados
+  - edição/exclusão inline
+
+### Colaboração financeira
+
+- Gestão de vínculos em `/account-links`
+- Convites em `/account-links/invite`
+- Finanças compartilhadas em `/account-links/:link_id`:
+  - visão consolidada compartilhada
+  - filtros de período
+  - remoção de compartilhamento
+  - acerto unificado no mesmo fluxo
 
 ### Experiência transversal
 
-- Onboarding guiado em 6 passos para primeira experiência.
-- Atalho global `Alt+B` para focar o lançamento rápido financeiro.
-- Atalho `?` para exibir lembrete de atalhos.
-
-## Colaboração financeira
-
-- Gestão de vínculos em `/account-links`:
-  - criar convite
-  - aceitar convite por token
-  - desativar vínculo
-- Convites em `/account-links/invite` com geração de link e cópia para clipboard.
-- Finanças compartilhadas em `/account-links/:link_id`:
-  - visão de total compartilhado, proporções e tendência
-  - filtro por período (`mês atual`, `últimos 3 meses`, `tudo`)
-  - listagem de lançamentos compartilhados e remoção de compartilhamento
-  - acerto unificado no mesmo fluxo:
-    - registro de pagamentos/transferências
-    - resumo mensal de dívidas em aberto
-    - confirmação bilateral do fechamento do ciclo
+- Onboarding guiado
+- Atalhos globais (`Alt+B`, `?`)
+- Feedback visual Neon Grid consistente entre telas
 
 ## API REST (`/api/v1`)
 
@@ -57,11 +51,11 @@ Recursos disponíveis:
 
 Notas:
 
-- Todas as rotas exigem autenticação e escopo válido.
-- O front atual usa principalmente finanças e colaboração; `fixed-costs` e `important-dates` estão disponíveis no domínio/API.
+- rotas exigem autenticação + escopo válido
+- front atual prioriza finanças e colaboração
 
 ## Autenticação e segurança
 
-- Registro, login e logout com sessão autenticada.
-- Isolamento de dados por `current_scope`.
-- Proteção de rotas autenticadas via pipeline e `live_session`.
+- Registro/login/logout por sessão
+- Isolamento de dados por `current_scope`
+- Rotas autenticadas via pipelines + `live_session`

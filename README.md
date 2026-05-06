@@ -1,11 +1,10 @@
 # Organizer
 
-Aplicação de organização pessoal construída com **Elixir + Phoenix 1.8 + LiveView**, com persistência em SQLite e autenticação multiusuário.
+Aplicação de organização financeira em **Elixir + Phoenix 1.8 + LiveView**, com SQLite e autenticação multiusuário.
 
 ## Objetivo
 
-Centralizar finanças e compartilhamentos em fluxos operacionais rápidos (`/finances` e `/account-links`), com análise contínua e colaboração entre contas por convite.
-O acerto colaborativo foi consolidado na tela unificada de vínculo (`/account-links/:link_id`).
+Unificar operação financeira pessoal + compartilhada em fluxos rápidos (`/finances` e `/account-links`), com colaboração por convite e fechamento no fluxo unificado de vínculo (`/account-links/:link_id`).
 
 ## Stack
 
@@ -13,9 +12,9 @@ O acerto colaborativo foi consolidado na tela unificada de vínculo (`/account-l
 - Phoenix `~> 1.8.1`
 - Phoenix LiveView `~> 1.1`
 - Ecto + SQLite (`ecto_sqlite3`)
-- Tailwind CSS v4 + daisyUI vendorizado (tema custom)
+- Tailwind CSS v4 + daisyUI vendorizado (tema custom `organizer_neon_grid`)
 - Flop + Flop.Phoenix para paginação/filtros
-- Phoenix Storybook (ambiente dev/test)
+- Phoenix Storybook (dev)
 - Req para integração HTTP
 
 ## Início rápido
@@ -25,9 +24,21 @@ mix setup
 mix phx.server
 ```
 
-Aplicação disponível em `http://localhost:4000`.
+Aplicação: `http://localhost:4000`.
 
-## Testes E2E (Playwright)
+## Validação atual
+
+Suíte `test/**` removida temporariamente durante refactor visual. Validação vigente:
+
+```bash
+mix format
+mix compile --warnings-as-errors
+mix xref graph --format plain --label compile-connected --fail-above 0
+```
+
+Também manter revisão visual dos fluxos críticos no browser.
+
+## E2E (Playwright)
 
 ```bash
 cd e2e
@@ -36,27 +47,14 @@ npm run install:browsers
 npm test
 ```
 
-Observações:
-
-- A suíte E2E sobe o Phoenix automaticamente na porta `4010`.
-- Para reaproveitar um servidor já em execução, use `PLAYWRIGHT_BASE_URL`, por exemplo:
-  `PLAYWRIGHT_BASE_URL=http://127.0.0.1:4000 npm test`.
-
 ## Documentação
 
-Toda documentação de produto e engenharia está em [`/docs`](docs/README.md).
+Tudo em [`/docs`](docs/README.md).
 
-Leituras recomendadas para começar:
+Leituras de entrada:
 
-- [Visão geral da documentação](docs/README.md)
+- [Visão geral docs](docs/README.md)
 - [Arquitetura](docs/architecture.md)
 - [Features](docs/features.md)
-- [Guia para desenvolvimento por IA](docs/development/ai-playbook.md)
-- [Testes e validação pré-commit](docs/development/testing-and-quality.md)
-
-## Estrutura de documentação
-
-- `README.md` na raiz: visão rápida e links de entrada.
-- `docs/`: documentação detalhada de arquitetura, padrões de desenvolvimento, testes, UX e roadmap.
-
-Observação: `AGENTS.md` permanece na raiz por ser arquivo operacional de instruções para agentes.
+- [Design system](docs/design-system.md)
+- [Guia AI](docs/development/ai-playbook.md)

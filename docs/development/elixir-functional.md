@@ -1,11 +1,11 @@
 # Boas Práticas Elixir Funcional
 
-## Fundamentos para este projeto
+## Fundamentos
 
 - Dados imutáveis + transformação explícita.
-- Pattern matching para validar forma de entrada cedo.
-- Múltiplas cláusulas com guards para variação de comportamento.
-- Preferência por funções puras em parsing, normalização e cálculo.
+- Pattern matching para validar entrada cedo.
+- Cláusulas com guards para variação de comportamento.
+- Preferência por funções puras em parsing/normalização/cálculo.
 
 Referências oficiais:
 
@@ -16,23 +16,23 @@ Referências oficiais:
 ## Regras práticas
 
 1. Use pattern matching no cabeçalho para separar casos válidos/inválidos.
-2. Normalize erros em formatos previsíveis (`{:ok, value} | {:error, reason}`).
+2. Normalize retornos em formatos previsíveis (`{:ok, value} | {:error, reason}`).
 3. Evite `try/rescue` para fluxo de negócio esperado.
 4. Evite `String.to_atom/1` com input externo.
 5. Em listas, use `Enum.at/2` (não indexação estilo array).
 6. Para concorrência em lote, prefira `Task.async_stream/3` com back-pressure.
 
-## Organização de módulos
+## Organização
 
 - Contexts concentram operações de domínio.
-- Módulos de apoio devem ter fronteira semântica clara (`AmountParser`, `FilterNormalization`, `LinkMetricsCalculator`, etc).
+- Módulos de apoio devem ter fronteira semântica clara.
 - Evite módulos “util” genéricos sem domínio explícito.
 
-## Anti-patterns que devemos evitar
+## Anti-patterns a evitar
 
-- `with` com `else` muito complexo.
-- Comentários redundantes em código autoexplicativo.
-- Excesso de tipos primitivos quando um struct/map semântico é melhor.
+- `with` com `else` grande e difícil de rastrear.
+- Comentário redundante em código autoexplicativo.
+- Excesso de primitivos quando struct/map semântico é melhor.
 
 Referências oficiais:
 

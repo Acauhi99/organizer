@@ -1,49 +1,54 @@
 # Integração entre Contexts, LiveViews, Componentes e Hooks
 
-## Princípio de fronteira
+## Fronteira
 
-- `Context` decide regra de negócio e persistência.
-- `LiveView` coordena estado e eventos da tela.
-- `Component` renderiza UI reutilizável.
-- `Hook` resolve necessidades exclusivas do browser.
+- `Context`: regra de negócio + persistência.
+- `LiveView`: estado da tela + orquestração de eventos.
+- `Component`: UI reutilizável.
+- `Hook`: necessidade estrita de browser.
 
-## Fluxo recomendado de implementação
+## Fluxo recomendado
 
-1. **Domínio primeiro**
-   - Criar/ajustar função no context.
-   - Definir contrato de retorno (`{:ok, _} | {:error, _}`).
-2. **Orquestração LiveView**
-   - `handle_event/3` delega ao context.
-   - Atualiza assigns e flash.
-3. **Template/componentes**
-   - IDs estáveis para elementos chave.
-   - Inputs via `<.input>` e formulário com `to_form/2`.
-4. **JS (se necessário)**
-   - Comando `JS.*` ou hook com escopo mínimo.
+1. Domínio primeiro
+- Criar/ajustar função no context.
+- Definir contrato de retorno (`{:ok, _} | {:error, _}`).
 
-## Padrão para adição de nova feature
+2. Orquestração LiveView/controller
+- Delegar ao context.
+- Atualizar assigns/flash.
 
-- Definir rota/pipeline correta no `router.ex`.
+3. Template/componentes
+- IDs estáveis para elementos chave.
+- Inputs via `<.input>` e formulário via `to_form/2`.
+
+4. JS (se necessário)
+- Preferir `JS.*`.
+- Se hook, manter escopo mínimo e cleanup explícito.
+
+## Padrão para nova feature
+
+- Definir rota/pipeline correta em `router.ex`.
 - Garantir autenticação e `current_scope`.
-- Implementar contexto + testes de domínio.
-- Expor no LiveView + testes de interação.
-- Ajustar componentes para visual e acessibilidade.
+- Implementar contexto.
+- Expor no LiveView/controller.
+- Aplicar padrão visual Tailwind-first + Neon Grid.
+- Validar com `format + compile + xref` e revisão visual.
 
-## Integração de eventos JS ↔ LiveView
+## Eventos JS ↔ LiveView
 
-- Cliente para servidor: `this.pushEvent("event", payload)` em hooks.
-- Servidor para cliente: `push_event(socket, "event", payload)` + `handleEvent` (hook) ou `window` listener.
-- Nomear eventos com semântica clara e evitar colisões globais.
+- Cliente -> servidor: `this.pushEvent("event", payload)`.
+- Servidor -> cliente: `push_event(socket, "event", payload)` + `handleEvent` no hook ou listener global.
+- Nomear eventos com semântica clara e evitar colisões.
 
 Referências oficiais:
 
 - https://hexdocs.pm/phoenix_live_view/js-interop.html
 - https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.JS.html
 
-## Checklist de integração
+## Checklist
 
 - Rota no escopo/pipeline correto.
 - Regras no context correto.
-- IDs e acessibilidade no template.
-- Testes de domínio e LiveView atualizados.
-- `mix precommit` verde.
+- Contraste/foco/motion acessíveis no template.
+- Hook com cleanup (se existir).
+- Docs em `docs/` atualizadas quando comportamento muda.

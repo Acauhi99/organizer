@@ -19,7 +19,7 @@ Referências oficiais:
 - Garanta `current_scope` em rotas e consultas.
 - Em páginas protegidas, rota deve estar sob sessão autenticada.
 
-Referências oficiais:
+Referência:
 
 - Phoenix routing: https://hexdocs.pm/phoenix/routing.html
 
@@ -27,7 +27,7 @@ Referências oficiais:
 
 - Use function components para UI reutilizável.
 - Mantenha componentes sem regra de domínio.
-- IDs estáveis em elementos interativos para testes LiveView.
+- IDs estáveis em elementos interativos para automação e QA.
 
 ## Formulários
 
@@ -41,23 +41,18 @@ Referências oficiais:
 - Use `phx-update="stream"` no container pai.
 - Cada item precisa de id estável.
 
-Referências oficiais:
+Referência:
 
-- LiveView streams API: https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.html
+- https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.html
 
-## Paginação
+## Estilo de UI
 
-- Use sempre o wrapper `<.pagination>` de `CoreComponents` para manter o mesmo visual e acessibilidade.
-- O estado de página deve ser explícito no LiveView (`:page` por lista) e sincronizado via `handle_params/3` quando houver query string.
-- Em filtros que mudam o conjunto, resete a página para `1` para evitar telas vazias em páginas altas.
-- Sempre exiba meta de progresso de paginação (`Página X de Y`) para orientar o usuário.
+- Tailwind-first: estilo majoritariamente inline no HEEx.
+- Tema global Neon Grid (`organizer_neon_grid`) como baseline.
+- Motion discreto + contraste alto + foco visível.
 
 ## Eventos de teclado
 
 - Para atalhos globais, use `phx-window-keydown`.
 - Se precisar de `altKey`/`metaKey`, configure `metadata.keydown` no `LiveSocket`.
 - Tenha fallback para payload sem `"key"`.
-
-Referência oficial:
-
-- https://hexdocs.pm/phoenix_live_view/bindings.html

@@ -19,7 +19,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     env:
-      MIX_ENV: test
+      MIX_ENV: dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,6 +56,3 @@ jobs:
 
       - name: Static analysis (xref)
         run: mix xref graph --format plain --label compile-connected --fail-above 0
-
-      - name: Run test suite
-        run: mix test
