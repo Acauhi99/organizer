@@ -1,3 +1,5 @@
+const PHX_COPY_EVENT = "phx:copy-to-clipboard"
+
 const copyTextUsingExecCommand = (text) => {
   const textarea = document.createElement("textarea")
   textarea.value = text
@@ -31,19 +33,28 @@ export const copyTextToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text)
       return true
-    } catch (_) {}
+    } catch (_) {
+      // Fallback below.
+    }
   }
 
   return copyTextUsingExecCommand(text)
 }
 
-export const registerCopyToClipboardListener = () => {
-  window.addEventListener("phx:copy-to-clipboard", async (event) => {
-    const text = event?.detail?.text
-    const copied = await copyTextToClipboard(text)
+const createClipboardEventListener = ({onFailure}) => async (event) => {
+  const text = event?.detail?.text
+  const copied = await copyTextToClipboard(text)
 
-    if (!copied) {
-      console.warn("Clipboard copy failed for phx:copy-to-clipboard event")
-    }
-  })
+  if (!copied) {
+    onFailure("Clipboard copy failed for phx:copy-to-clipboard event")
+  }
+}
+
+export const registerCopyToClipboardListener = ({target = window, onFailure = console.warn} = {}) => {
+  const listener = createClipboardEventListener({onFailure})
+  target.addEventListener(PHX_COPY_EVENT, listener)
+
+  return () => {
+    target.removeEventListener(PHX_COPY_EVENT, listener)
+  }
 }

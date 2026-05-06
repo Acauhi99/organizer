@@ -21,74 +21,122 @@ const parsePendingResetMs = (value) => {
   return parsed
 }
 
-const InfiniteScrollHook = {
-  mounted() {
-    this.thresholdPx = parseThreshold(this.el.dataset.thresholdPx)
-    this.pendingResetMs = parsePendingResetMs(this.el.dataset.pendingResetMs)
-    this.pending = false
-    this.pendingResetTimer = null
+const parseOptionalPositiveInteger = (value) => {
+  const parsed = Number.parseInt(`${value || ""}`, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
 
-    this.handleScroll = () => {
-      this.maybeLoadMore()
+const hasReachedThreshold = ({element, thresholdPx}) => {
+  const remaining = element.scrollHeight - element.scrollTop - element.clientHeight
+  return remaining <= thresholdPx
+}
+
+const buildLoadPayload = (element) => {
+  const payload = {}
+
+  const nextPage = parseOptionalPositiveInteger(element.dataset.nextPage)
+  if (nextPage !== null) {
+    payload.page = nextPage
+  }
+
+  if (typeof element.dataset.status === "string" && element.dataset.status.length > 0) {
+    payload.status = element.dataset.status
+  }
+
+  return payload
+}
+
+const shouldSkipLoad = (state) =>
+  state.pending || state.element.dataset.loading === "true" || state.element.dataset.hasMore !== "true"
+
+const clearPendingResetTimer = (state) => {
+  if (state.pendingResetTimer === null) {
+    return
+  }
+
+  window.clearTimeout(state.pendingResetTimer)
+  state.pendingResetTimer = null
+}
+
+const schedulePendingReset = (state, maybeLoadMore) => {
+  clearPendingResetTimer(state)
+
+  state.pendingResetTimer = window.setTimeout(() => {
+    state.pending = false
+    maybeLoadMore()
+  }, state.pendingResetMs)
+}
+
+const createState = (hook) => ({
+  element: hook.el,
+  pushEvent: hook.pushEvent.bind(hook),
+  thresholdPx: parseThreshold(hook.el.dataset.thresholdPx),
+  pendingResetMs: parsePendingResetMs(hook.el.dataset.pendingResetMs),
+  pending: false,
+  pendingResetTimer: null,
+  cleanup: [],
+})
+
+const wireScrollListener = (state, maybeLoadMore) => {
+  const onScroll = () => {
+    maybeLoadMore()
+  }
+
+  state.element.addEventListener("scroll", onScroll, {passive: true})
+  state.cleanup.push(() => state.element.removeEventListener("scroll", onScroll))
+}
+
+const resetPendingState = (state) => {
+  clearPendingResetTimer(state)
+  state.pending = false
+}
+
+const disposeState = (state) => {
+  resetPendingState(state)
+  state.cleanup.forEach((cleanup) => cleanup())
+  state.cleanup = []
+}
+
+const createMaybeLoadMore = (state) => {
+  const maybeLoadMore = () => {
+    if (shouldSkipLoad(state) || !hasReachedThreshold({element: state.element, thresholdPx: state.thresholdPx})) {
+      return
     }
 
-    this.el.addEventListener("scroll", this.handleScroll, {passive: true})
+    state.pending = true
+    schedulePendingReset(state, maybeLoadMore)
+    state.pushEvent(state.element.dataset.event || "load_more_finances", buildLoadPayload(state.element))
+  }
+
+  return maybeLoadMore
+}
+
+const InfiniteScrollHook = {
+  mounted() {
+    this.state = createState(this)
+    this.maybeLoadMore = createMaybeLoadMore(this.state)
+
+    wireScrollListener(this.state, this.maybeLoadMore)
     this.maybeLoadMore()
   },
 
   updated() {
-    this.clearPendingResetTimer()
-    this.pending = false
+    if (!this.state || !this.maybeLoadMore) {
+      return
+    }
+
+    resetPendingState(this.state)
     this.maybeLoadMore()
   },
 
   destroyed() {
-    this.clearPendingResetTimer()
-    this.el.removeEventListener("scroll", this.handleScroll)
-  },
-
-  clearPendingResetTimer() {
-    if (this.pendingResetTimer) {
-      window.clearTimeout(this.pendingResetTimer)
-      this.pendingResetTimer = null
-    }
-  },
-
-  schedulePendingReset() {
-    this.clearPendingResetTimer()
-
-    this.pendingResetTimer = window.setTimeout(() => {
-      this.pending = false
-      this.maybeLoadMore()
-    }, this.pendingResetMs)
-  },
-
-  maybeLoadMore() {
-    if (this.pending || this.el.dataset.loading === "true" || this.el.dataset.hasMore !== "true") {
+    if (!this.state) {
       return
     }
 
-    const remaining = this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight
-
-    if (remaining <= this.thresholdPx) {
-      this.pending = true
-      this.schedulePendingReset()
-      const payload = {}
-
-      const nextPageRaw = this.el.dataset.nextPage
-      const nextPage =
-        typeof nextPageRaw === "string" && nextPageRaw.length > 0 ? Number.parseInt(nextPageRaw, 10) : NaN
-
-      if (Number.isFinite(nextPage) && nextPage > 0) {
-        payload.page = nextPage
-      }
-
-      if (typeof this.el.dataset.status === "string" && this.el.dataset.status.length > 0) {
-        payload.status = this.el.dataset.status
-      }
-
-      this.pushEvent(this.el.dataset.event || "load_more_finances", payload)
-    }
+    disposeState(this.state)
+    this.state = null
+    this.maybeLoadMore = null
   },
 }
 

@@ -28,66 +28,137 @@ import {registerCopyToClipboardListener} from "./features/clipboard"
 import {registerScrollToElementListener} from "./features/scroll_focus"
 import {organizerHooks} from "./hooks"
 
-const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
-const hooks = {
+const NOOP = () => {}
+
+const readCsrfToken = () => {
+  const element = document.querySelector("meta[name='csrf-token']")
+  return element?.getAttribute("content") || ""
+}
+
+const mergeHooks = () => ({
   ...colocatedHooks,
   ...organizerHooks,
-}
-
-const liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
-  params: {_csrf_token: csrfToken},
-  metadata: {
-    keydown: (event) => ({
-      key: event.key,
-      altKey: event.altKey,
-      ctrlKey: event.ctrlKey,
-      metaKey: event.metaKey,
-      shiftKey: event.shiftKey,
-    }),
-  },
-  hooks,
 })
 
-topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
-window.addEventListener("phx:page-loading-start", () => topbar.show(300))
-window.addEventListener("phx:page-loading-stop", () => topbar.hide())
+const buildLiveSocket = ({csrfToken, hooks}) =>
+  new LiveSocket("/live", Socket, {
+    longPollFallbackMs: 2500,
+    params: {_csrf_token: csrfToken},
+    metadata: {
+      keydown: (event) => ({
+        key: event.key,
+        altKey: event.altKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+      }),
+    },
+    hooks,
+  })
 
-liveSocket.connect()
+const registerTopbarBindings = ({target = window} = {}) => {
+  topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 
-registerScrollToElementListener()
-registerCopyToClipboardListener()
-initializeFlashAutoDismiss()
-registerKeyboardNavigationIndicators()
+  const onStart = () => topbar.show(300)
+  const onStop = () => topbar.hide()
 
-window.liveSocket = liveSocket
+  target.addEventListener("phx:page-loading-start", onStart)
+  target.addEventListener("phx:page-loading-stop", onStop)
 
-if (process.env.NODE_ENV === "development") {
-  window.addEventListener("phx:live_reload:attached", ({detail: reloader}) => {
-    reloader.enableServerLogs()
+  return () => {
+    target.removeEventListener("phx:page-loading-start", onStart)
+    target.removeEventListener("phx:page-loading-stop", onStop)
+  }
+}
 
-    let keyDown
+const registerGlobalFeatures = () => [
+  registerScrollToElementListener(),
+  registerCopyToClipboardListener(),
+  initializeFlashAutoDismiss(),
+  registerKeyboardNavigationIndicators(),
+]
 
-    window.addEventListener("keydown", (event) => {
-      keyDown = event.key
-    })
+const registerDevLiveReload = ({target = window} = {}) => {
+  if (process.env.NODE_ENV !== "development") {
+    return NOOP
+  }
 
-    window.addEventListener("keyup", () => {
-      keyDown = null
-    })
+  let keyDown = null
+  let reloader = null
+  let detachClickHandler = NOOP
 
-    window.addEventListener("click", (event) => {
-      if (keyDown === "c") {
-        event.preventDefault()
-        event.stopImmediatePropagation()
-        reloader.openEditorAtCaller(event.target)
-      } else if (keyDown === "d") {
-        event.preventDefault()
-        event.stopImmediatePropagation()
-        reloader.openEditorAtDef(event.target)
+  const onKeyDown = (event) => {
+    keyDown = event.key
+  }
+
+  const onKeyUp = () => {
+    keyDown = null
+  }
+
+  const bindClickShortcutHandler = () => {
+    detachClickHandler()
+
+    const onClick = (event) => {
+      if (keyDown !== "c" && keyDown !== "d") {
+        return
       }
-    }, true)
 
+      event.preventDefault()
+      event.stopImmediatePropagation()
+
+      if (keyDown === "c") {
+        reloader?.openEditorAtCaller(event.target)
+      } else {
+        reloader?.openEditorAtDef(event.target)
+      }
+    }
+
+    target.addEventListener("click", onClick, true)
+    detachClickHandler = () => target.removeEventListener("click", onClick, true)
+  }
+
+  const onAttached = ({detail}) => {
+    reloader = detail
+    reloader.enableServerLogs()
+    bindClickShortcutHandler()
     window.liveReloader = reloader
+  }
+
+  target.addEventListener("phx:live_reload:attached", onAttached)
+  target.addEventListener("keydown", onKeyDown)
+  target.addEventListener("keyup", onKeyUp)
+
+  return () => {
+    target.removeEventListener("phx:live_reload:attached", onAttached)
+    target.removeEventListener("keydown", onKeyDown)
+    target.removeEventListener("keyup", onKeyUp)
+    detachClickHandler()
+  }
+}
+
+const runCleanups = (cleanups) => {
+  cleanups.forEach((cleanup) => {
+    cleanup()
   })
 }
+
+const bootstrap = () => {
+  const hooks = mergeHooks()
+  const liveSocket = buildLiveSocket({csrfToken: readCsrfToken(), hooks})
+
+  const cleanups = [
+    registerTopbarBindings(),
+    ...registerGlobalFeatures(),
+    registerDevLiveReload(),
+  ]
+
+  liveSocket.connect()
+  window.liveSocket = liveSocket
+
+  return {
+    liveSocket,
+    destroy: () => runCleanups(cleanups),
+  }
+}
+
+window.organizerApp = bootstrap()

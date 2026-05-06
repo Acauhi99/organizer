@@ -124,32 +124,6 @@ const setInputValueAndNotify = (input, value) => {
   dispatchInputEvent(input)
 }
 
-const enhanceMoneyInput = (input, hook) => {
-  if (!(input instanceof HTMLInputElement) || input.dataset.moneyMaskBound === "true") {
-    return
-  }
-
-  const handleInput = () => {
-    const centsDigits = digitsOnly(input.value)
-    const masked = maskMoneyInputValue(input.value)
-
-    if (input.value !== masked) {
-      input.value = masked
-    }
-
-    syncMoneyHiddenTarget(input, centsDigits)
-  }
-
-  input.addEventListener("input", handleInput)
-  handleInput()
-
-  input.dataset.moneyMaskBound = "true"
-  hook.cleanups.push(() => {
-    input.removeEventListener("input", handleInput)
-    delete input.dataset.moneyMaskBound
-  })
-}
-
 const createCalendarButton = () => {
   const button = document.createElement("button")
   button.type = "button"
@@ -167,8 +141,7 @@ const createNativePickerInput = (type) => {
   const picker = document.createElement("input")
   picker.type = type
   picker.tabIndex = -1
-  picker.className =
-    "pointer-events-none absolute z-10 cursor-pointer opacity-0"
+  picker.className = "pointer-events-none absolute z-10 cursor-pointer opacity-0"
   picker.setAttribute("aria-hidden", "true")
   return picker
 }
@@ -240,26 +213,61 @@ const positionDateControls = (input, button, picker) => {
   input.style.paddingRight = `${controlSizePx + controlPaddingPx * 3}px`
 }
 
-const enhanceDateInput = (input, hook) => {
-  if (!(input instanceof HTMLInputElement)) {
+const addCleanup = (state, cleanupFn) => {
+  state.cleanups.push(cleanupFn)
+}
+
+const bindListener = (target, eventName, listener, state, options) => {
+  target.addEventListener(eventName, listener, options)
+  addCleanup(state, () => target.removeEventListener(eventName, listener, options))
+}
+
+const enhanceMoneyInput = (input, state) => {
+  if (!(input instanceof HTMLInputElement) || input.dataset.moneyMaskBound === "true") {
     return
   }
 
-  if (input.dataset.datePickerBound === "true") {
-    const button = document.getElementById(input.dataset.datePickerButtonId || "")
-    const picker = document.getElementById(input.dataset.datePickerInputId || "")
+  const handleInput = () => {
+    const centsDigits = digitsOnly(input.value)
+    const masked = maskMoneyInputValue(input.value)
 
-    if (button instanceof HTMLButtonElement && picker instanceof HTMLInputElement) {
-      positionDateControls(input, button, picker)
-      return
+    if (input.value !== masked) {
+      input.value = masked
     }
 
-    delete input.dataset.datePickerBound
-    delete input.dataset.datePickerButtonId
-    delete input.dataset.datePickerInputId
+    syncMoneyHiddenTarget(input, centsDigits)
   }
 
-  if (input.dataset.datePickerBound === "true") {
+  bindListener(input, "input", handleInput, state)
+  handleInput()
+
+  input.dataset.moneyMaskBound = "true"
+  addCleanup(state, () => {
+    delete input.dataset.moneyMaskBound
+  })
+}
+
+const reuseBoundDateControlsIfPresent = (input) => {
+  if (input.dataset.datePickerBound !== "true") {
+    return null
+  }
+
+  const button = document.getElementById(input.dataset.datePickerButtonId || "")
+  const picker = document.getElementById(input.dataset.datePickerInputId || "")
+
+  if (button instanceof HTMLButtonElement && picker instanceof HTMLInputElement) {
+    positionDateControls(input, button, picker)
+    return {button, picker}
+  }
+
+  delete input.dataset.datePickerBound
+  delete input.dataset.datePickerButtonId
+  delete input.dataset.datePickerInputId
+  return null
+}
+
+const enhanceDateInput = (input, state) => {
+  if (!(input instanceof HTMLInputElement) || reuseBoundDateControlsIfPresent(input)) {
     return
   }
 
@@ -272,6 +280,7 @@ const enhanceDateInput = (input, hook) => {
 
   const picker = createNativePickerInput(mode)
   const button = createCalendarButton()
+
   button.id = nextDatePickerControlId("finance-date-picker-btn")
   picker.id = nextDatePickerControlId("finance-date-picker-input")
 
@@ -316,10 +325,10 @@ const enhanceDateInput = (input, hook) => {
     positionDateControls(input, button, picker)
   }
 
-  input.addEventListener("input", handleTextInput)
-  button.addEventListener("click", handleButtonClick)
-  picker.addEventListener("change", handlePickerChange)
-  window.addEventListener("resize", handleWindowResize)
+  bindListener(input, "input", handleTextInput, state)
+  bindListener(button, "click", handleButtonClick, state)
+  bindListener(picker, "change", handlePickerChange, state)
+  bindListener(window, "resize", handleWindowResize, state)
 
   handleTextInput()
 
@@ -327,12 +336,7 @@ const enhanceDateInput = (input, hook) => {
   input.dataset.datePickerButtonId = button.id
   input.dataset.datePickerInputId = picker.id
 
-  hook.cleanups.push(() => {
-    input.removeEventListener("input", handleTextInput)
-    button.removeEventListener("click", handleButtonClick)
-    picker.removeEventListener("change", handlePickerChange)
-    window.removeEventListener("resize", handleWindowResize)
-
+  addCleanup(state, () => {
     button.remove()
     picker.remove()
 
@@ -352,32 +356,47 @@ const enhanceDateInput = (input, hook) => {
   })
 }
 
-const enhanceFinanceFormInputs = (hook) => {
-  hook.el.querySelectorAll(MONEY_SELECTOR).forEach((input) => {
-    enhanceMoneyInput(input, hook)
+const enhanceFinanceFormInputs = (state) => {
+  state.element.querySelectorAll(MONEY_SELECTOR).forEach((input) => {
+    enhanceMoneyInput(input, state)
   })
 
-  hook.el.querySelectorAll(DATE_SELECTOR).forEach((input) => {
-    enhanceDateInput(input, hook)
+  state.element.querySelectorAll(DATE_SELECTOR).forEach((input) => {
+    enhanceDateInput(input, state)
   })
+}
+
+const createHookState = (hook) => ({
+  element: hook.el,
+  cleanups: [],
+})
+
+const disposeHookState = (state) => {
+  state.cleanups.forEach((cleanup) => cleanup())
+  state.cleanups = []
 }
 
 const FinanceFormEnhancementsHook = {
   mounted() {
-    this.cleanups = []
-    enhanceFinanceFormInputs(this)
+    this.state = createHookState(this)
+    enhanceFinanceFormInputs(this.state)
   },
 
   updated() {
-    enhanceFinanceFormInputs(this)
+    if (!this.state) {
+      return
+    }
+
+    enhanceFinanceFormInputs(this.state)
   },
 
   destroyed() {
-    this.cleanups.forEach((cleanup) => {
-      cleanup()
-    })
+    if (!this.state) {
+      return
+    }
 
-    this.cleanups = []
+    disposeHookState(this.state)
+    this.state = null
   },
 }
 

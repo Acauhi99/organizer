@@ -12,65 +12,89 @@ const setSpotlightPosition = ({spotlight, overlayRect, targetRect}) => {
   spotlight.style.height = `${targetRect.height + ONBOARDING_PADDING_PX * 2}px`
 }
 
-const syncSpotlight = (hook) => {
-  if (!(hook.spotlight instanceof HTMLElement)) {
+const resolveTargetElement = (spotlight) => {
+  const selector = spotlight.dataset.target
+  return typeof selector === "string" ? document.querySelector(selector) : null
+}
+
+const syncSpotlight = (state) => {
+  if (!(state.spotlight instanceof HTMLElement)) {
     return
   }
 
-  const selector = hook.spotlight.dataset.target
-  const target = typeof selector === "string" ? document.querySelector(selector) : null
+  const target = resolveTargetElement(state.spotlight)
 
   if (!(target instanceof HTMLElement)) {
-    setSpotlightHidden(hook.spotlight)
+    setSpotlightHidden(state.spotlight)
     return
   }
 
   setSpotlightPosition({
-    spotlight: hook.spotlight,
-    overlayRect: hook.el.getBoundingClientRect(),
+    spotlight: state.spotlight,
+    overlayRect: state.element.getBoundingClientRect(),
     targetRect: target.getBoundingClientRect(),
   })
 }
 
-const scheduleSyncSpotlight = (hook) => {
-  if (hook.rafId !== null) {
+const createState = (hook) => ({
+  element: hook.el,
+  spotlight: hook.el.querySelector(".onboarding-spotlight"),
+  rafId: null,
+  cleanup: [],
+})
+
+const scheduleSync = (state) => {
+  if (state.rafId !== null) {
     return
   }
 
-  hook.rafId = window.requestAnimationFrame(() => {
-    hook.rafId = null
-    syncSpotlight(hook)
+  state.rafId = window.requestAnimationFrame(() => {
+    state.rafId = null
+    syncSpotlight(state)
   })
+}
+
+const wireWindowListeners = (state) => {
+  const onResize = () => scheduleSync(state)
+  const onScroll = () => scheduleSync(state)
+
+  window.addEventListener("resize", onResize, {passive: true})
+  window.addEventListener("scroll", onScroll, {passive: true})
+
+  state.cleanup.push(() => window.removeEventListener("resize", onResize))
+  state.cleanup.push(() => window.removeEventListener("scroll", onScroll))
+}
+
+const disposeState = (state) => {
+  if (state.rafId !== null) {
+    window.cancelAnimationFrame(state.rafId)
+  }
+
+  state.cleanup.forEach((cleanup) => cleanup())
+  state.cleanup = []
 }
 
 const OnboardingOverlayHook = {
   mounted() {
-    this.spotlight = this.el.querySelector(".onboarding-spotlight")
-    this.rafId = null
+    this.state = createState(this)
+    this.resync = () => scheduleSync(this.state)
 
-    this.scheduleSync = () => {
-      scheduleSyncSpotlight(this)
-    }
-
-    this.onResize = () => this.scheduleSync()
-    this.onScroll = () => this.scheduleSync()
-
-    window.addEventListener("resize", this.onResize, {passive: true})
-    window.addEventListener("scroll", this.onScroll, {passive: true})
-    this.scheduleSync()
+    wireWindowListeners(this.state)
+    this.resync()
   },
 
   updated() {
-    this.scheduleSync?.()
+    this.resync?.()
   },
 
   destroyed() {
-    if (this.rafId !== null) {
-      window.cancelAnimationFrame(this.rafId)
+    if (!this.state) {
+      return
     }
 
-    window.removeEventListener("resize", this.onResize)
-    window.removeEventListener("scroll", this.onScroll)
+    disposeState(this.state)
+    this.state = null
+    this.resync = null
   },
 }
 

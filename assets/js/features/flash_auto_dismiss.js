@@ -1,50 +1,62 @@
 import {parsePositiveTimeoutMs} from "./number_parsers"
 
-export const scheduleFlashAutoDismiss = () => {
-  const flashes = document.querySelectorAll("[data-auto-dismiss-ms]")
+const FLASH_SELECTOR = "[data-auto-dismiss-ms]"
+const CLOSE_BUTTON_SELECTOR = "button[aria-label]"
+const PAGE_LOADING_STOP_EVENT = "phx:page-loading-stop"
 
-  flashes.forEach((flashEl) => {
-    if (flashEl.dataset.autoDismissArmed === "true") {
-      return
-    }
+const dismissFlashElement = (flashEl) => {
+  if (!document.body.contains(flashEl)) {
+    return
+  }
 
-    const timeoutMs = parsePositiveTimeoutMs(flashEl.dataset.autoDismissMs)
+  const closeButton = flashEl.querySelector(CLOSE_BUTTON_SELECTOR)
 
-    if (timeoutMs === null) {
-      return
-    }
-
-    flashEl.dataset.autoDismissArmed = "true"
-
-    window.setTimeout(() => {
-      if (!document.body.contains(flashEl)) {
-        return
-      }
-
-      const closeButton = flashEl.querySelector("button[aria-label]")
-
-      if (closeButton) {
-        closeButton.click()
-      } else {
-        flashEl.click()
-      }
-    }, timeoutMs)
-  })
+  if (closeButton instanceof HTMLElement) {
+    closeButton.click()
+  } else {
+    flashEl.click()
+  }
 }
 
-export const initializeFlashAutoDismiss = () => {
-  scheduleFlashAutoDismiss()
+const armFlashAutoDismiss = (flashEl) => {
+  if (flashEl.dataset.autoDismissArmed === "true") {
+    return
+  }
 
-  window.addEventListener("phx:page-loading-stop", () => {
-    scheduleFlashAutoDismiss()
-  })
+  const timeoutMs = parsePositiveTimeoutMs(flashEl.dataset.autoDismissMs)
 
-  const flashObserver = new MutationObserver(() => {
-    scheduleFlashAutoDismiss()
-  })
+  if (timeoutMs === null) {
+    return
+  }
 
-  flashObserver.observe(document.body, {childList: true, subtree: true})
-  window.addEventListener("pagehide", () => flashObserver.disconnect(), {once: true})
+  flashEl.dataset.autoDismissArmed = "true"
+  window.setTimeout(() => dismissFlashElement(flashEl), timeoutMs)
+}
 
-  return flashObserver
+export const scheduleFlashAutoDismiss = ({root = document} = {}) => {
+  root.querySelectorAll(FLASH_SELECTOR).forEach(armFlashAutoDismiss)
+}
+
+export const initializeFlashAutoDismiss = ({target = window, root = document.body} = {}) => {
+  const scheduleRoot = root instanceof Element ? root : document
+
+  const schedule = () => {
+    scheduleFlashAutoDismiss({root: scheduleRoot})
+  }
+
+  schedule()
+
+  target.addEventListener(PAGE_LOADING_STOP_EVENT, schedule)
+
+  const flashObserver = new MutationObserver(schedule)
+  flashObserver.observe(root, {childList: true, subtree: true})
+
+  const cleanup = () => {
+    target.removeEventListener(PAGE_LOADING_STOP_EVENT, schedule)
+    flashObserver.disconnect()
+  }
+
+  target.addEventListener("pagehide", cleanup, {once: true})
+
+  return cleanup
 }

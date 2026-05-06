@@ -1,30 +1,44 @@
-export const registerScrollToElementListener = () => {
-  window.addEventListener("phx:scroll-to-element", (event) => {
-    const selector = event?.detail?.selector
-    const focusSelector = event?.detail?.focus
+const PHX_SCROLL_EVENT = "phx:scroll-to-element"
 
-    if (typeof selector !== "string" || selector.length === 0) {
-      return
+const resolveSelector = (value) => (typeof value === "string" && value.length > 0 ? value : null)
+
+const scheduleFocusTarget = (selector) => {
+  const focusSelector = resolveSelector(selector)
+
+  if (focusSelector === null) {
+    return
+  }
+
+  window.setTimeout(() => {
+    const focusTarget = document.querySelector(focusSelector)
+
+    if (focusTarget instanceof HTMLElement) {
+      focusTarget.focus({preventScroll: true})
     }
+  }, 180)
+}
 
-    const target = document.querySelector(selector)
+const handleScrollToElementEvent = (event) => {
+  const selector = resolveSelector(event?.detail?.selector)
 
-    if (!target) {
-      return
-    }
+  if (selector === null) {
+    return
+  }
 
-    target.scrollIntoView({behavior: "smooth", block: "start"})
+  const target = document.querySelector(selector)
 
-    if (typeof focusSelector !== "string" || focusSelector.length === 0) {
-      return
-    }
+  if (!(target instanceof HTMLElement)) {
+    return
+  }
 
-    window.setTimeout(() => {
-      const focusTarget = document.querySelector(focusSelector)
+  target.scrollIntoView({behavior: "smooth", block: "start"})
+  scheduleFocusTarget(event?.detail?.focus)
+}
 
-      if (focusTarget instanceof HTMLElement) {
-        focusTarget.focus({preventScroll: true})
-      }
-    }, 180)
-  })
+export const registerScrollToElementListener = ({target = window} = {}) => {
+  target.addEventListener(PHX_SCROLL_EVENT, handleScrollToElementEvent)
+
+  return () => {
+    target.removeEventListener(PHX_SCROLL_EVENT, handleScrollToElementEvent)
+  }
 }
