@@ -800,13 +800,16 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   defp finance_amount_class(_), do: "text-sm font-semibold font-mono text-base-content"
 
   defp finance_kind_badge_class(:income),
-    do: "inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-400/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-emerald-100"
+    do:
+      "inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-400/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-emerald-100"
 
   defp finance_kind_badge_class(:expense),
-    do: "inline-flex items-center rounded-full border border-rose-300/55 bg-rose-500/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-rose-100"
+    do:
+      "inline-flex items-center rounded-full border border-rose-300/55 bg-rose-500/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-rose-100"
 
   defp finance_kind_badge_class(_),
-    do: "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
+    do:
+      "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
 
   defp finance_kind_label(:income), do: "Receita"
   defp finance_kind_label(:expense), do: "Despesa"
@@ -842,19 +845,24 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   defp finance_profile_label(_), do: "Perfil"
 
   defp finance_profile_badge_class(:fixed),
-    do: "inline-flex items-center rounded-full border border-cyan-300/45 bg-cyan-400/12 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-cyan-100"
+    do:
+      "inline-flex items-center rounded-full border border-cyan-300/45 bg-cyan-400/12 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-cyan-100"
 
   defp finance_profile_badge_class(:variable),
-    do: "inline-flex items-center rounded-full border border-amber-300/50 bg-amber-300/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-amber-100"
+    do:
+      "inline-flex items-center rounded-full border border-amber-300/50 bg-amber-300/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-amber-100"
 
   defp finance_profile_badge_class(:recurring_fixed),
-    do: "inline-flex items-center rounded-full border border-violet-300/55 bg-violet-400/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-violet-100"
+    do:
+      "inline-flex items-center rounded-full border border-violet-300/55 bg-violet-400/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-violet-100"
 
   defp finance_profile_badge_class(:recurring_variable),
-    do: "inline-flex items-center rounded-full border border-lime-300/55 bg-lime-300/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-lime-100"
+    do:
+      "inline-flex items-center rounded-full border border-lime-300/55 bg-lime-300/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-lime-100"
 
   defp finance_profile_badge_class(_),
-    do: "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
+    do:
+      "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
 
   defp finance_payment_label(:debit), do: "Débito"
   defp finance_payment_label(:credit), do: "Crédito"
@@ -865,16 +873,20 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceOperationsPanel do
   defp finance_payment_label(_), do: "Pagamento"
 
   defp finance_payment_badge_class(:debit),
-    do: "inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-400/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-emerald-100"
+    do:
+      "inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-400/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-emerald-100"
 
   defp finance_payment_badge_class(:credit),
-    do: "inline-flex items-center rounded-full border border-rose-300/55 bg-rose-500/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-rose-100"
+    do:
+      "inline-flex items-center rounded-full border border-rose-300/55 bg-rose-500/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-rose-100"
 
   defp finance_payment_badge_class(_),
-    do: "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
+    do:
+      "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
 
   defp finance_installments_badge_class,
-    do: "inline-flex items-center rounded-full border border-fuchsia-300/50 bg-fuchsia-500/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-fuchsia-100"
+    do:
+      "inline-flex items-center rounded-full border border-fuchsia-300/50 bg-fuchsia-500/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-fuchsia-100"
 
   defp show_installments_badge?(entry) do
     entry.kind == :expense and entry.payment_method == :credit and

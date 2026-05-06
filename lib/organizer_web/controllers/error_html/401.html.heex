@@ -1,7 +1,12 @@
 <Layouts.app flash={assigns[:flash] || %{}} current_scope={assigns[:current_scope]} wide={true}>
-  <section id="error-401-page" class="relative isolate mx-auto w-full max-w-7xl overflow-hidden rounded-3xl border border-cyan-300/25 bg-slate-950/82 p-6 shadow-[0_28px_80px_-42px_rgba(34,211,238,0.7)] sm:p-8 lg:p-10">
-    <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_12%_16%,rgba(34,211,238,0.22),transparent_45%),radial-gradient(circle_at_88%_78%,rgba(163,230,53,0.16),transparent_40%)]"></div>
-    <div class="pointer-events-none absolute inset-0 -z-10 opacity-30 [background-image:linear-gradient(rgba(56,189,248,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(56,189,248,0.16)_1px,transparent_1px)] [background-size:22px_22px]"></div>
+  <section
+    id="error-401-page"
+    class="relative isolate mx-auto w-full max-w-7xl overflow-hidden rounded-3xl border border-cyan-300/25 bg-slate-950/82 p-6 shadow-[0_28px_80px_-42px_rgba(34,211,238,0.7)] sm:p-8 lg:p-10"
+  >
+    <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_12%_16%,rgba(34,211,238,0.22),transparent_45%),radial-gradient(circle_at_88%_78%,rgba(163,230,53,0.16),transparent_40%)]">
+    </div>
+    <div class="pointer-events-none absolute inset-0 -z-10 opacity-30 [background-image:linear-gradient(rgba(56,189,248,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(56,189,248,0.16)_1px,transparent_1px)] [background-size:22px_22px]">
+    </div>
 
     <div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
       <div>
@@ -36,20 +41,28 @@
           <article class="rounded-2xl border border-cyan-300/20 bg-slate-900/82 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-200/55">
             <.icon name="hero-key" class="size-5 text-cyan-200" />
             <p class="mt-2 text-sm font-semibold text-slate-100">Token expirado</p>
-            <p class="mt-1 text-xs leading-5 text-slate-300/85">Reautenticar resolve os casos comuns de acesso negado por sessão.</p>
+            <p class="mt-1 text-xs leading-5 text-slate-300/85">
+              Reautenticar resolve os casos comuns de acesso negado por sessão.
+            </p>
           </article>
           <article class="rounded-2xl border border-lime-300/20 bg-slate-900/82 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-lime-200/55">
             <.icon name="hero-shield-check" class="size-5 text-lime-200" />
             <p class="mt-2 text-sm font-semibold text-slate-100">Acesso protegido</p>
-            <p class="mt-1 text-xs leading-5 text-slate-300/85">Esse bloqueio protege seus dados pessoais e financeiros.</p>
+            <p class="mt-1 text-xs leading-5 text-slate-300/85">
+              Esse bloqueio protege seus dados pessoais e financeiros.
+            </p>
           </article>
         </div>
       </div>
 
       <aside class="grid content-start">
         <div class="rounded-[1.45rem] border border-cyan-300/30 bg-slate-900/80 p-5 text-center shadow-[0_18px_40px_-20px_rgba(34,211,238,0.45)] backdrop-blur sm:w-[22rem] sm:justify-self-end">
-          <span class="block text-[clamp(3rem,9vw,6rem)] font-black leading-none tracking-[-0.04em] text-cyan-100">401</span>
-          <p class="mt-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-300">unauthorized</p>
+          <span class="block text-[clamp(3rem,9vw,6rem)] font-black leading-none tracking-[-0.04em] text-cyan-100">
+            401
+          </span>
+          <p class="mt-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-300">
+            unauthorized
+          </p>
         </div>
       </aside>
     </div>

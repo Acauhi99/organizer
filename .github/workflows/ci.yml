@@ -56,3 +56,49 @@ jobs:
 
       - name: Static analysis (xref)
         run: mix xref graph --format plain --label compile-connected --fail-above 0
+
+      - name: Run tests
+        run: MIX_ENV=test mix test
+
+  dialyzer:
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir and OTP
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: 1.17.3
+          otp-version: 27.2
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libsqlite3-dev
+
+      - name: Cache deps and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-
+
+      - name: Cache Dialyzer PLTs
+        uses: actions/cache@v4
+        with:
+          path: priv/plts
+          key: ${{ runner.os }}-plt-elixir-1.17.3-otp-27.2-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-plt-elixir-1.17.3-otp-27.2-
+
+      - name: Fetch dependencies
+        run: mix deps.get
+
+      - name: Run Dialyzer
+        run: MIX_ENV=dev mix dialyzer --format short

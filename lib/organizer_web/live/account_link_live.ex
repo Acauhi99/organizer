@@ -350,7 +350,10 @@ defmodule OrganizerWeb.AccountLinkLive do
                       </div>
 
                       <div class="flex flex-wrap gap-2">
-                        <.link navigate={~p"/account-links/#{link.id}"} class="inline-flex items-center rounded-lg border border-cyan-300/35 bg-slate-900/85 px-2.5 py-1 text-xs font-medium text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35">
+                        <.link
+                          navigate={~p"/account-links/#{link.id}"}
+                          class="inline-flex items-center rounded-lg border border-cyan-300/35 bg-slate-900/85 px-2.5 py-1 text-xs font-medium text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
+                        >
                           Gerenciar
                         </.link>
                         <button
@@ -430,7 +433,11 @@ defmodule OrganizerWeb.AccountLinkLive do
                   </p>
                   <div
                     id="invite-url"
-                    class={neon_card_class("rounded-xl border-cyan-300/25 p-3 break-all text-sm font-mono text-base-content/90")}
+                    class={
+                      neon_card_class(
+                        "rounded-xl border-cyan-300/25 p-3 break-all text-sm font-mono text-base-content/90"
+                      )
+                    }
                   >
                     {@invite_url}
                   </div>

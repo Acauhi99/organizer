@@ -22,21 +22,21 @@
             decoding="async"
           />
 
-          <p
-            class={[
-              "mt-6 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.2em]",
-              if(@invite_pending?,
-                do: "border-lime-300/70 bg-lime-300/15 text-lime-100",
-                else: "border-cyan-300/45 bg-cyan-300/12 text-cyan-100"
-              )
-            ]}
-          >
+          <p class={[
+            "mt-6 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.2em]",
+            if(@invite_pending?,
+              do: "border-lime-300/70 bg-lime-300/15 text-lime-100",
+              else: "border-cyan-300/45 bg-cyan-300/12 text-cyan-100"
+            )
+          ]}>
             <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
             {if @invite_pending?, do: "Convite aguardando você", else: "Onboarding rápido"}
           </p>
 
           <h1 class="mt-4 text-3xl font-black leading-tight text-slate-50 sm:text-4xl">
-            {if @invite_pending?, do: "Crie conta para aceitar convite", else: "Crie conta e comece agora"}
+            {if @invite_pending?,
+              do: "Crie conta para aceitar convite",
+              else: "Crie conta e comece agora"}
           </h1>
 
           <p class="mt-4 max-w-2xl text-sm leading-relaxed text-slate-300 sm:text-base">
@@ -56,19 +56,25 @@
 
           <div class="mt-7 grid gap-3 sm:grid-cols-3">
             <div class="rounded-2xl border border-cyan-300/30 bg-slate-900/75 p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">Setup curto</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">
+                Setup curto
+              </p>
               <p class="mt-2 text-xs leading-relaxed text-slate-300">
                 E-mail, senha, confirmação. Fluxo limpo sem distrações.
               </p>
             </div>
             <div class="rounded-2xl border border-cyan-300/30 bg-slate-900/75 p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">Segurança clara</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">
+                Segurança clara
+              </p>
               <p class="mt-2 text-xs leading-relaxed text-slate-300">
                 Credenciais protegidas com leitura confortável no dark mode.
               </p>
             </div>
             <div class="rounded-2xl border border-cyan-300/30 bg-slate-900/75 p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">Colaboração pronta</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">
+                Colaboração pronta
+              </p>
               <p class="mt-2 text-xs leading-relaxed text-slate-300">
                 Convites e compartilhamento preparados desde primeiro acesso.
               </p>
@@ -79,11 +85,16 @@
 
       <article class="rounded-3xl border border-cyan-300/30 bg-slate-950/88 p-6 text-slate-100 shadow-[0_26px_70px_-38px_rgba(56,189,248,0.55)] sm:p-8">
         <div class="space-y-2 text-center">
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Novo acesso</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+            Novo acesso
+          </p>
           <h2 class="text-3xl font-black text-slate-50">Criar conta</h2>
           <p class="text-sm text-slate-300">
             Já possui conta?
-            <.link navigate={~p"/users/log-in"} class="font-semibold text-cyan-200 hover:text-cyan-100 hover:underline">
+            <.link
+              navigate={~p"/users/log-in"}
+              class="font-semibold text-cyan-200 hover:text-cyan-100 hover:underline"
+            >
               Entrar agora
             </.link>
           </p>

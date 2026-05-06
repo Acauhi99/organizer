@@ -955,7 +955,10 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 Visão conjunta do compartilhamento
               </h1>
             </div>
-            <.link navigate={~p"/account-links"} class="inline-flex items-center gap-2 rounded-xl border border-cyan-300/35 bg-slate-900/85 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35">
+            <.link
+              navigate={~p"/account-links"}
+              class="inline-flex items-center gap-2 rounded-xl border border-cyan-300/35 bg-slate-900/85 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:border-cyan-200/70 hover:bg-cyan-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35"
+            >
               <.icon name="hero-arrow-left" class="size-4" /> Voltar para compartilhamentos
             </.link>
           </div>
@@ -1097,7 +1100,10 @@ defmodule OrganizerWeb.SharedFinanceLive do
           </div>
 
           <div class="mt-4 grid gap-3">
-            <article id="shared-balance-chart" class={neon_card_class("min-h-[15rem] overflow-x-auto p-4")}>
+            <article
+              id="shared-balance-chart"
+              class={neon_card_class("min-h-[15rem] overflow-x-auto p-4")}
+            >
               <div class="flex items-center justify-between gap-2">
                 <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/70">
                   Esperado vs realizado
@@ -1147,7 +1153,11 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 Ainda não há lançamentos compartilhados neste compartilhamento.
               </div>
 
-              <div :for={{id, view} <- @streams.shared_entries} id={id} class={shared_entry_row_class("gap-3")}>
+              <div
+                :for={{id, view} <- @streams.shared_entries}
+                id={id}
+                class={shared_entry_row_class("gap-3")}
+              >
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-sm font-medium text-base-content/92">
                     {view.entry.description || view.entry.category}
@@ -1257,7 +1267,11 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 Nenhuma dívida em aberto ou quitada para este vínculo.
               </div>
 
-              <article :for={debt <- @shared_entry_debts} id={"shared-entry-debt-#{debt.id}"} class={shared_entry_row_class("gap-2")}>
+              <article
+                :for={debt <- @shared_entry_debts}
+                id={"shared-entry-debt-#{debt.id}"}
+                class={shared_entry_row_class("gap-2")}
+              >
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-sm font-semibold text-base-content/92">
                     {debt.finance_entry.description || debt.finance_entry.category}
@@ -1411,7 +1425,11 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 Nenhum pagamento registrado neste vínculo.
               </div>
 
-              <article :for={{id, record} <- @streams.settlement_records} id={id} class={neon_card_class("p-4")}>
+              <article
+                :for={{id, record} <- @streams.settlement_records}
+                id={id}
+                class={neon_card_class("p-4")}
+              >
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <p class={[
                     "text-sm font-semibold font-mono",
@@ -1569,7 +1587,12 @@ defmodule OrganizerWeb.SharedFinanceLive do
                 >
                   Cancelar
                 </button>
-                <button type="submit" class="inline-flex items-center justify-center rounded-xl border border-amber-300/60 bg-amber-400/85 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-[0_12px_24px_-14px_rgba(251,191,36,0.8)] transition hover:bg-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/60">Confirmar estorno</button>
+                <button
+                  type="submit"
+                  class="inline-flex items-center justify-center rounded-xl border border-amber-300/60 bg-amber-400/85 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-[0_12px_24px_-14px_rgba(251,191,36,0.8)] transition hover:bg-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/60"
+                >
+                  Confirmar estorno
+                </button>
               </div>
             </.form>
           </section>
@@ -1812,7 +1835,10 @@ defmodule OrganizerWeb.SharedFinanceLive do
             >
               Cancelar
             </button>
-            <button type="submit" class="inline-flex items-center justify-center rounded-xl border border-cyan-300/70 bg-cyan-400/90 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-[0_16px_36px_-20px_rgba(34,211,238,0.8)] transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60">
+            <button
+              type="submit"
+              class="inline-flex items-center justify-center rounded-xl border border-cyan-300/70 bg-cyan-400/90 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-[0_16px_36px_-20px_rgba(34,211,238,0.8)] transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
+            >
               Salvar alterações
             </button>
           </div>
@@ -1856,7 +1882,10 @@ defmodule OrganizerWeb.SharedFinanceLive do
   end
 
   defp trend_list_item_class do
-    join_classes(["trend-list-item flex items-center justify-between rounded-xl p-3", neon_card_class(nil)])
+    join_classes([
+      "trend-list-item flex items-center justify-between rounded-xl p-3",
+      neon_card_class(nil)
+    ])
   end
 
   defp join_classes(classes) do
@@ -2704,16 +2733,20 @@ defmodule OrganizerWeb.SharedFinanceLive do
   defp debt_status_label(_), do: "Indefinido"
 
   defp debt_status_badge_class(:open),
-    do: "inline-flex items-center rounded-full border border-amber-300/50 bg-amber-300/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-amber-100"
+    do:
+      "inline-flex items-center rounded-full border border-amber-300/50 bg-amber-300/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-amber-100"
 
   defp debt_status_badge_class(:partial),
-    do: "inline-flex items-center rounded-full border border-cyan-300/45 bg-cyan-400/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-cyan-100"
+    do:
+      "inline-flex items-center rounded-full border border-cyan-300/45 bg-cyan-400/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-cyan-100"
 
   defp debt_status_badge_class(:settled),
-    do: "inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-emerald-100"
+    do:
+      "inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-emerald-100"
 
   defp debt_status_badge_class(_),
-    do: "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
+    do:
+      "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
 
   defp format_pct(ratio) when is_number(ratio) do
     "#{format_decimal_ptbr(ratio * 100, 1)}%"

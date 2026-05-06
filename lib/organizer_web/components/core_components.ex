@@ -420,7 +420,8 @@ defmodule OrganizerWeb.CoreComponents do
           value="true"
           checked={@checked}
           class={[
-            @class || "size-4 rounded border border-cyan-300/45 bg-slate-900/85 text-cyan-300 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35",
+            @class ||
+              "size-4 rounded border border-cyan-300/45 bg-slate-900/85 text-cyan-300 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/35",
             @errors != [] && (@error_class || "border-rose-300/70 ring-2 ring-rose-300/25")
           ]}
           {@rest}

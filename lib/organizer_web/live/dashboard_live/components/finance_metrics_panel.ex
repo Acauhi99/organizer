@@ -100,7 +100,9 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
       </div>
 
       <div class="mt-4 grid gap-3 xl:grid-cols-2">
-        <article class={neon_card_class("min-h-[15rem] overflow-x-auto rounded-xl p-3 sm:min-h-[18rem]")}>
+        <article class={
+          neon_card_class("min-h-[15rem] overflow-x-auto rounded-xl p-3 sm:min-h-[18rem]")
+        }>
           <div class="flex items-center justify-between gap-2">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
               Receitas x despesas no tempo
@@ -124,7 +126,9 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
           </p>
         </article>
 
-        <article class={neon_card_class("min-h-[14rem] overflow-hidden rounded-xl p-3 sm:min-h-[16rem]")}>
+        <article class={
+          neon_card_class("min-h-[14rem] overflow-hidden rounded-xl p-3 sm:min-h-[16rem]")
+        }>
           <div class="flex items-center justify-between gap-2">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
               Composição por natureza
@@ -151,7 +155,9 @@ defmodule OrganizerWeb.DashboardLive.Components.FinanceMetricsPanel do
         </article>
       </div>
 
-      <article class={neon_card_class("mt-3 min-h-[13rem] overflow-hidden rounded-xl p-3 sm:min-h-[15rem]")}>
+      <article class={
+        neon_card_class("mt-3 min-h-[13rem] overflow-hidden rounded-xl p-3 sm:min-h-[15rem]")
+      }>
         <div class="flex items-center justify-between gap-2">
           <h3 class="text-xs font-semibold uppercase tracking-wide text-base-content/70">
             Top despesas por categoria

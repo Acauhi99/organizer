@@ -13,9 +13,12 @@ defmodule OrganizerWeb.Components.AsyncChartLoader do
       class="relative min-h-[15rem] rounded-2xl border border-cyan-300/18 bg-slate-900/66 p-3 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.05)]"
     >
       <div :if={@loading} class="grid gap-2.5">
-        <div class="relative h-12 overflow-hidden rounded-lg border border-cyan-300/14 bg-slate-900/78 skeleton-bar"></div>
-        <div class="relative h-12 overflow-hidden rounded-lg border border-cyan-300/14 bg-slate-900/78 skeleton-bar"></div>
-        <div class="relative h-12 overflow-hidden rounded-lg border border-cyan-300/14 bg-slate-900/78 skeleton-bar"></div>
+        <div class="relative h-12 overflow-hidden rounded-lg border border-cyan-300/14 bg-slate-900/78 skeleton-bar">
+        </div>
+        <div class="relative h-12 overflow-hidden rounded-lg border border-cyan-300/14 bg-slate-900/78 skeleton-bar">
+        </div>
+        <div class="relative h-12 overflow-hidden rounded-lg border border-cyan-300/14 bg-slate-900/78 skeleton-bar">
+        </div>
       </div>
 
       <div :if={!@loading && @chart_svg} class="contex-plot">

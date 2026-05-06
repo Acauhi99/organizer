@@ -1,36 +1,66 @@
 <Layouts.app flash={assigns[:flash] || %{}} current_scope={assigns[:current_scope]} wide={true}>
-  <section id="error-404-page" class="relative isolate mx-auto w-full max-w-7xl overflow-hidden rounded-3xl border border-cyan-300/25 bg-slate-950/82 p-6 shadow-[0_28px_80px_-42px_rgba(34,211,238,0.7)] sm:p-8 lg:p-10">
-    <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_10%_20%,rgba(34,211,238,0.2),transparent_45%),radial-gradient(circle_at_90%_82%,rgba(125,211,252,0.12),transparent_40%)]"></div>
+  <section
+    id="error-404-page"
+    class="relative isolate mx-auto w-full max-w-7xl overflow-hidden rounded-3xl border border-cyan-300/25 bg-slate-950/82 p-6 shadow-[0_28px_80px_-42px_rgba(34,211,238,0.7)] sm:p-8 lg:p-10"
+  >
+    <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_10%_20%,rgba(34,211,238,0.2),transparent_45%),radial-gradient(circle_at_90%_82%,rgba(125,211,252,0.12),transparent_40%)]">
+    </div>
 
     <div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
       <div>
-        <p class="inline-flex rounded-full border border-cyan-300/45 bg-cyan-300/12 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-cyan-100">HTTP 404</p>
-        <h1 class="mt-4 max-w-3xl text-4xl font-black leading-tight text-slate-50 sm:text-5xl">Essa página saiu da rota.</h1>
-        <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">O endereço pode ter mudado ou sido removido. Em poucos cliques você volta para as áreas principais.</p>
+        <p class="inline-flex rounded-full border border-cyan-300/45 bg-cyan-300/12 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-cyan-100">
+          HTTP 404
+        </p>
+        <h1 class="mt-4 max-w-3xl text-4xl font-black leading-tight text-slate-50 sm:text-5xl">
+          Essa página saiu da rota.
+        </h1>
+        <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+          O endereço pode ter mudado ou sido removido. Em poucos cliques você volta para as áreas principais.
+        </p>
 
         <div class="mt-8 flex flex-wrap gap-3">
-          <.link id="error-404-home-link" href={~p"/"} class="inline-flex items-center justify-center rounded-2xl border border-cyan-100/70 bg-gradient-to-br from-cyan-200 via-cyan-100 to-lime-200 px-5 py-3 text-sm font-extrabold text-slate-950 transition duration-200 hover:-translate-y-0.5 hover:brightness-105">Voltar para início</.link>
-          <.link id="error-404-login-link" href={~p"/users/log-in"} class="inline-flex items-center justify-center rounded-2xl border border-cyan-100/35 bg-slate-900/85 px-5 py-3 text-sm font-bold text-cyan-100 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-100/70">Fazer login</.link>
+          <.link
+            id="error-404-home-link"
+            href={~p"/"}
+            class="inline-flex items-center justify-center rounded-2xl border border-cyan-100/70 bg-gradient-to-br from-cyan-200 via-cyan-100 to-lime-200 px-5 py-3 text-sm font-extrabold text-slate-950 transition duration-200 hover:-translate-y-0.5 hover:brightness-105"
+          >
+            Voltar para início
+          </.link>
+          <.link
+            id="error-404-login-link"
+            href={~p"/users/log-in"}
+            class="inline-flex items-center justify-center rounded-2xl border border-cyan-100/35 bg-slate-900/85 px-5 py-3 text-sm font-bold text-cyan-100 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-100/70"
+          >
+            Fazer login
+          </.link>
         </div>
 
         <div class="mt-8 grid gap-3 sm:grid-cols-2">
           <article class="rounded-2xl border border-cyan-300/20 bg-slate-900/82 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-200/55">
             <.icon name="hero-arrow-path" class="size-5 text-cyan-200" />
             <p class="mt-2 text-sm font-semibold text-slate-100">Recarregar com segurança</p>
-            <p class="mt-1 text-xs leading-5 text-slate-300/85">Atualize para confirmar se o conteúdo foi republicado.</p>
+            <p class="mt-1 text-xs leading-5 text-slate-300/85">
+              Atualize para confirmar se o conteúdo foi republicado.
+            </p>
           </article>
           <article class="rounded-2xl border border-sky-300/20 bg-slate-900/82 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-sky-200/55">
             <.icon name="hero-banknotes" class="size-5 text-sky-200" />
             <p class="mt-2 text-sm font-semibold text-slate-100">Ir para finanças</p>
-            <p class="mt-1 text-xs leading-5 text-slate-300/85">Acesse seu painel financeiro e retome o fluxo.</p>
+            <p class="mt-1 text-xs leading-5 text-slate-300/85">
+              Acesse seu painel financeiro e retome o fluxo.
+            </p>
           </article>
         </div>
       </div>
 
       <aside class="grid content-start">
         <div class="rounded-[1.45rem] border border-cyan-300/30 bg-slate-900/80 p-5 text-center shadow-[0_18px_40px_-20px_rgba(34,211,238,0.45)] backdrop-blur sm:w-[22rem] sm:justify-self-end">
-          <span class="block text-[clamp(3rem,9vw,6rem)] font-black leading-none tracking-[-0.04em] text-cyan-100">404</span>
-          <p class="mt-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-300">not found</p>
+          <span class="block text-[clamp(3rem,9vw,6rem)] font-black leading-none tracking-[-0.04em] text-cyan-100">
+            404
+          </span>
+          <p class="mt-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-300">
+            not found
+          </p>
         </div>
       </aside>
     </div>

@@ -348,7 +348,11 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
             />
 
             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" class={modal_cancel_btn_class()} phx-click="cancel_edit_fixed_cost">
+              <button
+                type="button"
+                class={modal_cancel_btn_class()}
+                phx-click="cancel_edit_fixed_cost"
+              >
                 Cancelar
               </button>
               <button type="submit" class={modal_submit_btn_class()}>Salvar custo fixo</button>
@@ -472,13 +476,16 @@ defmodule OrganizerWeb.DashboardLive.Components.PlanningOperationsPanel do
   end
 
   defp fixed_cost_status_badge_class(true),
-    do: "inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-emerald-100"
+    do:
+      "inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-emerald-100"
 
   defp fixed_cost_status_badge_class(false),
-    do: "inline-flex items-center rounded-full border border-amber-300/50 bg-amber-300/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-amber-100"
+    do:
+      "inline-flex items-center rounded-full border border-amber-300/50 bg-amber-300/14 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-amber-100"
 
   defp fixed_cost_status_badge_class(_),
-    do: "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
+    do:
+      "inline-flex items-center rounded-full border border-slate-300/35 bg-slate-800/80 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-100"
 
   defp important_date_category_options do
     [

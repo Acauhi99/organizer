@@ -22,21 +22,21 @@
             decoding="async"
           />
 
-          <p
-            class={[
-              "mt-6 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.2em]",
-              if(@invite_pending?,
-                do: "border-lime-300/70 bg-lime-300/15 text-lime-100",
-                else: "border-cyan-300/45 bg-cyan-300/12 text-cyan-100"
-              )
-            ]}
-          >
+          <p class={[
+            "mt-6 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.2em]",
+            if(@invite_pending?,
+              do: "border-lime-300/70 bg-lime-300/15 text-lime-100",
+              else: "border-cyan-300/45 bg-cyan-300/12 text-cyan-100"
+            )
+          ]}>
             <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
             {if @invite_pending?, do: "Convite pendente", else: "Entrada segura"}
           </p>
 
           <h1 class="mt-4 text-3xl font-black leading-tight text-slate-50 sm:text-4xl">
-            {if @invite_pending?, do: "Entre para concluir compartilhamento", else: "Entre e continue de onde parou"}
+            {if @invite_pending?,
+              do: "Entre para concluir compartilhamento",
+              else: "Entre e continue de onde parou"}
           </h1>
 
           <p class="mt-4 max-w-2xl text-sm leading-relaxed text-slate-300 sm:text-base">
@@ -59,13 +59,17 @@
 
           <div class="mt-7 grid gap-3 sm:grid-cols-2">
             <div class="rounded-2xl border border-cyan-300/30 bg-slate-900/75 p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">Fluxo direto</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">
+                Fluxo direto
+              </p>
               <p class="mt-2 text-xs leading-relaxed text-slate-300">
                 Registrar lançamentos, categorizar despesas, acompanhar evolução sem etapas longas.
               </p>
             </div>
             <div class="rounded-2xl border border-cyan-300/30 bg-slate-900/75 p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">Colaboração viva</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">
+                Colaboração viva
+              </p>
               <p class="mt-2 text-xs leading-relaxed text-slate-300">
                 Aceite convites com um clique e compartilhe dados com controles claros.
               </p>
@@ -76,7 +80,9 @@
 
       <article class="rounded-3xl border border-cyan-300/30 bg-slate-950/88 p-6 text-slate-100 shadow-[0_26px_70px_-38px_rgba(56,189,248,0.55)] sm:p-8">
         <div class="space-y-2 text-center">
-          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Acesso da conta</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+            Acesso da conta
+          </p>
           <h2 class="text-3xl font-black text-slate-50">Entrar</h2>
         </div>
 
@@ -85,8 +91,7 @@
           id="login_with_google"
           class="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-300/45 bg-cyan-300/12 px-4 py-3 text-sm font-semibold text-cyan-100 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-200 hover:bg-cyan-200/18 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/80"
         >
-          <.icon name="hero-globe-alt" class="size-5" />
-          Continuar com Google
+          <.icon name="hero-globe-alt" class="size-5" /> Continuar com Google
         </.link>
 
         <p class="mt-4 text-center text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -140,7 +145,10 @@
 
         <p :if={!@current_scope} class="mt-5 text-center text-sm text-slate-300">
           Novo por aqui?
-          <.link navigate={~p"/users/register"} class="font-semibold text-cyan-200 hover:text-cyan-100 hover:underline">
+          <.link
+            navigate={~p"/users/register"}
+            class="font-semibold text-cyan-200 hover:text-cyan-100 hover:underline"
+          >
             Criar conta
           </.link>
         </p>

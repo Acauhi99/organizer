@@ -1,36 +1,66 @@
 <Layouts.app flash={assigns[:flash] || %{}} current_scope={assigns[:current_scope]} wide={true}>
-  <section id="error-503-page" class="relative isolate mx-auto w-full max-w-7xl overflow-hidden rounded-3xl border border-amber-300/30 bg-slate-950/84 p-6 shadow-[0_28px_80px_-42px_rgba(251,191,36,0.7)] sm:p-8 lg:p-10">
-    <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_12%_16%,rgba(251,191,36,0.22),transparent_45%),radial-gradient(circle_at_88%_78%,rgba(245,158,11,0.16),transparent_40%)]"></div>
+  <section
+    id="error-503-page"
+    class="relative isolate mx-auto w-full max-w-7xl overflow-hidden rounded-3xl border border-amber-300/30 bg-slate-950/84 p-6 shadow-[0_28px_80px_-42px_rgba(251,191,36,0.7)] sm:p-8 lg:p-10"
+  >
+    <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_12%_16%,rgba(251,191,36,0.22),transparent_45%),radial-gradient(circle_at_88%_78%,rgba(245,158,11,0.16),transparent_40%)]">
+    </div>
 
     <div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
       <div>
-        <p class="inline-flex rounded-full border border-amber-300/55 bg-amber-300/14 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-amber-100">HTTP 503</p>
-        <h1 class="mt-4 max-w-3xl text-4xl font-black leading-tight text-slate-50 sm:text-5xl">Serviço temporariamente indisponível.</h1>
-        <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">Estamos em manutenção ou alta carga. Em breve o acesso será restabelecido.</p>
+        <p class="inline-flex rounded-full border border-amber-300/55 bg-amber-300/14 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-amber-100">
+          HTTP 503
+        </p>
+        <h1 class="mt-4 max-w-3xl text-4xl font-black leading-tight text-slate-50 sm:text-5xl">
+          Serviço temporariamente indisponível.
+        </h1>
+        <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+          Estamos em manutenção ou alta carga. Em breve o acesso será restabelecido.
+        </p>
 
         <div class="mt-8 flex flex-wrap gap-3">
-          <.link id="error-503-home-link" href={~p"/"} class="inline-flex items-center justify-center rounded-2xl border border-amber-100/70 bg-gradient-to-br from-amber-200 via-orange-100 to-yellow-200 px-5 py-3 text-sm font-extrabold text-slate-950 transition duration-200 hover:-translate-y-0.5 hover:brightness-105">Tentar novamente</.link>
-          <.link id="error-503-login-link" href={~p"/users/log-in"} class="inline-flex items-center justify-center rounded-2xl border border-amber-100/35 bg-slate-900/85 px-5 py-3 text-sm font-bold text-amber-100 transition duration-200 hover:-translate-y-0.5 hover:border-amber-100/70">Voltar ao login</.link>
+          <.link
+            id="error-503-home-link"
+            href={~p"/"}
+            class="inline-flex items-center justify-center rounded-2xl border border-amber-100/70 bg-gradient-to-br from-amber-200 via-orange-100 to-yellow-200 px-5 py-3 text-sm font-extrabold text-slate-950 transition duration-200 hover:-translate-y-0.5 hover:brightness-105"
+          >
+            Tentar novamente
+          </.link>
+          <.link
+            id="error-503-login-link"
+            href={~p"/users/log-in"}
+            class="inline-flex items-center justify-center rounded-2xl border border-amber-100/35 bg-slate-900/85 px-5 py-3 text-sm font-bold text-amber-100 transition duration-200 hover:-translate-y-0.5 hover:border-amber-100/70"
+          >
+            Voltar ao login
+          </.link>
         </div>
 
         <div class="mt-8 grid gap-3 sm:grid-cols-2">
           <article class="rounded-2xl border border-amber-300/25 bg-slate-900/82 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-amber-200/55">
             <.icon name="hero-wrench-screwdriver" class="size-5 text-amber-200" />
             <p class="mt-2 text-sm font-semibold text-slate-100">Janela de manutenção</p>
-            <p class="mt-1 text-xs leading-5 text-slate-300/85">Alguns recursos podem ficar indisponíveis durante melhorias.</p>
+            <p class="mt-1 text-xs leading-5 text-slate-300/85">
+              Alguns recursos podem ficar indisponíveis durante melhorias.
+            </p>
           </article>
           <article class="rounded-2xl border border-orange-300/25 bg-slate-900/82 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-orange-200/55">
             <.icon name="hero-clock" class="size-5 text-orange-200" />
             <p class="mt-2 text-sm font-semibold text-slate-100">Retorno em instantes</p>
-            <p class="mt-1 text-xs leading-5 text-slate-300/85">Aguarde alguns minutos e tente novamente.</p>
+            <p class="mt-1 text-xs leading-5 text-slate-300/85">
+              Aguarde alguns minutos e tente novamente.
+            </p>
           </article>
         </div>
       </div>
 
       <aside class="grid content-start">
         <div class="rounded-[1.45rem] border border-amber-300/35 bg-slate-900/80 p-5 text-center shadow-[0_18px_40px_-20px_rgba(251,191,36,0.45)] backdrop-blur sm:w-[22rem] sm:justify-self-end">
-          <span class="block text-[clamp(3rem,9vw,6rem)] font-black leading-none tracking-[-0.04em] text-amber-100">503</span>
-          <p class="mt-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-300">unavailable</p>
+          <span class="block text-[clamp(3rem,9vw,6rem)] font-black leading-none tracking-[-0.04em] text-amber-100">
+            503
+          </span>
+          <p class="mt-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-300">
+            unavailable
+          </p>
         </div>
       </aside>
     </div>
